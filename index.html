@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Drive File Viewer</title>
+
+  <!-- Google Identity Services (สำหรับ OAuth Sign-In) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #1a73e8;
+      --accent-hover: #1557b0;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --success: #059669;
+      --border: #e5e7eb;
+      --shadow: 0 10px 30px rgba(17, 24, 39, 0.08);
+      --radius: 14px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+
+    .wrap { max-width: 960px; margin: 0 auto; }
+
+    /* ===== Header ===== */
+    header { text-align: center; margin-bottom: 24px; }
+    .logo {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-size: 1.6rem; font-weight: 700; letter-spacing: -0.02em;
+    }
+    .logo svg { width: 34px; height: 34px; }
+    header p { margin-top: 8px; color: var(--muted); font-size: 0.98rem; }
+
+    /* ===== Card ===== */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    /* ===== Form ===== */
+    .field { margin-bottom: 14px; }
+    .field:last-child { margin-bottom: 0; }
+    label {
+      display: block; font-weight: 600; font-size: 0.9rem;
+      color: var(--text); margin-bottom: 6px;
+    }
+    .field-hint { font-size: 0.8rem; color: var(--muted); margin-top: 5px; }
+
+    input[type="text"] {
+      width: 100%; font-size: 0.95rem; padding: 12px 14px;
+      border: 2px solid var(--border); border-radius: 10px;
+      background: #fff; color: var(--text);
+      transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+    }
+    input[type="text"]::placeholder { color: #9ca3af; }
+    input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.12);
+    }
+    .input-with-btn { display: flex; gap: 8px; }
+    .input-with-btn input { flex: 1; }
+
+    /* ===== Buttons ===== */
+    button {
+      cursor: pointer; font-family: inherit; font-size: 0.92rem;
+      font-weight: 600; border: none; border-radius: 10px; padding: 12px 20px;
+      transition: background 0.2s, transform 0.05s, box-shadow 0.2s;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary svg { width: 18px; height: 18px; }
+    .btn-ghost { background: #f3f4f6; color: var(--muted); }
+    .btn-ghost:hover { background: #e5e7eb; color: var(--text); }
+    .btn-sm { padding: 8px 14px; font-size: 0.82rem; }
+
+    /* ===== Alert ===== */
+    .alert {
+      display: none; align-items: flex-start; gap: 8px;
+      border-radius: 8px; padding: 10px 12px; font-size: 0.84rem; margin-top: 8px;
+    }
+    .alert svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+    .alert.show { display: flex; }
+    .alert-error { color: var(--danger); background: var(--danger-bg); border: 1px solid #fecaca; }
+    .alert-info { color: var(--accent); background: #eef4fd; border: 1px solid #c5dcfa; }
+    .alert-success { color: var(--success); background: #ecfdf5; border: 1px solid #a7f3d0; }
+
+    /* ===== Status dots ===== */
+    .key-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: var(--muted); margin-top: 4px;
+    }
+    .key-dot { width: 8px; height: 8px; border-radius: 50%; background: #d1d5db; }
+    .key-dot.set { background: var(--success); }
+    .key-status.text-set { color: var(--success); }
+
+    /* ===== Auth row ===== */
+    .auth-row {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      padding: 14px; background: #f9fafb; border-radius: 10px;
+      margin-top: 4px;
+    }
+    .user-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .user-info img {
+      width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    }
+    .user-text { min-width: 0; }
+    .user-name {
+      font-size: 0.9rem; font-weight: 600; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .user-email {
+      font-size: 0.76rem; color: var(--muted);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .auth-placeholder { font-size: 0.86rem; color: var(--muted); }
+
+    .g-btn {
+      background: #fff; color: var(--text); border: 1px solid var(--border);
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 16px; font-weight: 600; font-size: 0.86rem;
+    }
+    .g-btn:hover { background: #f9fafb; }
+    .g-btn svg { width: 18px; height: 18px; }
+
+    /* ===== Breadcrumb ===== */
+    .breadcrumb {
+      display: none; align-items: center; flex-wrap: wrap; gap: 4px;
+      padding: 12px 14px; background: #f9fafb; border-radius: 10px;
+      margin-bottom: 14px; font-size: 0.88rem;
+    }
+    .breadcrumb.show { display: flex; }
+    .crumb {
+      background: transparent; border: none; color: var(--accent);
+      padding: 5px 10px; font-weight: 500; font-size: 0.86rem;
+      border-radius: 6px; cursor: pointer; font-family: inherit;
+    }
+    .crumb:hover { background: rgba(26, 115, 232, 0.1); }
+    .crumb.current { color: var(--text); font-weight: 600; pointer-events: none; }
+    .crumb-sep { color: var(--muted); user-select: none; }
+    .breadcrumb-actions { margin-left: auto; }
+    .breadcrumb-actions button { padding: 6px 12px; font-size: 0.8rem; }
+
+    /* ===== File Grid ===== */
+    .files-wrap { min-height: 200px; }
+    .files-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .files-header h2 { font-size: 1.05rem; font-weight: 600; }
+    .files-count { font-size: 0.82rem; color: var(--muted); }
+
+    .files-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .file-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      display: flex; flex-direction: column;
+    }
+    .file-card:hover {
+      transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      border-color: var(--accent);
+    }
+    .file-thumb {
+      width: 100%; aspect-ratio: 1 / 1; background: #f3f4f6;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .file-thumb .icon-svg { width: 44px; height: 44px; }
+    .play-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.25); opacity: 0; transition: opacity 0.2s;
+    }
+    .file-card:hover .play-overlay { opacity: 1; }
+    .play-overlay svg { width: 40px; height: 40px; color: #fff; }
+
+    .thumb-badge {
+      position: absolute; top: 6px; left: 6px;
+      font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.03em; padding: 2px 6px; border-radius: 4px; color: #fff;
+    }
+    .thumb-badge.video { background: rgba(0,0,0,0.7); }
+    .thumb-badge.folder { background: rgba(180, 83, 9, 0.9); }
+    .thumb-badge.image { background: rgba(26, 115, 232, 0.9); }
+    .thumb-badge.file { background: rgba(107, 114, 128, 0.9); }
+
+    .file-meta { padding: 8px 10px; }
+    .file-name {
+      font-size: 0.82rem; font-weight: 500; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .file-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+    /* ===== States ===== */
+    .state-box { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .state-box svg { width: 48px; height: 48px; margin-bottom: 12px; }
+    .state-box h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .state-box p { font-size: 0.88rem; }
+
+    .spinner {
+      width: 28px; height: 28px; border: 3px solid #e5e7eb;
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== Lightbox ===== */
+    .lightbox {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.92);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 24px; cursor: zoom-out;
+    }
+    .lightbox.show { display: flex; }
+    .lightbox img { max-width: 100%; max-height: 90vh; object-fit: contain; border-radius: 6px; }
+
+    .lb-close {
+      position: absolute; top: 16px; right: 16px;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: rgba(255,255,255,0.15); border: none; color: #fff;
+      font-size: 1.6rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; z-index: 2;
+    }
+    .lb-close:hover { background: rgba(255,255,255,0.3); }
+
+    /* ===== Video Modal ===== */
+    .video-modal {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+      display: none; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+    }
+    .video-modal.show { display: flex; }
+    .video-box {
+      width: 100%; max-width: 960px; background: #000;
+      border-radius: 12px; overflow: hidden; position: relative;
+    }
+    .video-box .ratio { aspect-ratio: 16 / 9; background: #000; position: relative; }
+    .video-box video {
+      width: 100%; height: 100%; display: block; background: #000;
+    }
+    .video-box iframe { width: 100%; height: 100%; border: 0; display: block; }
+
+    .vid-loading {
+      position: absolute; inset: 0; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.85); color: #fff; gap: 10px;
+    }
+    .vid-loading.show { display: flex; }
+    .vid-loading .spinner { border-color: #444; border-top-color: #fff; }
+    .vid-progress {
+      width: 200px; max-width: 80%; height: 6px; background: rgba(255,255,255,0.2);
+      border-radius: 3px; overflow: hidden;
+    }
+    .vid-progress-bar {
+      height: 100%; width: 0%; background: var(--accent);
+      transition: width 0.2s;
+    }
+    .vid-loading-text { font-size: 0.84rem; }
+
+    .video-footer {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; background: #111; color: #fff;
+    }
+    .video-title {
+      flex: 1; font-size: 0.9rem; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .video-footer a {
+      color: #93c5fd; font-size: 0.82rem; text-decoration: none; white-space: nowrap;
+    }
+    .video-footer a:hover { text-decoration: underline; }
+
+    /* ===== Toast ===== */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #111827; color: #fff; padding: 10px 18px;
+      border-radius: 10px; font-size: 0.88rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s; z-index: 200;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ===== Collapsible ===== */
+    details summary {
+      cursor: pointer; font-size: 0.84rem; color: var(--accent);
+      font-weight: 600; margin-top: 8px; user-select: none;
+    }
+    details summary:hover { text-decoration: underline; }
+    details[open] summary { margin-bottom: 8px; }
+
+    /* Summary ของ settings card แบบใหญ่ */
+    details.card > summary {
+      list-style: none; font-size: 0.95rem; color: var(--text);
+      font-weight: 600; margin-top: 0; padding: 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    details.card > summary::-webkit-details-marker { display: none; }
+    details.card > summary::before {
+      content: "▸"; color: var(--muted); font-size: 0.9rem;
+      transition: transform 0.2s; display: inline-block;
+    }
+    details.card[open] > summary::before { transform: rotate(90deg); }
+    #settingsHint { color: var(--success); font-weight: 500; font-size: 0.82rem; }
+    .guide-step {
+      font-size: 0.82rem; color: var(--text); padding: 4px 0;
+      line-height: 1.6;
+    }
+    .guide-step code {
+      background: #f3f4f6; padding: 1px 5px; border-radius: 4px;
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.78rem;
+    }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 600px) {
+      body { padding: 16px 10px 40px; }
+      .card { padding: 16px; }
+      .logo { font-size: 1.3rem; }
+      .files-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+      .file-name { font-size: 0.76rem; }
+      .file-sub { font-size: 0.68rem; }
+      .input-with-btn { flex-direction: column; }
+      .auth-row { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">
+        <svg viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+        </svg>
+        Google Drive File Viewer
+      </div>
+      <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
+    </header>
+
+    <!-- ===== Settings Card (ย่อเก็บไว้) ===== -->
+    <details class="card" id="settingsCard">
+      <summary class="settings-summary">⚙️ ตั้งค่า API &amp; บัญชี — <span id="settingsHint">ตั้งค่าไว้แล้ว ✓ (คลิกเพื่อแก้ไข)</span></summary>
+      <div style="margin-top: 14px;">
+      <div class="field">
+        <label for="clientId">🔐 OAuth Client ID (จำเป็น — สำหรับเล่นวิดีโอ)</label>
+        <div class="input-with-btn">
+          <input type="text" id="clientId" placeholder="วาง Client ID ที่นี่… เช่น XXXXX.apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
+          <button type="button" class="btn-primary btn-sm" id="saveClientIdBtn">บันทึก</button>
+        </div>
+        <div class="key-status" id="clientIdStatus">
+          <span class="key-dot" id="clientIdDot"></span>
+          <span id="clientIdStatusText">ยังไม่ได้ตั้ง Client ID</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="apiKey">🔑 API Key (ไม่บังคับ — สำหรับดูโฟลเดอร์สาธารณะโดยไม่ล็อกอิน)</label>
+        <div class="input-with-btn">
+          <input type="text" id="apiKey" placeholder="วาง API Key ที่นี่… เช่น AIzaSy…" autocomplete="off" spellcheck="false" />
+          <button type="button" class="btn-primary btn-sm" id="saveKeyBtn">บันทึก</button>
+        </div>
+        <div class="key-status" id="keyStatus">
+          <span class="key-dot" id="keyDot"></span>
+          <span id="keyStatusText">ยังไม่ได้ตั้ง API Key</span>
+        </div>
+      </div>
+
+      <div class="auth-row" id="authRow">
+        <div class="user-info" id="userInfo">
+          <span class="auth-placeholder">ยังไม่ได้ลงชื่อเข้าใช้ Google</span>
+        </div>
+        <button type="button" class="g-btn" id="authBtn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          <span id="authBtnText">ลงชื่อเข้าใช้ Google</span>
+        </button>
+      </div>
+
+      <details>
+        <summary>📖 คู่มือตั้งค่า (คลิกเพื่อขยาย)</summary>
+        <div class="guide-step"><strong>ขั้นที่ 1:</strong> เปิด <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> → สร้าง Project</div>
+        <div class="guide-step"><strong>ขั้นที่ 2:</strong> เมนู <code>APIs &amp; Services → Library</code> → ค้นและ <strong>Enable "Google Drive API"</strong></div>
+        <div class="guide-step"><strong>ขั้นที่ 3 (API Key):</strong> <code>APIs &amp; Services → Credentials → Create Credentials → API key</code> → คัดลอกมาวางในช่อง API Key ด้านบน</div>
+        <div class="guide-step"><strong>ขั้นที่ 4 (OAuth):</strong> <code>OAuth consent screen</code> → เลือก <strong>External</strong> → กรอกชื่อแอป + อีเมล → บันทึก</div>
+        <div class="guide-step"><strong>ขั้นที่ 5:</strong> <code>Credentials → Create Credentials → OAuth client ID</code> → ประเภท <strong>Web application</strong></div>
+        <div class="guide-step"><strong>ขั้นที่ 6:</strong> ในส่วน <strong>Authorized JavaScript origins</strong> เพิ่ม URL ของหน้านี้ (เช่น <code>http://localhost</code> หรือที่เปิดไฟล์)</div>
+        <div class="guide-step"><strong>ขั้นที่ 7:</strong> คัดลอก <strong>Client ID</strong> มาวางในช่องด้านบน → กด บันทึก → กดปุ่ม "ลงชื่อเข้าใช้ Google"</div>
+      </div>
+      </details>
+    </div>
+
+    <!-- ===== Link Input Card ===== -->
+    <div class="card">
+      <form id="viewerForm" novalidate>
+        <div class="field">
+          <label for="driveLink">ลิงก์ Google Drive</label>
+          <div class="input-with-btn">
+            <input type="text" id="driveLink" placeholder="วางลิงก์ที่นี่… เช่น https://drive.google.com/drive/folders/XXXXX" autocomplete="off" spellcheck="false" />
+            <button type="submit" class="btn-primary" id="openBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              เปิด
+            </button>
+          </div>
+          <div class="alert alert-error" id="linkError" role="alert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>รูปแบบลิงก์ไม่ถูกต้อง โปรดตรวจสอบอีกครั้ง</span>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===== Browser Card ===== -->
+    <div class="card" id="browserCard">
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="files-wrap" id="filesWrap">
+        <div class="state-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <h3>ยังไม่ได้เปิดโฟลเดอร์</h3>
+          <p>วางลิงก์ Google Drive ข้างบนแล้วกด "เปิด"</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Lightbox ===== -->
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button type="button" class="lb-close" id="lbClose" aria-label="ปิด">&times;</button>
+    <img id="lbImg" alt="รูปภาพขยายเต็มจอ" />
+  </div>
+
+  <!-- ===== Video Modal ===== -->
+  <div class="video-modal" id="videoModal" aria-hidden="true">
+    <div class="video-box">
+      <button type="button" class="lb-close" id="vidClose" aria-label="ปิด">&times;</button>
+      <div class="ratio">
+        <video id="vidPlayer" controls playsinline></video>
+        <iframe id="vidFrame" title="Video Player" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="display:none;"></iframe>
+        <div class="vid-loading" id="vidLoading">
+          <div class="spinner"></div>
+          <div class="vid-progress"><div class="vid-progress-bar" id="vidProgressBar"></div></div>
+          <div class="vid-loading-text" id="vidLoadingText">กำลังโหลดวิดีโอ…</div>
+        </div>
+      </div>
+      <div class="video-footer">
+        <div class="video-title" id="vidTitle">วิดีโอ</div>
+        <a id="vidOpenTab" href="#" target="_blank" rel="noopener">เปิดในแท็บใหม่ ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast ===== -->
+  <div class="toast" id="toast">สำเร็จ!</div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // ===== DOM =====
+      const clientIdInput   = document.getElementById("clientId");
+      const saveClientIdBtn = document.getElementById("saveClientIdBtn");
+      const clientIdStatus  = document.getElementById("clientIdStatus");
+      const clientIdDot     = document.getElementById("clientIdDot");
+      const clientIdText    = document.getElementById("clientIdStatusText");
+      const apiKeyInput     = document.getElementById("apiKey");
+      const saveKeyBtn      = document.getElementById("saveKeyBtn");
+      const keyStatus       = document.getElementById("keyStatus");
+      const keyDot          = document.getElementById("keyDot");
+      const keyStatusText   = document.getElementById("keyStatusText");
+      const authBtn         = document.getElementById("authBtn");
+      const authBtnText     = document.getElementById("authBtnText");
+      const settingsHint    = document.getElementById("settingsHint");
+      const userInfo        = document.getElementById("userInfo");
+      const viewerForm      = document.getElementById("viewerForm");
+      const driveLink       = document.getElementById("driveLink");
+      const linkError       = document.getElementById("linkError");
+      const breadcrumb      = document.getElementById("breadcrumb");
+      const filesWrap       = document.getElementById("filesWrap");
+      const toast           = document.getElementById("toast");
+      const lightbox        = document.getElementById("lightbox");
+      const lbImg           = document.getElementById("lbImg");
+      const lbClose         = document.getElementById("lbClose");
+      const videoModal      = document.getElementById("videoModal");
+      const vidPlayer       = document.getElementById("vidPlayer");
+      const vidFrame        = document.getElementById("vidFrame");
+      const vidLoading      = document.getElementById("vidLoading");
+      const vidProgressBar  = document.getElementById("vidProgressBar");
+      const vidLoadingText  = document.getElementById("vidLoadingText");
+      const vidTitle        = document.getElementById("vidTitle");
+      const vidOpenTab      = document.getElementById("vidOpenTab");
+      const vidClose        = document.getElementById("vidClose");
+
+      // ===== State =====
+      // ★ ค่า default ฝังในโค้ด — ใช้ได้ทันทีโดยไม่ต้องใส่
+      //   (ถ้าเคยบันทึกใน localStorage จะใช้ค่านั้นก่อน)
+      const DEFAULT_CLIENTID = "264440467830-5ouk3t1j4mv10f0go5hnga7dmkcarc6p.apps.googleusercontent.com";
+      const DEFAULT_APIKEY   = "AIzaSyBytkL4FtZuSfo_XMnZYujrcgrud6NqF9g";
+
+      const LS_CLIENTID = "gdv_clientid";
+      const LS_APIKEY   = "gdv_apikey";
+      let clientId = localStorage.getItem(LS_CLIENTID) || DEFAULT_CLIENTID;
+      let apiKey   = localStorage.getItem(LS_APIKEY)   || DEFAULT_APIKEY;
+
+      let accessToken = null;   // OAuth token (ในหน่วยความจำ ไม่เก็บ localStorage)
+      let tokenExpiry = 0;
+      let tokenClient = null;   // GIS token client
+      let tokenResolver = null; // callback ค้างไว้สำหรับ requestAccessToken
+      let userProfile = null;   // { name, email, picture }
+
+      let navStack = [];
+      let currentVideoUrl = null; // blob URL ปัจจุบัน เก็บไว้ revoke
+
+      // ===== Toast / Error helpers =====
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.classList.add("show");
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => toast.classList.remove("show"), 2200);
+      }
+      function showLinkError(show) { linkError.classList.toggle("show", show); }
+
+      // ===== Escape helpers =====
+      function escapeHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+      function escapeAttr(s) { return escapeHtml(s); }
+      function formatSize(bytes) {
+        if (!bytes) return "";
+        const n = Number(bytes);
+        if (!isFinite(n)) return "";
+        if (n < 1024) return n + " B";
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+        if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
+        return (n / 1024 / 1024 / 1024).toFixed(1) + " GB";
+      }
+
+      // ===== Status displays =====
+      function refreshClientIdStatus() {
+        const isSet = !!clientId;
+        clientIdDot.classList.toggle("set", isSet);
+        clientIdStatus.classList.toggle("text-set", isSet);
+        clientIdText.textContent = isSet ? "Client ID พร้อมใช้งาน ✓" : "ยังไม่ได้ตั้ง Client ID";
+        clientIdInput.value = clientId;
+        refreshSettingsHint();
+        initTokenClient();
+      }
+      function refreshKeyStatus() {
+        const isSet = !!apiKey;
+        keyDot.classList.toggle("set", isSet);
+        keyStatus.classList.toggle("text-set", isSet);
+        keyStatusText.textContent = isSet ? "API Key พร้อมใช้งาน ✓" : "ยังไม่ได้ตั้ง API Key";
+        apiKeyInput.value = apiKey;
+        refreshSettingsHint();
+      }
+      function refreshSettingsHint() {
+        const ok = !!clientId && !!apiKey;
+        settingsHint.textContent = ok ? "ตั้งค่าไว้แล้ว ✓ (คลิกเพื่อแก้ไข)" : "ตั้งค่ายังไม่ครบ — คลิกเพื่อตั้งค่า";
+        settingsHint.style.color = ok ? "var(--success)" : "var(--danger)";
+      }
+
+      // ===== Save buttons =====
+      saveClientIdBtn.addEventListener("click", function () {
+        const val = clientIdInput.value.trim();
+        if (!val) { showToast("กรุณาวาง Client ID ก่อน"); return; }
+        clientId = val;
+        localStorage.setItem(LS_CLIENTID, val);
+        refreshClientIdStatus();
+        showToast("บันทึก Client ID แล้ว!");
+      });
+      saveKeyBtn.addEventListener("click", function () {
+        const val = apiKeyInput.value.trim();
+        if (!val) { showToast("กรุณาวาง API Key ก่อน"); return; }
+        apiKey = val;
+        localStorage.setItem(LS_APIKEY, val);
+        refreshKeyStatus();
+        showToast("บันทึก API Key แล้ว!");
+      });
+
+      // ===== OAuth (Google Identity Services) =====
+      // รอ GIS โหลดเสร็จ แล้ว init token client
+      function waitForGis(cb) {
+        if (window.google && google.accounts && google.accounts.oauth2) { cb(); return; }
+        setTimeout(() => waitForGis(cb), 200);
+      }
+
+      function initTokenClient() {
+        if (!clientId) return;
+        waitForGis(function () {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+            callback: function (resp) {
+              if (resp && !resp.error) {
+                accessToken = resp.access_token;
+                tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+                fetchUserProfile();
+                refreshAuthUI(true);
+              } else if (tokenResolver) {
+                tokenResolver(null, resp && resp.error);
+              }
+              if (tokenResolver) {
+                const r = tokenResolver;
+                tokenResolver = null;
+                r(accessToken, null);
+              }
+            }
+          });
+        });
+      }
+
+      // ขอ token ใหม่ หรือใช้ token เดิมถ้ายังไม่หมดอายุ
+      function ensureToken() {
+        return new Promise(function (resolve) {
+          if (accessToken && Date.now() < tokenExpiry - 60000) {
+            resolve(accessToken); return;
+          }
+          if (!tokenClient) { resolve(null); return; }
+          tokenResolver = resolve;
+          // prompt '' = silent refresh ถ้ามี session; 'consent' = ขอครั้งแรก
+          tokenClient.requestAccessToken({ prompt: accessToken ? "" : "consent" });
+        });
+      }
+
+      async function fetchUserProfile() {
+        if (!accessToken) return;
+        try {
+          const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: "Bearer " + accessToken }
+          });
+          if (res.ok) userProfile = await res.json();
+        } catch (_) {}
+      }
+
+      function refreshAuthUI(signedIn) {
+        if (signedIn && userProfile) {
+          userInfo.innerHTML =
+            '<img src="' + escapeAttr(userProfile.picture) + '" alt="" />' +
+            '<div class="user-text">' +
+              '<div class="user-name">' + escapeHtml(userProfile.name || "ผู้ใช้") + '</div>' +
+              '<div class="user-email">' + escapeHtml(userProfile.email || "") + '</div>' +
+            '</div>';
+          authBtnText.textContent = "ออกจากระบบ";
+        } else if (signedIn) {
+          userInfo.innerHTML = '<span class="auth-placeholder">ลงชื่อเข้าใช้แล้ว ✓</span>';
+          authBtnText.textContent = "ออกจากระบบ";
+        } else {
+          userInfo.innerHTML = '<span class="auth-placeholder">ยังไม่ได้ลงชื่อเข้าใช้ Google</span>';
+          authBtnText.textContent = "ลงชื่อเข้าใช้ Google";
+        }
+      }
+
+      authBtn.addEventListener("click", function () {
+        if (accessToken) {
+          // Sign out
+          if (window.google && google.accounts && google.accounts.oauth2) {
+            google.accounts.oauth2.revoke(accessToken, function () {});
+          }
+          accessToken = null; tokenExpiry = 0; userProfile = null;
+          refreshAuthUI(false);
+          showToast("ออกจากระบบแล้ว");
+        } else {
+          if (!clientId) {
+            showToast("กรุณาตั้ง Client ID ก่อน");
+            clientIdInput.focus();
+            return;
+          }
+          ensureToken().then(function (token) {
+            if (token) showToast("ลงชื่อเข้าใช้สำเร็จ!");
+            else showToast("ลงชื่อเข้าใช้ไม่สำเร็จ");
+          });
+        }
+      });
+
+      // ===== Extract ID =====
+      function extractId(raw) {
+        if (!raw) return null;
+        const url = String(raw).trim();
+        if (!url) return null;
+        let m = url.match(/\/drive\/folders\/([a-zA-Z0-9_-]{20,})/); if (m) return m[1];
+        m = url.match(/\/d\/([a-zA-Z0-9_-]{20,})/); if (m) return m[1];
+        m = url.match(/[?&#]id=([a-zA-Z0-9_-]{20,})/); if (m) return m[1];
+        if (!/\s/.test(url) && /^[a-zA-Z0-9_-]{20,}$/.test(url)) return url;
+        return null;
+      }
+
+      // ===== Auth header builder =====
+      // คืน { headers } ถ้ามี token; คืน { keyParam } ถ้ามีแค่ apiKey
+      function authParams() {
+        if (accessToken) return { mode: "bearer", headers: { Authorization: "Bearer " + accessToken } };
+        if (apiKey) return { mode: "key" };
+        return { mode: "none" };
+      }
+
+      // ===== Drive API: list folder =====
+      async function listFolder(folderId) {
+        const auth = authParams();
+        if (auth.mode === "none") { renderNeedAuth(); return; }
+        renderLoading();
+
+        let url = "https://www.googleapis.com/drive/v3/files?q=" +
+          encodeURIComponent("'" + folderId + "' in parents and trashed=false") +
+          "&orderBy=folder,name&pageSize=200&fields=files(id,name,mimeType,thumbnailLink,iconLink,modifiedTime,size)";
+        if (auth.mode === "key") url += "&key=" + apiKey;
+
+        try {
+          const res = await fetch(url, { headers: auth.headers || {} });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || ("HTTP " + res.status));
+          }
+          const data = await res.json();
+          renderFiles(data.files || []);
+        } catch (e) {
+          renderApiError(e.message);
+        }
+      }
+
+      // ===== Renderers =====
+      function renderLoading() {
+        filesWrap.innerHTML = '<div class="state-box"><div class="spinner"></div><p>กำลังโหลดเนื้อหา…</p></div>';
+      }
+      function renderNeedAuth() {
+        filesWrap.innerHTML =
+          '<div class="state-box">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>' +
+            '<h3>ต้องการการยืนยันตัวตน</h3>' +
+            '<p>ลงชื่อเข้าใช้ Google หรือตั้ง API Key เพื่อเริ่มใช้งาน</p>' +
+          '</div>';
+      }
+      function renderApiError(msg) {
+        filesWrap.innerHTML =
+          '<div class="state-box">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+            '<h3>เกิดข้อผิดพลาด</h3>' +
+            '<p style="color:#dc2626;max-width:420px;margin:0 auto;">' + escapeHtml(msg) + '</p>' +
+            '<p style="margin-top:8px;font-size:0.82rem;">ตรวจสอบ: ลิงก์ถูกต้อง, ไฟล์แชร์ "ทุกคนที่มีลิงก์" (หรือลงชื่อเข้าใช้บัญชีที่มีสิทธิ์)</p>' +
+          '</div>';
+      }
+
+      function renderFiles(files) {
+        renderBreadcrumb();
+        if (!files.length) {
+          filesWrap.innerHTML =
+            '<div class="state-box">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+              '<h3>โฟลเดอร์ว่างเปล่า</h3><p>ไม่พบไฟล์หรือโฟลเดอร์ย่อย</p>' +
+            '</div>';
+          return;
+        }
+        const folderCount = files.filter(f => f.mimeType === "application/vnd.google-apps.folder").length;
+        const fileCount = files.length - folderCount;
+        let html = '<div class="files-header">' +
+          '<h2>' + escapeHtml(navStack[navStack.length - 1].name) + '</h2>' +
+          '<span class="files-count">' + folderCount + ' โฟลเดอร์ · ' + fileCount + ' ไฟล์</span>' +
+        '</div><div class="files-grid">';
+
+        files.forEach(function (f) {
+          const isFolder = f.mimeType === "application/vnd.google-apps.folder";
+          const isVideo  = f.mimeType && f.mimeType.startsWith("video/");
+          const isImage  = f.mimeType && f.mimeType.startsWith("image/");
+          const kind = isFolder ? "folder" : isVideo ? "video" : isImage ? "image" : "file";
+
+          let thumbHtml = "";
+          if (f.thumbnailLink && (isImage || isVideo)) {
+            thumbHtml = '<img src="' + escapeAttr(f.thumbnailLink) + '" alt="" loading="lazy" />';
+          } else if (f.iconLink) {
+            thumbHtml = '<img class="icon-svg" src="' + escapeAttr(f.iconLink) + '" alt="" />';
+          } else {
+            thumbHtml = genericIconSvg(kind);
+          }
+          const playOverlay = isVideo ? '<div class="play-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16" fill="#fff"/></svg></div>' : "";
+
+          html +=
+            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-name="' + escapeAttr(f.name) + '">' +
+              '<div class="file-thumb">' +
+                '<span class="thumb-badge ' + kind + '">' + (isFolder ? "Folder" : kind) + '</span>' +
+                thumbHtml + playOverlay +
+              '</div>' +
+              '<div class="file-meta">' +
+                '<div class="file-name" title="' + escapeAttr(f.name) + '">' + escapeHtml(f.name) + '</div>' +
+                '<div class="file-sub">' + (isFolder ? "โฟลเดอร์" : formatSize(f.size)) + '</div>' +
+              '</div>' +
+            '</div>';
+        });
+        html += '</div>';
+        filesWrap.innerHTML = html;
+
+        filesWrap.querySelectorAll(".file-card").forEach(function (card) {
+          card.addEventListener("click", function () {
+            handleFileClick(card.dataset.id, card.dataset.kind, card.dataset.name);
+          });
+        });
+      }
+
+      function handleFileClick(id, kind, name) {
+        if (kind === "folder") {
+          navStack.push({ id: id, name: name });
+          listFolder(id);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else if (kind === "image") {
+          openLightbox(id);
+        } else if (kind === "video") {
+          openVideo(id, name);
+        } else {
+          openVideo(id, name);
+        }
+      }
+
+      // ===== Breadcrumb =====
+      function renderBreadcrumb() {
+        if (!navStack.length) { breadcrumb.classList.remove("show"); return; }
+        breadcrumb.classList.add("show");
+        let html = "";
+        navStack.forEach(function (item, i) {
+          if (i > 0) html += '<span class="crumb-sep">/</span>';
+          const cls = i === navStack.length - 1 ? "crumb current" : "crumb";
+          html += '<button type="button" class="' + cls + '" data-idx="' + i + '">' + escapeHtml(item.name) + '</button>';
+        });
+        html += '<span class="breadcrumb-actions">' +
+          '<button type="button" class="btn-ghost btn-sm" id="bcUp">↑ ขึ้น</button>' +
+          '<button type="button" class="btn-ghost btn-sm" id="bcHome" style="margin-left:6px;">หน้าหลัก</button>' +
+        '</span>';
+        breadcrumb.innerHTML = html;
+        breadcrumb.querySelectorAll(".crumb").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            const idx = parseInt(btn.dataset.idx, 10);
+            navStack = navStack.slice(0, idx + 1);
+            listFolder(navStack[navStack.length - 1].id);
+          });
+        });
+        document.getElementById("bcUp").addEventListener("click", goUp);
+        document.getElementById("bcHome").addEventListener("click", goHome);
+      }
+      function goUp() {
+        if (navStack.length < 2) { goHome(); return; }
+        navStack.pop();
+        listFolder(navStack[navStack.length - 1].id);
+      }
+      function goHome() {
+        navStack = [];
+        filesWrap.innerHTML =
+          '<div class="state-box">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+            '<h3>ยังไม่ได้เปิดโฟลเดอร์</h3><p>วางลิงก์ Google Drive ข้างบนแล้วกด "เปิด"</p>' +
+          '</div>';
+        breadcrumb.classList.remove("show");
+      }
+
+      // ===== Lightbox =====
+      function openLightbox(id) {
+        lbImg.onerror = function () { showToast("โหลดรูปไม่ได้"); };
+        lbImg.src = "https://drive.google.com/uc?export=view&id=" + id +
+          (apiKey ? "&key=" + apiKey : "");
+        lightbox.classList.add("show");
+        lightbox.setAttribute("aria-hidden", "false");
+      }
+      function closeLightbox() {
+        lightbox.classList.remove("show");
+        lbImg.src = "";
+        lightbox.setAttribute("aria-hidden", "true");
+      }
+      lbClose.addEventListener("click", closeLightbox);
+      lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
+
+      // ===== Video Modal =====
+      // ★ แก้ปัญหา "limit hit / sign in": สตรีมไฟล์ตรงเข้า <video> ผ่าน Drive API (alt=media)
+      //   ข้าม iframe ของ Google ไปเลย จึงไม่ติดโควต้า embed
+      function openVideo(id, name) {
+        vidTitle.textContent = name || "วิดีโอ";
+        vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
+        vidPlayer.style.display = "none";
+        vidFrame.style.display = "none";
+        vidFrame.src = "about:blank";
+        vidProgressBar.style.width = "0%";
+        vidLoadingText.textContent = "กำลังเตรียมวิดีโอ…";
+        vidLoading.classList.add("show");
+        videoModal.classList.add("show");
+        videoModal.setAttribute("aria-hidden", "false");
+
+        const auth = authParams();
+        if (auth.mode === "bearer") {
+          streamVideo(id);            // สตรีมผ่าน API ด้วย OAuth token
+        } else if (auth.mode === "key") {
+          streamVideoWithKey(id);     // ไฟล์สาธารณะ ใช้ API key
+        } else {
+          fallbackIframe(id);         // ไม่มี auth ใช้ iframe (อาจติด limit)
+        }
+      }
+
+      // สตรีมด้วย Bearer token (ผู้ใช้ลงชื่อเข้าใช้แล้ว)
+      function streamVideo(id) {
+        const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media";
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", url, true);
+        xhr.responseType = "blob";
+        xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+        xhr.onprogress = function (e) {
+          if (e.lengthComputable) {
+            vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
+            vidLoadingText.textContent = "กำลังโหลด… " + Math.round(e.loaded / e.total * 100) + "%";
+          }
+        };
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            playBlob(xhr.response);
+          } else if (xhr.status === 403 || xhr.status === 401) {
+            vidLoadingText.textContent = "สิทธิ์ไม่เพียงพอ — ลองเปิดในแท็บใหม่";
+            fallbackIframe(id);
+          } else {
+            vidLoadingText.textContent = "โหลดไม่สำเร็จ (HTTP " + xhr.status + ")";
+            fallbackIframe(id);
+          }
+        };
+        xhr.onerror = function () {
+          vidLoadingText.textContent = "เครือข่ายผิดพลาด — ลองเปิดในแท็บใหม่";
+          fallbackIframe(id);
+        };
+        xhr.send();
+      }
+
+      // สตรีมด้วย API key (เฉพาะไฟล์สาธารณะ)
+      function streamVideoWithKey(id) {
+        const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey;
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", url, true);
+        xhr.responseType = "blob";
+        xhr.onprogress = function (e) {
+          if (e.lengthComputable) {
+            vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
+            vidLoadingText.textContent = "กำลังโหลด… " + Math.round(e.loaded / e.total * 100) + "%";
+          }
+        };
+        xhr.onload = function () {
+          if (xhr.status === 200) playBlob(xhr.response);
+          else { vidLoadingText.textContent = "โหลดไม่สำเร็จ — ลองเปิดในแท็บใหม่"; fallbackIframe(id); }
+        };
+        xhr.onerror = function () { fallbackIframe(id); };
+        xhr.send();
+      }
+
+      // เล่น blob ใน <video>
+      function playBlob(blob) {
+        revokeCurrentVideo();
+        currentVideoUrl = URL.createObjectURL(blob);
+        vidLoading.classList.remove("show");
+        vidPlayer.style.display = "block";
+        vidPlayer.src = currentVideoUrl;
+        vidPlayer.play().catch(function () {});
+      }
+
+      // Fallback: ใช้ iframe preview (อาจติดโควต้า แต่อย่างน้อยพอใช้)
+      function fallbackIframe(id) {
+        vidPlayer.pause();
+        vidPlayer.src = "";
+        vidPlayer.style.display = "none";
+        vidLoading.classList.remove("show");
+        vidFrame.style.display = "block";
+        vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
+      }
+
+      function revokeCurrentVideo() {
+        if (currentVideoUrl) {
+          URL.revokeObjectURL(currentVideoUrl);
+          currentVideoUrl = null;
+        }
+      }
+      function closeVideo() {
+        videoModal.classList.remove("show");
+        vidPlayer.pause();
+        vidPlayer.src = "";
+        vidFrame.src = "about:blank";
+        revokeCurrentVideo();
+        videoModal.setAttribute("aria-hidden", "true");
+      }
+      vidClose.addEventListener("click", closeVideo);
+      videoModal.addEventListener("click", function (e) { if (e.target === videoModal) closeVideo(); });
+
+      // ===== Esc key =====
+      document.addEventListener("keydown", function (e) {
+        if (e.key !== "Escape") return;
+        if (lightbox.classList.contains("show")) closeLightbox();
+        if (videoModal.classList.contains("show")) closeVideo();
+      });
+
+      // ===== Form submit =====
+      viewerForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        showLinkError(false);
+        const id = extractId(driveLink.value);
+        if (!id) { showLinkError(true); driveLink.focus(); return; }
+        if (!clientId && !apiKey) {
+          showToast("กรุณาตั้ง Client ID หรือ API Key ก่อน");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        navStack = [{ id: id, name: "Drive" }];
+        listFolder(id);
+      });
+      driveLink.addEventListener("input", function () {
+        if (linkError.classList.contains("show")) showLinkError(false);
+      });
+
+      // ===== Generic icons =====
+      function genericIconSvg(kind) {
+        const icons = {
+          folder: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+          video: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
+          image: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+          file: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+        };
+        return icons[kind] || icons.file;
+      }
+
+      // ===== Init =====
+      refreshClientIdStatus();
+      refreshKeyStatus();
+      driveLink.focus();
+    })();
+  </script>
+</body>
+</html>
