@@ -370,35 +370,24 @@
       <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
     </header>
 
-    <!-- ===== Settings Card (ย่อเก็บไว้) ===== -->
-    <details class="card" id="settingsCard">
-      <summary class="settings-summary">⚙️ ตั้งค่า API &amp; บัญชี — <span id="settingsHint">ตั้งค่าไว้แล้ว ✓ (คลิกเพื่อแก้ไข)</span></summary>
-      <div style="margin-top: 14px;">
-      <div class="field">
-        <label for="clientId">🔐 OAuth Client ID (จำเป็น — สำหรับเล่นวิดีโอ)</label>
-        <div class="input-with-btn">
-          <input type="text" id="clientId" placeholder="วาง Client ID ที่นี่… เช่น XXXXX.apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
-          <button type="button" class="btn-primary btn-sm" id="saveClientIdBtn">บันทึก</button>
+    <!-- ===== Account Card ===== -->
+    <div class="card" id="settingsCard">
+      <!-- ซ่อนฟอร์มตั้งค่า API ตามความต้องการ (เก็บ id ไว้กัน JS พัง) -->
+      <div style="display: none;">
+        <div class="field">
+          <input type="text" id="clientId" />
+          <button type="button" id="saveClientIdBtn"></button>
+          <div id="clientIdStatus"><span id="clientIdDot"></span><span id="clientIdStatusText"></span></div>
         </div>
-        <div class="key-status" id="clientIdStatus">
-          <span class="key-dot" id="clientIdDot"></span>
-          <span id="clientIdStatusText">ยังไม่ได้ตั้ง Client ID</span>
+        <div class="field">
+          <input type="text" id="apiKey" />
+          <button type="button" id="saveKeyBtn"></button>
+          <div id="keyStatus"><span id="keyDot"></span><span id="keyStatusText"></span></div>
         </div>
+        <span id="settingsHint"></span>
       </div>
 
-      <div class="field">
-        <label for="apiKey">🔑 API Key (ไม่บังคับ — สำหรับดูโฟลเดอร์สาธารณะโดยไม่ล็อกอิน)</label>
-        <div class="input-with-btn">
-          <input type="text" id="apiKey" placeholder="วาง API Key ที่นี่… เช่น AIzaSy…" autocomplete="off" spellcheck="false" />
-          <button type="button" class="btn-primary btn-sm" id="saveKeyBtn">บันทึก</button>
-        </div>
-        <div class="key-status" id="keyStatus">
-          <span class="key-dot" id="keyDot"></span>
-          <span id="keyStatusText">ยังไม่ได้ตั้ง API Key</span>
-        </div>
-      </div>
-
-      <div class="auth-row" id="authRow">
+      <div class="auth-row" id="authRow" style="margin-top: 0;">
         <div class="user-info" id="userInfo">
           <span class="auth-placeholder">ยังไม่ได้ลงชื่อเข้าใช้ Google</span>
         </div>
@@ -407,18 +396,6 @@
           <span id="authBtnText">ลงชื่อเข้าใช้ Google</span>
         </button>
       </div>
-
-      <details>
-        <summary>📖 คู่มือตั้งค่า (คลิกเพื่อขยาย)</summary>
-        <div class="guide-step"><strong>ขั้นที่ 1:</strong> เปิด <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> → สร้าง Project</div>
-        <div class="guide-step"><strong>ขั้นที่ 2:</strong> เมนู <code>APIs &amp; Services → Library</code> → ค้นและ <strong>Enable "Google Drive API"</strong></div>
-        <div class="guide-step"><strong>ขั้นที่ 3 (API Key):</strong> <code>APIs &amp; Services → Credentials → Create Credentials → API key</code> → คัดลอกมาวางในช่อง API Key ด้านบน</div>
-        <div class="guide-step"><strong>ขั้นที่ 4 (OAuth):</strong> <code>OAuth consent screen</code> → เลือก <strong>External</strong> → กรอกชื่อแอป + อีเมล → บันทึก</div>
-        <div class="guide-step"><strong>ขั้นที่ 5:</strong> <code>Credentials → Create Credentials → OAuth client ID</code> → ประเภท <strong>Web application</strong></div>
-        <div class="guide-step"><strong>ขั้นที่ 6:</strong> ในส่วน <strong>Authorized JavaScript origins</strong> เพิ่ม URL ของหน้านี้ (เช่น <code>http://localhost</code> หรือที่เปิดไฟล์)</div>
-        <div class="guide-step"><strong>ขั้นที่ 7:</strong> คัดลอก <strong>Client ID</strong> มาวางในช่องด้านบน → กด บันทึก → กดปุ่ม "ลงชื่อเข้าใช้ Google"</div>
-      </div>
-      </details>
     </div>
 
     <!-- ===== Link Input Card ===== -->
