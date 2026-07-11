@@ -809,25 +809,36 @@
         return { mode: "none" };
       }
 
-      // ===== Drive API: list folder =====
+      // ===== Drive API: list folder (พร้อม pagination ดึงครบทุกหน้า) =====
       async function listFolder(folderId) {
         const auth = authParams();
         if (auth.mode === "none") { renderNeedAuth(); return; }
         renderLoading();
 
-        let url = "https://www.googleapis.com/drive/v3/files?q=" +
-          encodeURIComponent("'" + folderId + "' in parents and trashed=false") +
-          "&orderBy=folder,name&pageSize=200&fields=files(id,name,mimeType,thumbnailLink,iconLink,modifiedTime,size)";
-        if (auth.mode === "key") url += "&key=" + apiKey;
-
         try {
-          const res = await fetch(url, { headers: auth.headers || {} });
-          if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error?.message || ("HTTP " + res.status));
+          let allFiles = [];
+          let pageToken = null;
+
+          while (true) {
+            let url = "https://www.googleapis.com/drive/v3/files?q=" +
+              encodeURIComponent("'" + folderId + "' in parents and trashed=false") +
+              "&orderBy=folder,name&pageSize=1000&fields=files(id,name,mimeType,thumbnailLink,iconLink,modifiedTime,size),nextPageToken";
+            if (pageToken) url += "&pageToken=" + encodeURIComponent(pageToken);
+            if (auth.mode === "key") url += "&key=" + apiKey;
+
+            const res = await fetch(url, { headers: auth.headers || {} });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error?.message || ("HTTP " + res.status));
+            }
+            const data = await res.json();
+            allFiles = allFiles.concat(data.files || []);
+
+            if (!data.nextPageToken) break;
+            pageToken = data.nextPageToken;
           }
-          const data = await res.json();
-          renderFiles(data.files || []);
+
+          renderFiles(allFiles);
         } catch (e) {
           renderApiError(e.message);
         }
@@ -1003,25 +1014,48 @@
         breadcrumb.classList.remove("show");
       }
 
-      // ===== Lightbox =====
+      // ===== Lightbox (ใช้ alt=media bypass view limit) =====
       function openLightbox(id) {
+        lightbox.classList.add("show");
+        lightbox.setAttribute("aria-hidden", "false");
+        lbImg.src = "";
+
+        const auth = authParams();
+        if (auth.mode === "none") { fallbackImage(id); return; }
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
+          (auth.mode === "key" ? "&key=" + apiKey : ""), true);
+        xhr.responseType = "blob";
+        if (auth.mode === "bearer") xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+        xhr.onload = function () {
+          if (xhr.status === 200) {
+            if (lbImg._blobUrl) URL.revokeObjectURL(lbImg._blobUrl);
+            lbImg._blobUrl = URL.createObjectURL(xhr.response);
+            lbImg.src = lbImg._blobUrl;
+          } else {
+            fallbackImage(id);
+          }
+        };
+        xhr.onerror = function () { fallbackImage(id); };
+        xhr.send();
+      }
+      function fallbackImage(id) {
         lbImg.onerror = function () { showToast("โหลดรูปไม่ได้"); };
         lbImg.src = "https://drive.google.com/uc?export=view&id=" + id +
           (apiKey ? "&key=" + apiKey : "");
-        lightbox.classList.add("show");
-        lightbox.setAttribute("aria-hidden", "false");
       }
       function closeLightbox() {
         lightbox.classList.remove("show");
         lbImg.src = "";
+        if (lbImg._blobUrl) { URL.revokeObjectURL(lbImg._blobUrl); lbImg._blobUrl = null; }
         lightbox.setAttribute("aria-hidden", "true");
       }
       lbClose.addEventListener("click", closeLightbox);
       lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
 
       // ===== Video Modal =====
-      // ★ แก้ปัญหา "limit hit / sign in": สตรีมไฟล์ตรงเข้า <video> ผ่าน Drive API (alt=media)
-      //   ข้าม iframe ของ Google ไปเลย จึงไม่ติดโควต้า embed
+      // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
       function openVideo(id, name) {
         vidTitle.textContent = name || "วิดีโอ";
         vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
@@ -1036,15 +1070,15 @@
 
         const auth = authParams();
         if (auth.mode === "bearer") {
-          streamVideo(id);            // สตรีมผ่าน API ด้วย OAuth token
+          streamVideo(id);
         } else if (auth.mode === "key") {
-          streamVideoWithKey(id);     // ไฟล์สาธารณะ ใช้ API key
+          streamVideoWithKey(id);
         } else {
-          fallbackIframe(id);         // ไม่มี auth ใช้ iframe (อาจติด limit)
+          fallbackIframe(id);
         }
       }
 
-      // สตรีมด้วย Bearer token (ผู้ใช้ลงชื่อเข้าใช้แล้ว)
+      // สตรีมด้วย Bearer token — ใช้ XHR ดึง blob + แสดง progress
       function streamVideo(id) {
         const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media";
         const xhr = new XMLHttpRequest();
@@ -1075,8 +1109,26 @@
         xhr.send();
       }
 
-      // สตรีมด้วย API key (เฉพาะไฟล์สาธารณะ)
+      // สตรีมด้วย API key → ลอง direct URL ก่อน (Range request/scalable seek)
       function streamVideoWithKey(id) {
+        const directUrl = "https://drive.google.com/uc?export=download&id=" + id + "&key=" + apiKey;
+        revokeCurrentVideo();
+        vidPlayer.style.display = "block";
+        vidPlayer.src = directUrl;
+        var fbTimer = setTimeout(function () {
+          if (vidPlayer.readyState === 0) { fallbackToBlob(id); }
+        }, 6000);
+        vidPlayer.addEventListener("canplay", function () { clearTimeout(fbTimer); vidPlayer.play().catch(function () {}); }, { once: true });
+        vidPlayer.onerror = function () { clearTimeout(fbTimer); fallbackToBlob(id); };
+      }
+      function fallbackToBlob(id) {
+        vidPlayer.src = "";
+        vidPlayer.onerror = null;
+        vidLoadingText.textContent = "กำลังโหลดผ่าน API…";
+        vidLoading.classList.add("show");
+        streamBlobFallback(id);
+      }
+      function streamBlobFallback(id) {
         const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey;
         const xhr = new XMLHttpRequest();
         xhr.open("GET", url, true);
