@@ -962,10 +962,10 @@
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' +
                   '</button>' +
                 '</div>' +
-                '<button type="button" class="btn-primary btn-sm" onclick="window.open(\'https://drive.google.com/drive/folders/' + escapeAttr(currentFolderId) + '\', \'_blank\')" title="เปิดและดาวน์โหลดโฟลเดอร์นี้ใน Google Drive" style="display: flex; align-items: center; gap: 4px;">' +
-                  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' +
-                  'โหลดโฟลเดอร์นี้' +
-                '</button>' +
+                '<button type="button" class="btn-primary btn-sm" onclick="window.open(\'https://drive.google.com/drive/u/0/folders/' + escapeAttr(currentFolderId) + '\', \'_blank\')" title="เปิดโฟลเดอร์นี้ใน Google Drive เพื่อดาวน์โหลด ZIP (Google บีบให้เอง — ไม่เปลือง quota)" style="display: flex; align-items: center; gap: 4px;">' +
+                                  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
+                                  'ดาวน์โหลด ZIP' +
+                                '</button>' +
               '</div><div class="files-grid" id="filesGrid">';
 
         files.forEach(function (f, idx) {
