@@ -386,13 +386,15 @@
 
     /* ===== View toggle (grid/list) ===== */
     .view-toggle { display: flex; gap: 4px; margin-left: auto; }
-    .view-toggle button {
-      background: transparent; border: 1px solid var(--border); color: var(--muted);
-      padding: 6px 9px; border-radius: 6px; cursor: pointer; line-height: 0;
-      transition: all 0.2s;
-    }
-    .view-toggle button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-    .view-toggle svg { width: 15px; height: 15px; }
+        .view-toggle button {
+          background: transparent; border: 1px solid var(--border); color: var(--muted);
+          padding: 6px 9px; border-radius: 6px; cursor: pointer; line-height: 0;
+          transition: all 0.2s;
+        }
+        .view-toggle button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+        .view-toggle svg { width: 15px; height: 15px; }
+        #sortBtn { display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
+        #sortBtn span { font-size: 0.72rem; }
     .files-grid.list-view { grid-template-columns: 1fr; }
     .files-grid.list-view .file-card { flex-direction: row; align-items: center; }
     .files-grid.list-view .file-thumb { width: 64px; height: 48px; flex-shrink: 0; aspect-ratio: auto; }
@@ -949,7 +951,11 @@
                   '<button type="button" class="search-clear" id="searchClear" title="ล้างค้นหา" style="display:none;">&times;</button>' +
                 '</div>' +
                 '<div class="view-toggle" id="viewToggle">' +
-                  '<button type="button" id="viewGrid" class="active" title="ตาราง">' +
+                            '<button type="button" id="sortBtn" class="" title="จัดเรียง: ชื่อไฟล์">' +
+                              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>' +
+                              '<span id="sortLabel">ชื่อ</span>' +
+                            '</button>' +
+                            '<button type="button" id="viewGrid" class="active" title="ตาราง">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' +
                   '</button>' +
                   '<button type="button" id="viewList" title="รายการ">' +
@@ -982,7 +988,7 @@
           const delay = Math.min(idx * 0.03, 0.4);
 
           html +=
-            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-name="' + escapeAttr(f.name) + '" style="animation-delay:' + delay + 's">' +
+            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
               '<div class="file-thumb">' +
                 '<span class="thumb-badge ' + kind + '">' + (isFolder ? "Folder" : kind) + '</span>' +
                 thumbHtml + playOverlay +
@@ -1047,20 +1053,65 @@
                 }
 
                 // ===== View toggle (grid / list) =====
-                const gridBtn = document.getElementById("viewGrid");
-                const listBtn = document.getElementById("viewList");
-                const gridEl = document.getElementById("filesGrid");
-                function setView(mode) {
-                  if (!gridEl) return;
-                  const isList = mode === "list";
-                  gridEl.classList.toggle("list-view", isList);
-                  if (gridBtn) gridBtn.classList.toggle("active", !isList);
-                  if (listBtn) listBtn.classList.toggle("active", isList);
-                  localStorage.setItem("gdv_view", mode);
-                }
-                if (gridBtn) gridBtn.addEventListener("click", function () { setView("grid"); });
-                if (listBtn) listBtn.addEventListener("click", function () { setView("list"); });
-                setView(localStorage.getItem("gdv_view") === "list" ? "list" : "grid");
+                                const gridBtn = document.getElementById("viewGrid");
+                                const listBtn = document.getElementById("viewList");
+                                const gridEl = document.getElementById("filesGrid");
+                                function setView(mode) {
+                                  if (!gridEl) return;
+                                  const isList = mode === "list";
+                                  gridEl.classList.toggle("list-view", isList);
+                                  if (gridBtn) gridBtn.classList.toggle("active", !isList);
+                                  if (listBtn) listBtn.classList.toggle("active", isList);
+                                  localStorage.setItem("gdv_view", mode);
+                                }
+                                if (gridBtn) gridBtn.addEventListener("click", function () { setView("grid"); });
+                                if (listBtn) listBtn.addEventListener("click", function () { setView("list"); });
+                                setView(localStorage.getItem("gdv_view") === "list" ? "list" : "grid");
+
+                                // ===== Sort (ชื่อ/ขนาด/วันที่/ชนิด) =====
+                                                let sortKey = localStorage.getItem("gdv_sort") || "name";
+                                                const sortBtn = document.getElementById("sortBtn");
+                                                const sortLabel = document.getElementById("sortLabel");
+                                                const SORT_OPTIONS = [
+                                                  { key: "name", label: "ชื่อ" },
+                                                  { key: "size", label: "ขนาด" },
+                                                  { key: "date", label: "วันที่" },
+                                                  { key: "kind", label: "ชนิด" }
+                                                ];
+                                                function cmpSort(a, b) {
+                                                  // โฟลเดอร์มาก่อนเสมอ
+                                                  const af = a.mimeType === "application/vnd.google-apps.folder" ? 0 : 1;
+                                                  const bf = b.mimeType === "application/vnd.google-apps.folder" ? 0 : 1;
+                                                  if (af !== bf) return af - bf;
+                                                  let va, vb;
+                                                  if (sortKey === "size") { va = Number(a.size) || 0; vb = Number(b.size) || 0; return vb - va; }
+                                                  if (sortKey === "date") { va = String(a.modifiedTime || ""); vb = String(b.modifiedTime || ""); return va < vb ? 1 : va > vb ? -1 : 0; }
+                                                  if (sortKey === "kind") { va = a.mimeType || ""; vb = b.mimeType || ""; return va < vb ? -1 : va > vb ? 1 : 0; }
+                                                  // name: เรียงไทย/อังกฤษ case-insensitive
+                                                  va = String(a.name || "").toLowerCase(); vb = String(b.name || "").toLowerCase();
+                                                  return va < vb ? -1 : va > vb ? 1 : 0;
+                                                }
+                                                function applySort() {
+                                                  const grid = document.getElementById("filesGrid");
+                                                  if (!grid) return;
+                                                  const cards = Array.prototype.slice.call(grid.querySelectorAll(".file-card"));
+                                                  cards.sort(function (ca, cb) {
+                                                    const a = { id: ca.dataset.id, name: ca.dataset.name, mimeType: ca.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : "", size: ca.dataset.size, modifiedTime: ca.dataset.date };
+                                                    const b = { id: cb.dataset.id, name: cb.dataset.name, mimeType: cb.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : "", size: cb.dataset.size, modifiedTime: cb.dataset.date };
+                                                    return cmpSort(a, b);
+                                                  });
+                                                  cards.forEach(function (card) { grid.appendChild(card); });
+                                                  if (sortLabel) sortLabel.textContent = (SORT_OPTIONS.find(function (o) { return o.key === sortKey; }) || {}).label || "ชื่อ";
+                                                }
+                                                function cycleSort() {
+                                                  const idx = SORT_OPTIONS.findIndex(function (o) { return o.key === sortKey; });
+                                                  sortKey = SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].key;
+                                                  localStorage.setItem("gdv_sort", sortKey);
+                                                  applySort();
+                                                }
+                                                if (sortBtn) sortBtn.addEventListener("click", cycleSort);
+                                                // เรียก sort ครั้งแรกตามค่าที่จำไว้
+                                                applySort();
 
                 // ---------- Media nav (lightbox + video) ----------
                 window._gdvMediaNav = window._gdvMediaNav || {};
@@ -1220,26 +1271,30 @@
       // ===== Video Modal =====
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
       function openVideo(id, name) {
-        vidTitle.textContent = name || "วิดีโอ";
-        vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
-        vidPlayer.style.display = "none";
-        vidFrame.style.display = "none";
-        vidFrame.src = "about:blank";
-        vidProgressBar.style.width = "0%";
-        vidLoadingText.textContent = "กำลังเตรียมวิดีโอ…";
-        vidLoading.classList.add("show");
-        videoModal.classList.add("show");
-        videoModal.setAttribute("aria-hidden", "false");
+              vidCurrentId = id;
+              vidTitle.textContent = name || "วิดีโอ";
+              vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
+              vidPlayer.style.display = "none";
+              vidFrame.style.display = "none";
+              vidFrame.src = "about:blank";
+              vidProgressBar.style.width = "0%";
+              vidLoadingText.textContent = "กำลังเตรียมวิดีโอ…";
+              vidLoading.classList.add("show");
+              videoModal.classList.add("show");
+              videoModal.setAttribute("aria-hidden", "false");
+              // เรียกคืนตำแหน่งที่เคยดูค้างไว้ (ถ้ามี)
+              const saved = localStorage.getItem("gdv_vpos_" + id);
+              videoResumePos = saved ? Number(saved) : 0;
 
-        const auth = authParams();
-        if (auth.mode === "bearer") {
-          streamVideo(id);
-        } else if (auth.mode === "key") {
-          streamVideoWithKey(id);
-        } else {
-          fallbackIframe(id);
-        }
-      }
+              const auth = authParams();
+              if (auth.mode === "bearer") {
+                streamVideo(id);
+              } else if (auth.mode === "key") {
+                streamVideoWithKey(id);
+              } else {
+                fallbackIframe(id);
+              }
+            }
 
       // สตรีมด้วย Bearer token — ใช้ XHR ดึง blob + แสดง progress
       function streamVideo(id) {
@@ -1311,14 +1366,47 @@
       }
 
       // เล่น blob ใน <video>
-      function playBlob(blob) {
-        revokeCurrentVideo();
-        currentVideoUrl = URL.createObjectURL(blob);
-        vidLoading.classList.remove("show");
-        vidPlayer.style.display = "block";
-        vidPlayer.src = currentVideoUrl;
-        vidPlayer.play().catch(function () {});
-      }
+            let videoResumePos = 0; // ตำแหน่งล่าสุดของวิดีโอปัจจุบัน
+            function playBlob(blob) {
+              revokeCurrentVideo();
+              currentVideoUrl = URL.createObjectURL(blob);
+              vidLoading.classList.remove("show");
+              vidPlayer.style.display = "block";
+              vidPlayer.src = currentVideoUrl;
+              // resume ตำแหน่งที่ค้างไว้ (ถ้ามี)
+              if (videoResumePos > 0) {
+                const tryResume = function () {
+                  if (vidPlayer.readyState >= 1) {
+                    try { vidPlayer.currentTime = videoResumePos; } catch (_) {}
+                  } else {
+                    setTimeout(tryResume, 200);
+                  }
+                };
+                tryResume();
+              }
+              vidPlayer.play().catch(function () {});
+            }
+            // บันทึกตำแหน่งปัจจุบันเป็นระยะ (ทุก 3 วินาที) — กัน refresh/ปิดแล้วลืมที่
+            function saveVideoPos() {
+              if (vidPlayer && vidCurrentId && !isNaN(vidPlayer.currentTime) && vidPlayer.currentTime > 2) {
+                try { localStorage.setItem("gdv_vpos_" + vidCurrentId, Math.floor(vidPlayer.currentTime)); } catch (_) {}
+              }
+            }
+            window._gdvVideoTimer = window._gdvVideoTimer || setInterval(saveVideoPos, 3000);
+            // เมื่อเล่นจบ (ended) → เล่นวิดีโอถัดไปในโฟลเดอร์อัตโนมัติ
+            vidPlayer.addEventListener("ended", function () {
+              // ล้างตำแหน่งที่ค้าง (เล่นจบแล้ว)
+              try { localStorage.removeItem("gdv_vpos_" + vidCurrentId); } catch (_) {}
+              const list = mediaList("video");
+              if (list.length > 1) {
+                const cur = list.findIndex(function (item) { return item.id === vidCurrentId; });
+                const next = list[(cur + 1) % list.length];
+                if (next && next.id !== vidCurrentId) {
+                  vidLoadingText.textContent = "กำลังเล่นถัดไป…";
+                  openVideo(next.id, next.name);
+                }
+              }
+            });
 
       // Fallback: ใช้ iframe preview (อาจติดโควต้า แต่อย่างน้อยพอใช้)
       function fallbackIframe(id) {
@@ -1348,17 +1436,53 @@
       videoModal.addEventListener("click", function (e) { if (e.target === videoModal) closeVideo(); });
 
       function openDocument(id, name) {
-        vidTitle.textContent = name || "เอกสาร";
-        vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
-        vidPlayer.pause();
-        vidPlayer.src = "";
-        vidPlayer.style.display = "none";
-        vidLoading.classList.remove("show");
-        vidFrame.style.display = "block";
-        vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
-        videoModal.classList.add("show");
-        videoModal.setAttribute("aria-hidden", "false");
-      }
+              vidTitle.textContent = name || "เอกสาร";
+              vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
+              vidPlayer.pause();
+              vidPlayer.src = "";
+              vidPlayer.style.display = "none";
+              vidLoading.classList.remove("show");
+              vidFrame.style.display = "block";
+              // ใช้ blob + iframe เปิดเอกสาร (PDF/office) ผ่าน alt=media ไม่ติด quota
+              const auth = authParams();
+              if (auth.mode !== "none") {
+                const xhr = new XMLHttpRequest();
+                const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
+                  (auth.mode === "key" ? "&key=" + apiKey : "");
+                xhr.open("GET", url, true);
+                xhr.responseType = "blob";
+                if (auth.mode === "bearer") xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
+                vidLoading.classList.add("show");
+                vidLoadingText.textContent = "กำลังโหลดเอกสาร…";
+                vidProgressBar.style.width = "0%";
+                xhr.onprogress = function (e) {
+                  if (e.lengthComputable) {
+                    vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
+                    vidLoadingText.textContent = "กำลังโหลดเอกสาร… " + Math.round(e.loaded / e.total * 100) + "%";
+                  }
+                };
+                xhr.onload = function () {
+                  vidLoading.classList.remove("show");
+                  if (xhr.status === 200 && xhr.response) {
+                    const blobUrl = URL.createObjectURL(xhr.response);
+                    vidFrame.src = blobUrl;
+                  } else {
+                    fallbackDocIframe(id);
+                  }
+                };
+                xhr.onerror = function () { vidLoading.classList.remove("show"); fallbackDocIframe(id); };
+                xhr.send();
+              } else {
+                fallbackDocIframe(id);
+              }
+              videoModal.classList.add("show");
+              videoModal.setAttribute("aria-hidden", "false");
+            }
+            function fallbackDocIframe(id) {
+              vidLoading.classList.remove("show");
+              vidFrame.style.display = "block";
+              vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
+            }
 
       // ===== Esc key =====
       document.addEventListener("keydown", function (e) {
