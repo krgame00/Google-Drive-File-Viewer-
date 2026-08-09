@@ -11,48 +11,78 @@
   <!-- Inter font -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ===== Dark Gallery theme (คงที่) ===== */
-    :root {
-      color-scheme: dark;
-      --bg: #0a0a0f;
-      --bg-elevated: #14141c;
-      --card: #14141c;
-      --card-hover: #1c1c28;
-      --text: #e6e6f0;
-      --text-strong: #ffffff;
-      --muted: #8b8b9e;
-      --muted-soft: #5a5a70;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
-      --accent-soft: rgba(99, 102, 241, 0.12);
-      --accent-glow: rgba(99, 102, 241, 0.35);
-      --danger: #f87171;
-      --danger-bg: rgba(248, 113, 113, 0.1);
-      --danger-border: rgba(248, 113, 113, 0.25);
-      --success: #34d399;
-      --success-bg: rgba(52, 211, 153, 0.1);
-      --success-border: rgba(52, 211, 153, 0.25);
-      --border: #232333;
-      --border-soft: #1a1a26;
-      --thumb-bg: #0f0f18;
-      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-      --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-      --shadow-glow: 0 0 24px var(--accent-glow);
-      --radius: 12px;
-      --radius-sm: 8px;
-      --transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
+    /* ===== Dark Gallery theme (ค่าเริ่มต้น) ===== */
+        :root {
+          color-scheme: dark;
+          --bg: #0a0a0f;
+          --bg-elevated: #14141c;
+          --card: #14141c;
+          --card-hover: #1c1c28;
+          --text: #e6e6f0;
+          --text-strong: #ffffff;
+          --muted: #8b8b9e;
+          --muted-soft: #5a5a70;
+          --accent: #6366f1;
+          --accent-hover: #818cf8;
+          --accent-soft: rgba(99, 102, 241, 0.12);
+          --accent-glow: rgba(99, 102, 241, 0.35);
+          --danger: #f87171;
+          --danger-bg: rgba(248, 113, 113, 0.1);
+          --danger-border: rgba(248, 113, 113, 0.25);
+          --success: #34d399;
+          --success-bg: rgba(52, 211, 153, 0.1);
+          --success-border: rgba(52, 211, 153, 0.25);
+          --border: #232333;
+          --border-soft: #1a1a26;
+          --thumb-bg: #0f0f18;
+          --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+          --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+          --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+          --shadow-glow: 0 0 24px var(--accent-glow);
+          --radius: 12px;
+          --radius-sm: 8px;
+          --transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ===== Light theme (สลับด้วยปุ่ม ☀️/🌙) ===== */
+        html[data-theme="light"] {
+          color-scheme: light;
+          --bg: #f5f6fa;
+          --bg-elevated: #ffffff;
+          --card: #ffffff;
+          --card-hover: #f0f1f7;
+          --text: #1f2333;
+          --text-strong: #0b0d14;
+          --muted: #5d6278;
+          --muted-soft: #9aa0b5;
+          --accent: #4f46e5;
+          --accent-hover: #4338ca;
+          --accent-soft: rgba(79, 70, 229, 0.1);
+          --accent-glow: rgba(79, 70, 229, 0.25);
+          --danger: #dc2626;
+          --danger-bg: rgba(220, 38, 38, 0.08);
+          --danger-border: rgba(220, 38, 38, 0.2);
+          --success: #059669;
+          --success-bg: rgba(5, 150, 105, 0.08);
+          --success-border: rgba(5, 150, 105, 0.2);
+          --border: #e3e6ef;
+          --border-soft: #eceef4;
+          --thumb-bg: #f1f2f7;
+          --shadow-sm: 0 1px 3px rgba(15, 20, 40, 0.08);
+          --shadow-md: 0 4px 12px rgba(15, 20, 40, 0.1);
+          --shadow-lg: 0 8px 24px rgba(15, 20, 40, 0.14);
+          --shadow-glow: 0 0 24px var(--accent-glow);
+        }
 
     html, body { height: 100%; }
 
     body {
-      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-family: "Inter", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.5;
@@ -487,36 +517,55 @@
     .recent-item:hover { background: var(--border); color: var(--accent); }
     .recent-item svg { width: 14px; height: 14px; color: var(--muted); }
 
-    /* ===== Responsive ===== */
-    @media (max-width: 600px) {
-      body { padding: 16px 12px 40px; }
-      .card { padding: 16px; }
-      .logo { font-size: 1.2rem; }
-      header p { margin-left: 0; }
-      .files-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
-      .file-name { font-size: 0.76rem; }
-      .file-sub { font-size: 0.68rem; }
-      .input-with-btn { flex-direction: column; }
-      .auth-row { flex-direction: column; align-items: stretch; }
-    }
-  </style>
+    /* ===== Responsive: มือถือ ===== */
+        @media (max-width: 600px) {
+          body { padding: 16px 12px 40px; }
+          .card { padding: 16px; }
+          .logo { font-size: 1.2rem; }
+          header p { margin-left: 0; margin-top: 8px; }
+          .files-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+          .file-name { font-size: 0.76rem; }
+          .file-sub { font-size: 0.68rem; }
+          .input-with-btn { flex-direction: column; }
+          .auth-row { flex-direction: column; align-items: stretch; }
+
+          /* B: ใช้มือถือง่ายขึ้น — ปุ่มใหญ่ ระยะห่างเยอะขึ้น */
+          input[type="text"], button { font-size: 1rem; }
+          .btn-primary { min-height: 48px; }
+          .btn-ghost { min-height: 40px; }
+          .view-toggle button { padding: 10px 12px; }
+          #sortBtn { padding: 10px 12px; }
+          .files-header { gap: 10px; }
+          .search-wrap input { font-size: 0.95rem; padding: 12px 14px; }
+          .breadcrumb-actions { gap: 8px; }
+          .breadcrumb-actions button { min-height: 36px; padding: 8px 12px; }
+          .recent-item { padding: 12px 14px; font-size: 0.9rem; }
+          .file-card .file-name { padding: 6px 4px 2px; line-height: 1.35; }
+        }
+      </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="logo">
-        <svg viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-          <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
-          <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-          <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-          <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-          <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-        </svg>
-        Google Drive File Viewer
-      </div>
-      <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
-    </header>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div class="logo">
+            <svg viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+              <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/>
+              <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+              <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+              <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+              <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+            </svg>
+            Google Drive File Viewer
+            </div>
+            <button type="button" id="themeToggle" class="btn-ghost btn-sm" title="สลับธีมสว่าง/มืด" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+              <svg id="themeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <span id="themeLabel">มืด</span>
+            </button>
+          </div>
+          <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
+        </header>
 
     <!-- ===== Account Card ===== -->
     <div class="card" id="settingsCard">
@@ -641,7 +690,30 @@
       const settingsHint    = document.getElementById("settingsHint");
       const userInfo        = document.getElementById("userInfo");
       const viewerForm      = document.getElementById("viewerForm");
-      const driveLink       = document.getElementById("driveLink");
+            const driveLink       = document.getElementById("driveLink");
+
+            // ===== Theme toggle (สว่าง / มืด) =====
+            const themeToggle     = document.getElementById("themeToggle");
+            const themeIcon       = document.getElementById("themeIcon");
+            const themeLabel      = document.getElementById("themeLabel");
+            function applyTheme(theme) {
+              const isLight = theme === "light";
+              document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+              try { localStorage.setItem("gdv_theme", theme); } catch (_) {}
+              if (themeIcon) {
+                themeIcon.innerHTML = isLight
+                  ? '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'
+                  : '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+              }
+              if (themeLabel) themeLabel.textContent = isLight ? "สว่าง" : "มืด";
+            }
+            let savedTheme = "dark";
+            try { savedTheme = localStorage.getItem("gdv_theme") || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (_) {}
+            applyTheme(savedTheme);
+            if (themeToggle) themeToggle.addEventListener("click", function () {
+              const isLight = document.documentElement.getAttribute("data-theme") === "light";
+              applyTheme(isLight ? "dark" : "light");
+            });
       const linkError       = document.getElementById("linkError");
       const breadcrumb      = document.getElementById("breadcrumb");
       const filesWrap       = document.getElementById("filesWrap");
