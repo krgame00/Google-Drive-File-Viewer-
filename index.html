@@ -80,6 +80,7 @@
         }
 
     html, body { height: 100%; }
+    body { overflow-x: hidden; }
 
     body {
       font-family: "Inter", "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -230,11 +231,12 @@
     }
     .breadcrumb.show { display: flex; }
     .crumb {
-      background: transparent; border: none; color: var(--muted);
-      padding: 4px 8px; font-weight: 500; font-size: 0.82rem;
-      border-radius: 6px; cursor: pointer; font-family: inherit;
-      transition: color var(--transition), background var(--transition);
-    }
+          background: transparent; border: none; color: var(--muted);
+          padding: 4px 8px; font-weight: 500; font-size: 0.82rem;
+          border-radius: 6px; cursor: pointer; font-family: inherit;
+          transition: color var(--transition), background var(--transition);
+          max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
     .crumb:hover { color: var(--accent); background: var(--accent-soft); }
     .crumb.current { color: var(--text-strong); font-weight: 600; }
     .crumb-sep {
@@ -248,9 +250,10 @@
     /* ===== File Grid ===== */
     .files-wrap { min-height: 200px; }
     .files-header {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
-    }
+          display: flex; align-items: center; justify-content: space-between;
+          gap: 10px; flex-wrap: wrap;
+          margin-bottom: 14px;
+        }
     .files-header h2 {
       font-size: 0.98rem; font-weight: 600; color: var(--text-strong);
       letter-spacing: -0.01em;
@@ -375,14 +378,15 @@
     }
     .video-modal.show { display: flex; }
     .video-box {
-      width: 100%; max-width: 960px; background: #000;
-      border-radius: var(--radius); overflow: hidden; position: relative;
-      animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: 0 12px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1), var(--shadow-glow);
-    }
-    .video-box .ratio { aspect-ratio: 16 / 9; background: #000; position: relative; }
-    .video-box video { width: 100%; height: 100%; display: block; background: #000; }
-    .video-box iframe { width: 100%; height: 100%; border: 0; display: block; }
+          width: 100%; max-width: 960px; background: #000;
+          border-radius: var(--radius); overflow: hidden; position: relative;
+          animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 12px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.1), var(--shadow-glow);
+          max-height: 92vh; display: flex; flex-direction: column;
+        }
+        .video-box .ratio { aspect-ratio: 16 / 9; background: #000; position: relative; flex: 0 0 auto; max-height: 100%; }
+            .video-box video { width: 100%; height: 100%; display: block; background: #000; max-height: calc(92vh - 46px); object-fit: contain; }
+            .video-box iframe { width: 100%; height: 100%; border: 0; display: block; max-height: calc(92vh - 46px); }
 
     .vid-loading {
       position: absolute; inset: 0; display: none;
@@ -433,13 +437,13 @@
     .files-grid.list-view .file-name { font-size: 0.85rem; }
 
     /* ===== Search box ===== */
-    .search-wrap { display: flex; gap: 6px; align-items: center; }
-    .search-wrap input {
-      width: 180px; font-size: 0.82rem; padding: 7px 11px;
-      border: 1.5px solid var(--border); border-radius: var(--radius-sm);
-      background: var(--bg-elevated); color: var(--text); outline: none;
-      transition: border-color 0.2s;
-    }
+    .search-wrap { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 160px; max-width: 340px; }
+        .search-wrap input {
+          width: 100%; font-size: 0.82rem; padding: 7px 11px;
+          border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+          background: var(--bg-elevated); color: var(--text); outline: none;
+          transition: border-color 0.2s;
+        }
     .search-wrap input:focus { border-color: var(--accent); }
     .search-wrap input::placeholder { color: var(--muted-soft); }
     .search-clear {
@@ -530,18 +534,31 @@
           .auth-row { flex-direction: column; align-items: stretch; }
 
           /* B: ใช้มือถือง่ายขึ้น — ปุ่มใหญ่ ระยะห่างเยอะขึ้น */
-          input[type="text"], button { font-size: 1rem; }
-          .btn-primary { min-height: 48px; }
-          .btn-ghost { min-height: 40px; }
-          .view-toggle button { padding: 10px 12px; }
-          #sortBtn { padding: 10px 12px; }
-          .files-header { gap: 10px; }
-          .search-wrap input { font-size: 0.95rem; padding: 12px 14px; }
-          .breadcrumb-actions { gap: 8px; }
-          .breadcrumb-actions button { min-height: 36px; padding: 8px 12px; }
-          .recent-item { padding: 12px 14px; font-size: 0.9rem; }
-          .file-card .file-name { padding: 6px 4px 2px; line-height: 1.35; }
-        }
+                    input[type="text"], button { font-size: 1rem; }
+                    .btn-primary { min-height: 48px; }
+                    .btn-ghost { min-height: 40px; }
+                    .view-toggle button { padding: 10px 12px; }
+                    #sortBtn { padding: 10px 12px; }
+                    .files-header { gap: 10px; }
+                    .search-wrap { display: flex; gap: 6px; align-items: center; flex: 1 1 100%; min-width: 100%; max-width: none; order: 3; }
+                              .search-wrap input { font-size: 0.95rem; padding: 12px 14px; }
+                              .search-clear { right: 30px; top: auto; }
+                              .files-header .btn-primary { margin-left: auto; }
+                    .breadcrumb-actions { gap: 8px; }
+                    .breadcrumb-actions button { min-height: 36px; padding: 8px 12px; }
+                    .recent-item { padding: 12px 14px; font-size: 0.9rem; }
+                    .file-card .file-name { padding: 6px 4px 2px; line-height: 1.35; }
+
+                              /* Fix: ปุ่ม nav media ใหญ่ขึ้น + ไม่ทับจอแคบ */
+                              .media-nav { width: 44px; height: 44px; }
+                              .media-nav.prev { left: 6px; }
+                              .media-nav.next { right: 6px; }
+                              .video-modal .media-nav { top: calc(50% - 20px); }
+                              .lightbox img { max-height: 85vh; }
+                              .video-modal { padding: 8px; }
+                              .video-footer { padding: 10px 12px; gap: 8px; }
+                              .video-footer a { font-size: 0.72rem; }
+                            }
       </style>
 </head>
 <body>
@@ -1302,9 +1319,13 @@
 
       // ===== Lightbox (ใช้ alt=media bypass view limit) =====
       function openLightbox(id) {
-        lightbox.classList.add("show");
-        lightbox.setAttribute("aria-hidden", "false");
-        lbImg.src = "";
+              lbImg.dataset.fid = id; // จำเป็น: media nav ใช้ชี้หา index
+              // reset index ให้ตรงกับภาพที่เปิด (กัน nav ผิด)
+              currentMediaIndex = -1;
+              currentMediaKind = "image";
+              lightbox.classList.add("show");
+              lightbox.setAttribute("aria-hidden", "false");
+              lbImg.src = "";
 
         const auth = authParams();
         if (auth.mode === "none") { fallbackImage(id); return; }
@@ -1343,8 +1364,11 @@
       // ===== Video Modal =====
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
       function openVideo(id, name) {
-              vidCurrentId = id;
-              vidTitle.textContent = name || "วิดีโอ";
+                    vidCurrentId = id;
+                    // reset index ให้ตรงกับวิดีโอที่เปิด (กัน nav ผิด)
+                    currentMediaIndex = -1;
+                    currentMediaKind = "video";
+                    vidTitle.textContent = name || "วิดีโอ";
               vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
               vidPlayer.style.display = "none";
               vidFrame.style.display = "none";
