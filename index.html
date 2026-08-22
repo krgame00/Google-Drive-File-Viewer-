@@ -145,6 +145,7 @@
     }
     .input-with-btn { display: flex; gap: 8px; }
     .input-with-btn input { flex: 1; }
+    .input-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
     /* ===== Buttons ===== */
     button {
@@ -163,6 +164,7 @@
     .btn-ghost {
       background: transparent; color: var(--muted);
       border: 1px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
     }
     .btn-ghost:hover { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
     .btn-sm { padding: 7px 12px; font-size: 0.8rem; }
@@ -284,6 +286,7 @@
       position: relative; overflow: hidden;
     }
     .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .file-thumb .thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .file-thumb .icon-svg { width: 38px; height: 38px; opacity: 0.5; }
     .play-overlay {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -340,6 +343,26 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ===== Skeleton loading (การ์ดเปล่า shimmer ตอนโหลด) ===== */
+    .sk-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+    .sk-card {
+      background: var(--card); border: 1px solid var(--border-soft);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .sk-thumb { width: 100%; aspect-ratio: 16 / 10; }
+    .sk-line { height: 10px; border-radius: 5px; margin: 10px 11px; }
+    .sk-line.short { width: 55%; margin-bottom: 12px; }
+    .sk-thumb, .sk-line {
+      background: linear-gradient(100deg, var(--thumb-bg) 40%, var(--border) 50%, var(--thumb-bg) 60%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s linear infinite;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
     /* ===== Lightbox ===== */
     .lightbox {
       position: fixed; inset: 0; background: rgba(0,0,0,0.92);
@@ -367,6 +390,27 @@
       backdrop-filter: blur(12px); transition: all 0.2s;
     }
     .lb-close:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
+
+    /* ตัวนับรูปใน lightbox (เช่น 3 / 25) */
+    .lb-count {
+      position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+      color: #fff; font-size: 0.82rem; font-weight: 500;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+      padding: 4px 14px; border-radius: 999px; z-index: 2;
+      backdrop-filter: blur(8px);
+    }
+
+    /* ปุ่ม "ดูต้นฉบับ" — แสดงเฉพาะตอนดูภาพย่อจาก CDN */
+    .lb-orig {
+      display: none; position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+      color: #fff; font-size: 0.82rem; font-weight: 500; font-family: inherit;
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+      padding: 8px 18px; border-radius: 999px; z-index: 2; cursor: pointer;
+      backdrop-filter: blur(8px); align-items: center;
+    }
+    .lb-orig.show { display: inline-flex; }
+    .lb-orig:hover { background: rgba(255,255,255,0.22); }
+    .lb-orig:disabled { opacity: 0.6; }
 
     /* ===== Video Modal ===== */
     .video-modal {
@@ -427,9 +471,27 @@
         }
         .view-toggle button.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
         .view-toggle svg { width: 15px; height: 15px; }
-        #sortBtn { display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
-        #sortBtn span { font-size: 0.72rem; }
+        #sortBtn, #densityBtn { display: inline-flex; align-items: center; gap: 4px; line-height: 1; }
+        #sortBtn span, #densityBtn span { font-size: 0.72rem; }
     .files-grid.list-view { grid-template-columns: 1fr; }
+
+    /* ===== Density (ขนาดการ์ด: เล็ก/ปกติ/ใหญ่) ===== */
+    .files-grid.density-sm { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px; }
+    .files-grid.density-lg { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+    .files-grid.density-sm .file-name { font-size: 0.74rem; }
+    .files-grid.density-lg .file-name { font-size: 0.86rem; }
+
+    /* ===== Filter chips (ตัวกรองชนิดไฟล์) ===== */
+    .filter-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .filter-chip {
+      background: var(--thumb-bg); border: 1px solid var(--border); color: var(--muted);
+      padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 5px; font-family: inherit;
+      transition: all 0.2s; white-space: nowrap;
+    }
+    .filter-chip span { opacity: 0.6; font-size: 0.72rem; }
+    .filter-chip:hover { color: var(--accent); border-color: var(--accent); }
+    .filter-chip.active { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
     .files-grid.list-view .file-card { flex-direction: row; align-items: center; }
     .files-grid.list-view .file-thumb { width: 64px; height: 48px; flex-shrink: 0; aspect-ratio: auto; }
     .files-grid.list-view .file-meta { flex: 1; padding: 8px 12px; }
@@ -466,6 +528,24 @@
     .media-nav.next { right: 12px; }
     .lightbox .media-nav { top: 50%; }
     .video-modal .media-nav { top: calc(50% - 22px); }
+
+    /* ===== Mobile bottom bar (แถบลัดล่างจอ มือถือ) ===== */
+    .mobile-bar {
+      display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+      background: var(--bg-elevated); border-top: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+      justify-content: space-around;
+      padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    .mobile-bar button {
+      background: none; border: none; color: var(--muted);
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      font-size: 0.68rem; padding: 6px 14px; min-width: 72px;
+      border-radius: var(--radius-sm); font-family: inherit;
+    }
+    .mobile-bar button:active { transform: none; background: var(--accent-soft); color: var(--accent); }
+    .mobile-bar button:disabled { opacity: 0.4; }
+    .mobile-bar svg { width: 20px; height: 20px; }
 
     /* ===== Toast ===== */
     .toast {
@@ -517,9 +597,11 @@
       color: var(--text); padding: 6px 12px; border-radius: 20px;
       font-size: 0.8rem; cursor: pointer; display: inline-flex;
       align-items: center; gap: 6px; transition: all 0.2s;
+      max-width: 240px; white-space: nowrap;
     }
     .recent-item:hover { background: var(--border); color: var(--accent); }
-    .recent-item svg { width: 14px; height: 14px; color: var(--muted); }
+    .recent-item svg { width: 14px; height: 14px; color: var(--muted); flex-shrink: 0; }
+    .recent-item .rc-name { overflow: hidden; text-overflow: ellipsis; }
 
     /* ===== Responsive: มือถือ ===== */
         @media (max-width: 600px) {
@@ -531,6 +613,9 @@
           .file-name { font-size: 0.76rem; }
           .file-sub { font-size: 0.68rem; }
           .input-with-btn { flex-direction: column; }
+          .input-actions { width: 100%; }
+          .input-actions .btn-ghost { flex: 0 0 auto; min-width: 88px; }
+          .input-actions .btn-primary { flex: 1; }
           .auth-row { flex-direction: column; align-items: stretch; }
 
           /* B: ใช้มือถือง่ายขึ้น — ปุ่มใหญ่ ระยะห่างเยอะขึ้น */
@@ -538,9 +623,10 @@
                     .btn-primary { min-height: 48px; }
                     .btn-ghost { min-height: 40px; }
                     .view-toggle button { padding: 10px 12px; }
-                    #sortBtn { padding: 10px 12px; }
+                    #sortBtn, #densityBtn { padding: 10px 12px; }
                     .files-header { gap: 10px; }
                     .search-wrap { display: flex; gap: 6px; align-items: center; flex: 1 1 100%; min-width: 100%; max-width: none; order: 3; }
+                              .filter-chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
                               .search-wrap input { font-size: 0.95rem; padding: 12px 14px; }
                               .search-clear { right: 30px; top: auto; }
                               .files-header .btn-primary { margin-left: auto; }
@@ -558,6 +644,13 @@
                               .video-modal { padding: 8px; }
                               .video-footer { padding: 10px 12px; gap: 8px; }
                               .video-footer a { font-size: 0.72rem; }
+
+                              /* แถบลัดล่างจอ — แสดงเฉพาะจอมือถือเมื่อเปิดโฟลเดอร์อยู่ */
+                              .mobile-bar.show { display: flex; }
+                              /* เผื่อพื้นที่ใต้เนื้อหาให้พ้นแถบล่าง — ใส่ที่ .wrap แทน body
+                                 เพราะ body height:100% + overflow-x:hidden ทำให้ padding-bottom
+                                 ของ body ไม่ถูกนับเข้าความสูงที่ scroll ได้ (scrollbar สุดแล้วยังโดนบัง) */
+                              body.has-mobile-bar .wrap { padding-bottom: 96px; }
                             }
       </style>
 </head>
@@ -619,10 +712,16 @@
           <label for="driveLink">ลิงก์ Google Drive</label>
           <div class="input-with-btn">
             <input type="text" id="driveLink" placeholder="วางลิงก์ที่นี่… เช่น https://drive.google.com/drive/folders/XXXXX" autocomplete="off" spellcheck="false" />
-            <button type="submit" class="btn-primary" id="openBtn">
+            <div class="input-actions">
+              <button type="button" class="btn-ghost" id="pasteBtn" title="วางลิงก์จากคลิปบอร์ด">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                วาง
+              </button>
+              <button type="submit" class="btn-primary" id="openBtn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               เปิด
             </button>
+            </div>
           </div>
           <div class="alert alert-error" id="linkError" role="alert">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -657,6 +756,8 @@
   <!-- ===== Lightbox ===== -->
   <div class="lightbox" id="lightbox" aria-hidden="true">
       <button type="button" class="lb-close" id="lbClose" aria-label="ปิด">&times;</button>
+      <div class="lb-count" id="lbCount"></div>
+      <button type="button" class="lb-orig" id="lbOrig">ดูต้นฉบับ</button>
       <button type="button" class="media-nav prev" id="lbPrev" aria-label="รูปก่อนหน้า">&#8249;</button>
       <button type="button" class="media-nav next" id="lbNext" aria-label="รูปถัดไป">&#8250;</button>
       <img id="lbImg" alt="รูปภาพขยายเต็มจอ" />
@@ -683,6 +784,22 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== Mobile bottom bar (มือถือ) ===== -->
+  <nav class="mobile-bar" id="mobileBar" aria-hidden="true">
+    <button type="button" id="mbBack" aria-label="ย้อนกลับ">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      ย้อนกลับ
+    </button>
+    <button type="button" id="mbHome" aria-label="หน้าหลัก">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      หน้าหลัก
+    </button>
+    <button type="button" id="mbSearch" aria-label="ค้นหา" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      ค้นหา
+    </button>
+  </nav>
 
   <!-- ===== Toast ===== -->
   <div class="toast" id="toast">สำเร็จ!</div>
@@ -716,7 +833,7 @@
             function applyTheme(theme) {
               const isLight = theme === "light";
               document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
-              try { localStorage.setItem("gdv_theme", theme); } catch (_) {}
+              lsSet("gdv_theme", theme);
               if (themeIcon) {
                 themeIcon.innerHTML = isLight
                   ? '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>'
@@ -749,8 +866,13 @@
       const vidClose        = document.getElementById("vidClose");
       const lbPrev          = document.getElementById("lbPrev");
       const lbNext          = document.getElementById("lbNext");
+      const lbOrig          = document.getElementById("lbOrig");
       const vidPrev         = document.getElementById("vidPrev");
       const vidNext         = document.getElementById("vidNext");
+      const mobileBar       = document.getElementById("mobileBar");
+      const mbBack          = document.getElementById("mbBack");
+      const mbHome          = document.getElementById("mbHome");
+      const mbSearch        = document.getElementById("mbSearch");
 
       // ===== State =====
       // ★ ค่า default ฝังในโค้ด — ใช้ได้ทันทีโดยไม่ต้องใส่
@@ -760,8 +882,8 @@
 
       const LS_CLIENTID = "gdv_clientid";
       const LS_APIKEY   = "gdv_apikey";
-      let clientId = localStorage.getItem(LS_CLIENTID) || DEFAULT_CLIENTID;
-      let apiKey   = localStorage.getItem(LS_APIKEY)   || DEFAULT_APIKEY;
+      let clientId = lsGet(LS_CLIENTID) || DEFAULT_CLIENTID;
+      let apiKey   = lsGet(LS_APIKEY)   || DEFAULT_APIKEY;
 
       let accessToken = null;   // OAuth token (ในหน่วยความจำ ไม่เก็บ localStorage)
       let tokenExpiry = 0;
@@ -770,10 +892,12 @@
       let userProfile = null;   // { name, email, picture }
 
       let navStack = [];
-            let currentVideoUrl = null; // blob URL ปัจจุบัน เก็บไว้ revoke
-            let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
-            let currentFolderId = null; // id โฟลเดอร์ที่กำลังแสดง
-            let vidCurrentId = null;    // id วิดีโอที่กำลังเล่น (สำหรับ nav)
+      let currentVideoUrl = null; // blob URL วิดีโอปัจจุบัน เก็บไว้ revoke
+      let currentDocUrl = null;   // blob URL เอกสารปัจจุบัน เก็บไว้ revoke
+      let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
+      let currentFolderId = null; // id โฟลเดอร์ที่กำลังแสดง
+      let vidCurrentId = null;    // id วิดีโอที่กำลังเล่น (สำหรับ nav)
+      let mediaThumbs = {};       // id → thumbnailLink (โหลดภาพย่อ CDN เร็วใน lightbox)
 
       // ===== Toast / Error helpers =====
       function showToast(msg) {
@@ -783,6 +907,68 @@
         showToast._t = setTimeout(() => toast.classList.remove("show"), 2200);
       }
       function showLinkError(show) { linkError.classList.toggle("show", show); }
+
+      // ===== Safe localStorage (กันพังใน private mode / พื้นที่เต็ม) =====
+      function lsGet(key) {
+        try { return localStorage.getItem(key); } catch (_) { return null; }
+      }
+      function lsSet(key, val) {
+        try { localStorage.setItem(key, val); } catch (_) {}
+      }
+      function lsRemove(key) {
+        try { localStorage.removeItem(key); } catch (_) {}
+      }
+      function lsGetJSON(key, fallback) {
+        try {
+          const v = JSON.parse(lsGet(key) || "null");
+          return Array.isArray(v) ? v : fallback;
+        } catch (_) { return fallback; }
+      }
+
+      // ===== Media cache (Cache Storage — ดูซ้ำได้ทันที; ใช้ไม่ได้ก็ข้ามเงียบ ๆ) =====
+      const MEDIA_CACHE = "gdv-media-v1";
+      function cacheGet(key) {
+        return Promise.resolve().then(function () {
+          if (!("caches" in window)) return null;
+          return caches.open(MEDIA_CACHE)
+            .then(function (c) { return c.match(key); })
+            .catch(function () { return null; });
+        });
+      }
+      function cachePut(key, blob) {
+        if (!("caches" in window)) return;
+        caches.open(MEDIA_CACHE).then(function (c) {
+          c.put(key, new Response(blob));
+          // กันแคชบวมเกิน: เกิน 300 รายการล้างทั้งก้อนเริ่มใหม่
+          c.keys().then(function (keys) {
+            if (keys.length > 300) caches.delete(MEDIA_CACHE);
+          }).catch(function () {});
+        }).catch(function () {});
+      }
+      // XHR ดึง blob → Promise (พร้อม progress callback)
+      function xhrBlob(url, headers, onprogress) {
+        return new Promise(function (resolve, reject) {
+          const xhr = new XMLHttpRequest();
+          xhr.open("GET", url, true);
+          xhr.responseType = "blob";
+          Object.keys(headers || {}).forEach(function (h) { xhr.setRequestHeader(h, headers[h]); });
+          if (onprogress) xhr.onprogress = onprogress;
+          xhr.onload = function () { xhr.status === 200 ? resolve(xhr.response) : reject(new Error("HTTP " + xhr.status)); };
+          xhr.onerror = function () { reject(new Error("network")); };
+          xhr.send();
+        });
+      }
+      async function getBlobCached(key, url, headers, onprogress) {
+        const hit = await cacheGet(key);
+        if (hit) return await hit.blob();
+        const blob = await xhrBlob(url, headers, onprogress);
+        cachePut(key, blob);
+        return blob;
+      }
+      // คีย์แคชต้องเป็น path สัมพัทธ์ (ห้ามขึ้นต้น "xxx:" — URL parser ตีความเป็น scheme แล้ว Request พัง)
+      function origCacheKey(id) {
+        return "/gdv/orig/" + id + "@" + (fileMetaOf(id).modifiedTime || "");
+      }
 
       // ===== Escape helpers =====
       function escapeHtml(s) {
@@ -799,6 +985,51 @@
         if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
         if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(1) + " MB";
         return (n / 1024 / 1024 / 1024).toFixed(1) + " GB";
+      }
+
+      // ===== File info helpers =====
+      let _dtf = null;
+      try { _dtf = new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "2-digit" }); } catch (_) {}
+      function formatDateTh(iso) {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return "";
+        try { return _dtf ? _dtf.format(d) : d.toLocaleDateString(); } catch (_) { return ""; }
+      }
+      function fileExt(name) {
+        const s = String(name || "");
+        const i = s.lastIndexOf(".");
+        if (i <= 0 || i === s.length - 1) return "";
+        return s.slice(i + 1).toLowerCase().slice(0, 5);
+      }
+      function fileMetaOf(id) {
+        return allFiles.find(function (f) { return f.id === id; }) || {};
+      }
+      // ลิงก์ภาพย่อของ Drive → ขอไซซ์ใหญ่ขึ้น (=s1600) สำหรับดูใน lightbox — โหลดจาก CDN ของ Google เอง เร็วมาก
+      function cdnLargeUrl(link) {
+        if (!link) return null;
+        return link.replace(/=s\d+(-[a-z]+)*/i, "=s1600").replace(/=w\d+-h\d+(-[a-z]+)*/i, "=s1600");
+      }
+      // จับคู่นามสกุล/mime → ชนิดไอคอน (pdf/word/excel/ppt/audio/archive/text)
+      function fileIconKind(name, mime) {
+        const ext = fileExt(name);
+        if (mime && mime.indexOf("audio/") === 0) return "audio";
+        if (ext === "pdf") return "pdf";
+        if (["doc", "docx", "odt", "rtf"].indexOf(ext) >= 0) return "word";
+        if (["xls", "xlsx", "csv", "ods"].indexOf(ext) >= 0) return "excel";
+        if (["ppt", "pptx", "odp"].indexOf(ext) >= 0) return "ppt";
+        if (["zip", "rar", "7z", "tar", "gz", "iso"].indexOf(ext) >= 0) return "archive";
+        if (["txt", "md", "json", "xml", "js", "ts", "py", "html", "css", "srt", "vtt", "apk"].indexOf(ext) >= 0) return "text";
+        return "file";
+      }
+      // ชนิดไฟล์สำหรับชิปกรอง (folder/image/video/audio/doc/other)
+      function fileTypeOf(f) {
+        if (f.mimeType === "application/vnd.google-apps.folder") return "folder";
+        if (f.mimeType && f.mimeType.indexOf("video/") === 0) return "video";
+        if (f.mimeType && f.mimeType.indexOf("image/") === 0) return "image";
+        if (f.mimeType && f.mimeType.indexOf("audio/") === 0) return "audio";
+        if (["pdf", "word", "excel", "ppt", "text"].indexOf(fileIconKind(f.name, f.mimeType)) >= 0) return "doc";
+        return "other";
       }
 
       // ===== Status displays =====
@@ -830,7 +1061,7 @@
         const val = clientIdInput.value.trim();
         if (!val) { showToast("กรุณาวาง Client ID ก่อน"); return; }
         clientId = val;
-        localStorage.setItem(LS_CLIENTID, val);
+        lsSet(LS_CLIENTID, val);
         refreshClientIdStatus();
         showToast("บันทึก Client ID แล้ว!");
       });
@@ -838,16 +1069,21 @@
         const val = apiKeyInput.value.trim();
         if (!val) { showToast("กรุณาวาง API Key ก่อน"); return; }
         apiKey = val;
-        localStorage.setItem(LS_APIKEY, val);
+        lsSet(LS_APIKEY, val);
         refreshKeyStatus();
         showToast("บันทึก API Key แล้ว!");
       });
 
       // ===== OAuth (Google Identity Services) =====
-      // รอ GIS โหลดเสร็จ แล้ว init token client
+      // รอ GIS โหลดเสร็จแล้ว init token client (เพดาน ~15 วิ กันรอเงียบไม่รู้จบ)
       function waitForGis(cb) {
-        if (window.google && google.accounts && google.accounts.oauth2) { cb(); return; }
-        setTimeout(() => waitForGis(cb), 200);
+        let waited = 0;
+        (function poll() {
+          if (window.google && google.accounts && google.accounts.oauth2) { cb(); return; }
+          if (waited >= 15000) { showToast("โหลด Google Sign-In ไม่สำเร็จ — ตรวจอินเทอร์เน็ตหรือสคริปต์ถูกบล็อก"); return; }
+          waited += 200;
+          setTimeout(poll, 200);
+        })();
       }
 
       function initTokenClient() {
@@ -966,7 +1202,7 @@
         renderLoading();
 
         try {
-          let allFiles = [];
+          let collected = [];
           let pageToken = null;
 
           while (true) {
@@ -982,13 +1218,13 @@
               throw new Error(err.error?.message || ("HTTP " + res.status));
             }
             const data = await res.json();
-            allFiles = allFiles.concat(data.files || []);
+            collected = collected.concat(data.files || []);
 
             if (!data.nextPageToken) break;
             pageToken = data.nextPageToken;
           }
 
-          renderFiles(allFiles);
+          renderFiles(collected);
         } catch (e) {
           renderApiError(e.message);
         }
@@ -996,7 +1232,11 @@
 
       // ===== Renderers =====
       function renderLoading() {
-        filesWrap.innerHTML = '<div class="state-box"><div class="spinner"></div><p>กำลังโหลดเนื้อหา…</p></div>';
+        let cards = "";
+        for (let i = 0; i < 12; i++) {
+          cards += '<div class="sk-card"><div class="sk-thumb"></div><div class="sk-line"></div><div class="sk-line short"></div></div>';
+        }
+        filesWrap.innerHTML = '<div class="sk-grid">' + cards + '</div>';
       }
       function renderNeedAuth() {
         filesWrap.innerHTML =
@@ -1019,6 +1259,8 @@
       function renderFiles(files) {
               renderBreadcrumb();
               allFiles = files; // เก็บไว้สำหรับค้นหา/สลับ media
+              mediaThumbs = {};
+              files.forEach(function (f) { if (f.thumbnailLink) mediaThumbs[f.id] = f.thumbnailLink; });
               if (!files.length) {
                 filesWrap.innerHTML =
                   '<div class="state-box">' +
@@ -1030,6 +1272,26 @@
               const folderCount = files.filter(f => f.mimeType === "application/vnd.google-apps.folder").length;
               const fileCount = files.length - folderCount;
               currentFolderId = navStack[navStack.length - 1].id;
+              // ===== ชิปกรองชนิดไฟล์ (แสดงเฉพาะประเภทที่มีจริง) =====
+              const FILTERS = [
+                { key: "all", label: "ทั้งหมด" },
+                { key: "folder", label: "โฟลเดอร์" },
+                { key: "image", label: "รูป" },
+                { key: "video", label: "วิดีโอ" },
+                { key: "audio", label: "เสียง" },
+                { key: "doc", label: "เอกสาร" }
+              ];
+              const typeCounts = { all: files.length };
+              files.forEach(function (f) {
+                const t = fileTypeOf(f);
+                typeCounts[t] = (typeCounts[t] || 0) + 1;
+              });
+              let chipsHtml = "";
+              FILTERS.forEach(function (flt) {
+                const n = typeCounts[flt.key] || 0;
+                if (flt.key !== "all" && !n) return;
+                chipsHtml += '<button type="button" class="filter-chip' + (flt.key === "all" ? " active" : "") + '" data-filter="' + flt.key + '">' + flt.label + ' <span>' + n + '</span></button>';
+              });
               let html = '<div class="files-header">' +
                 '<div>' +
                   '<h2 style="margin: 0; padding-bottom: 2px;">' + escapeHtml(navStack[navStack.length - 1].name) + '</h2>' +
@@ -1050,12 +1312,18 @@
                   '<button type="button" id="viewList" title="รายการ">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>' +
                   '</button>' +
+                            '<button type="button" id="densityBtn" class="" title="ขนาดการ์ด: ปกติ">' +
+                              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="16" y="4" width="5" height="16" rx="1"/></svg>' +
+                              '<span id="densityLabel">ปกติ</span>' +
+                            '</button>' +
                 '</div>' +
                 '<button type="button" class="btn-primary btn-sm" onclick="window.open(\'https://drive.google.com/drive/u/0/folders/' + escapeAttr(currentFolderId) + '\', \'_blank\')" title="เปิดโฟลเดอร์นี้ใน Google Drive เพื่อดาวน์โหลด ZIP (Google บีบให้เอง — ไม่เปลือง quota)" style="display: flex; align-items: center; gap: 4px;">' +
                                   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
                                   'ดาวน์โหลด ZIP' +
                                 '</button>' +
-              '</div><div class="files-grid" id="filesGrid">';
+              '</div>' +
+              (Object.keys(typeCounts).length > 2 ? '<div class="filter-chips" id="filterChips">' + chipsHtml + '</div>' : '') +
+              '<div class="files-grid" id="filesGrid">';
 
         files.forEach(function (f, idx) {
           const isFolder = f.mimeType === "application/vnd.google-apps.folder";
@@ -1064,28 +1332,39 @@
           const kind = isFolder ? "folder" : isVideo ? "video" : isImage ? "image" : "file";
 
           let thumbHtml = "";
-          if (f.thumbnailLink && (isImage || isVideo)) {
-            thumbHtml = '<img src="' + escapeAttr(f.thumbnailLink) + '" alt="" loading="lazy" />';
-          } else if (f.iconLink) {
-            thumbHtml = '<img class="icon-svg" src="' + escapeAttr(f.iconLink) + '" alt="" />';
-          } else {
-            thumbHtml = genericIconSvg(kind);
+          const iconKind = kind === "file" ? fileIconKind(f.name, f.mimeType) : kind;
+          const dataType = fileTypeOf(f);
+          // ไอคอนเป็นฐานเสมอ + ภาพตัวอย่างของ Drive วางทับ (รูป/วิดีโอ/PDF/เอกสาร)
+          // ถ้าภาพโหลดพลาด (onerror) ซ่อนภาพ จะเหลือไอคอนอยู่ข้างหลัง
+          thumbHtml = genericIconSvg(iconKind);
+          if (f.thumbnailLink && !isFolder) {
+            thumbHtml += '<img class="thumb-img" src="' + escapeAttr(f.thumbnailLink) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'" />';
           }
+          // badge: ไฟล์ทั่วไปแสดงนามสกุลจริง (CSS uppercase ให้เอง)
+          const ext = fileExt(f.name);
+          const badgeText = isFolder ? "Folder" : kind !== "file" ? kind : (ext || "file");
+          // บรรทัดรอง: โฟลเดอร์ · วันที่ หรือ ขนาด · วันที่
+          const subBits = [];
+          if (isFolder) subBits.push("โฟลเดอร์");
+          else if (f.size) subBits.push(formatSize(f.size));
+          const dateTxt = formatDateTh(f.modifiedTime);
+          if (dateTxt) subBits.push(dateTxt);
+          const subText = subBits.join(" · ");
           const playOverlay = isVideo ? '<div class="play-overlay"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>' : "";
 
           // stagger animation delay (cap at 0.4s)
           const delay = Math.min(idx * 0.03, 0.4);
 
           html +=
-            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
+            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-type="' + dataType + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
               '<div class="file-thumb">' +
-                '<span class="thumb-badge ' + kind + '">' + (isFolder ? "Folder" : kind) + '</span>' +
+                '<span class="thumb-badge ' + kind + '">' + escapeHtml(badgeText) + '</span>' +
                 thumbHtml + playOverlay +
               '</div>' +
               '<div class="file-meta">' +
                 '<div class="file-meta-content">' +
                   '<div class="file-name" title="' + escapeAttr(f.name) + '">' + escapeHtml(f.name) + '</div>' +
-                  '<div class="file-sub">' + (isFolder ? "โฟลเดอร์" : formatSize(f.size)) + '</div>' +
+                  '<div class="file-sub">' + escapeHtml(subText) + '</div>' +
                 '</div>' +
                 '<button type="button" class="dl-btn" title="' + (isFolder ? 'เปิดโฟลเดอร์ใน Google Drive' : 'ดาวน์โหลดไฟล์') + '" data-dl-id="' + escapeAttr(f.id) + '" data-dl-kind="' + kind + '">' +
                    (isFolder ? 
@@ -1097,6 +1376,7 @@
         });
         html += '</div>';
         filesWrap.innerHTML = html;
+        if (mbSearch) mbSearch.disabled = false; // มีไฟล์แล้ว → ปุ่มค้นหาแถบล่างใช้ได้
 
         filesWrap.querySelectorAll(".file-card").forEach(function (card) {
           card.addEventListener("click", function () {
@@ -1117,17 +1397,20 @@
                   });
                 });
 
-                // ===== Search (filter ไฟล์ที่โหลดแล้ว) =====
+                // ===== Search + ตัวกรองชนิดไฟล์ (filter ไฟล์ที่โหลดแล้ว) =====
                 const searchInput = document.getElementById("fileSearch");
                 const searchClear = document.getElementById("searchClear");
                 const filesCountEl = document.getElementById("filesCount");
+                let activeType = "all";
                 function applyFilter() {
                   const q = searchInput.value.trim().toLowerCase();
                   const cards = filesWrap.querySelectorAll(".file-card");
                   let shown = 0;
                   cards.forEach(function (card) {
                     const name = (card.dataset.name || "").toLowerCase();
-                    const match = !q || name.indexOf(q) !== -1;
+                    const matchText = !q || name.indexOf(q) !== -1;
+                    const matchType = activeType === "all" || card.dataset.type === activeType;
+                    const match = matchText && matchType;
                     card.style.display = match ? "" : "none";
                     if (match) shown++;
                   });
@@ -1140,6 +1423,14 @@
                   searchInput.addEventListener("input", applyFilter);
                   if (searchClear) searchClear.addEventListener("click", function () { searchInput.value = ""; applyFilter(); });
                 }
+                const chipsWrap = document.getElementById("filterChips");
+                if (chipsWrap) chipsWrap.querySelectorAll(".filter-chip").forEach(function (chip) {
+                  chip.addEventListener("click", function () {
+                    activeType = chip.dataset.filter;
+                    chipsWrap.querySelectorAll(".filter-chip").forEach(function (c) { c.classList.toggle("active", c === chip); });
+                    applyFilter();
+                  });
+                });
 
                 // ===== View toggle (grid / list) =====
                                 const gridBtn = document.getElementById("viewGrid");
@@ -1151,14 +1442,14 @@
                                   gridEl.classList.toggle("list-view", isList);
                                   if (gridBtn) gridBtn.classList.toggle("active", !isList);
                                   if (listBtn) listBtn.classList.toggle("active", isList);
-                                  localStorage.setItem("gdv_view", mode);
+                                  lsSet("gdv_view", mode);
                                 }
                                 if (gridBtn) gridBtn.addEventListener("click", function () { setView("grid"); });
                                 if (listBtn) listBtn.addEventListener("click", function () { setView("list"); });
-                                setView(localStorage.getItem("gdv_view") === "list" ? "list" : "grid");
+                                setView(lsGet("gdv_view") === "list" ? "list" : "grid");
 
                                 // ===== Sort (ชื่อ/ขนาด/วันที่/ชนิด) =====
-                                                let sortKey = localStorage.getItem("gdv_sort") || "name";
+												let sortKey = lsGet("gdv_sort") || "name";
                                                 const sortBtn = document.getElementById("sortBtn");
                                                 const sortLabel = document.getElementById("sortLabel");
                                                 const SORT_OPTIONS = [
@@ -1195,12 +1486,38 @@
                                                 function cycleSort() {
                                                   const idx = SORT_OPTIONS.findIndex(function (o) { return o.key === sortKey; });
                                                   sortKey = SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].key;
-                                                  localStorage.setItem("gdv_sort", sortKey);
+												  lsSet("gdv_sort", sortKey);
                                                   applySort();
                                                 }
                                                 if (sortBtn) sortBtn.addEventListener("click", cycleSort);
                                                 // เรียก sort ครั้งแรกตามค่าที่จำไว้
                                                 applySort();
+
+                // ===== Density (ขนาดการ์ด: เล็ก/ปกติ/ใหญ่) =====
+                let density = lsGet("gdv_density") || "md";
+                const densityBtn = document.getElementById("densityBtn");
+                const densityLabel = document.getElementById("densityLabel");
+                const DENSITY_OPTIONS = [
+                  { key: "sm", label: "เล็ก" },
+                  { key: "md", label: "ปกติ" },
+                  { key: "lg", label: "ใหญ่" }
+                ];
+                function applyDensity() {
+                  if (!gridEl) return;
+                  gridEl.classList.toggle("density-sm", density === "sm");
+                  gridEl.classList.toggle("density-lg", density === "lg");
+                  const opt = DENSITY_OPTIONS.find(function (o) { return o.key === density; }) || {};
+                  if (densityLabel) densityLabel.textContent = opt.label || "ปกติ";
+                  if (densityBtn) densityBtn.title = "ขนาดการ์ด: " + (opt.label || "ปกติ");
+                }
+                function cycleDensity() {
+                  const idx = DENSITY_OPTIONS.findIndex(function (o) { return o.key === density; });
+                  density = DENSITY_OPTIONS[(idx + 1) % DENSITY_OPTIONS.length].key;
+                  lsSet("gdv_density", density);
+                  applyDensity();
+                }
+                if (densityBtn) densityBtn.addEventListener("click", cycleDensity);
+                applyDensity();
 
                 // ---------- Media nav (lightbox + video) ----------
                 window._gdvMediaNav = window._gdvMediaNav || {};
@@ -1222,6 +1539,7 @@
                 const cards = filesWrap.querySelectorAll(".file-card");
                 const out = [];
                 cards.forEach(function (card) {
+                  if (card.offsetParent === null) return; // ข้ามการ์ดที่ถูกค้นหา/กรองซ่อนไว้
                   const k = card.dataset.kind;
                   if (kind === "image" && k === "image") out.push({ id: card.dataset.id, name: card.dataset.name });
                   else if (kind === "video" && k === "video") out.push({ id: card.dataset.id, name: card.dataset.name });
@@ -1264,6 +1582,9 @@
       function renderBreadcrumb() {
         if (!navStack.length) { breadcrumb.classList.remove("show"); return; }
         breadcrumb.classList.add("show");
+        // แถบลัดล่างจอ (มือถือ) โผล่พร้อม breadcrumb เมื่อเปิดโฟลเดอร์
+        if (mobileBar) { mobileBar.classList.add("show"); mobileBar.setAttribute("aria-hidden", "false"); }
+        document.body.classList.add("has-mobile-bar");
         let html = "";
         // ไอคอน chevron สำหรับคั่น
         const chevron = '<span class="crumb-sep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>';
@@ -1299,7 +1620,7 @@
         document.getElementById("bcUp").addEventListener("click", goUp);
                 document.getElementById("bcHome").addEventListener("click", goHome);
                 const bcBack = document.getElementById("bcBack");
-                        if (bcBack) bcBack.addEventListener("click", function () { try { history.back(); } catch (_) { goUp(); } });
+                        if (bcBack) bcBack.addEventListener("click", function () { smartBack(); });
       }
       function goUp() {
               if (navStack.length < 2) { goHome(); return; }
@@ -1315,10 +1636,13 @@
             '<h3>ยังไม่ได้เปิดโฟลเดอร์</h3><p>วางลิงก์ Google Drive ข้างบนแล้วกด "เปิด"</p>' +
           '</div>';
         breadcrumb.classList.remove("show");
+        if (mobileBar) { mobileBar.classList.remove("show"); mobileBar.setAttribute("aria-hidden", "true"); }
+        document.body.classList.remove("has-mobile-bar");
+        if (mbSearch) mbSearch.disabled = true;
       }
 
-      // ===== Lightbox (ใช้ alt=media bypass view limit) =====
-      function openLightbox(id) {
+      // ===== Lightbox (ภาพย่อ CDN ก่อน → เร็วมาก; กดดูต้นฉบับค่อยโหลดเต็ม) =====
+      function openLightbox(id, forceOriginal) {
               lbImg.dataset.fid = id; // จำเป็น: media nav ใช้ชี้หา index
               // reset index ให้ตรงกับภาพที่เปิด (กัน nav ผิด)
               currentMediaIndex = -1;
@@ -1326,26 +1650,52 @@
               lightbox.classList.add("show");
               lightbox.setAttribute("aria-hidden", "false");
               lbImg.src = "";
+              updateLbCount();
+              if (lbOrig) { lbOrig.classList.remove("show"); lbOrig.disabled = false; lbOrig.textContent = "ดูต้นฉบับ"; }
 
+        // มีลิงก์ภาพย่อ (และไม่ได้กดขอต้นฉบับ) → โหลดจาก CDN ของ Google ทันที
+        const cdn = !forceOriginal && cdnLargeUrl(mediaThumbs[id]);
+        if (cdn) {
+          lbImg.onload = function () { lbImg.onload = null; prefetchNextImage(); };
+          lbImg.onerror = function () { lbImg.onerror = null; loadOriginalImage(id); };
+          lbImg.src = cdn;
+          if (lbOrig) lbOrig.classList.add("show");
+          return;
+        }
+        loadOriginalImage(id);
+      }
+
+      // โหลดไฟล์ต้นฉบับผ่าน Drive API (blob + แคช ดูซ้ำได้ทันที)
+      function loadOriginalImage(id) {
+        if (lbOrig) { lbOrig.disabled = true; lbOrig.textContent = "กำลังโหลดต้นฉบับ…"; }
         const auth = authParams();
         if (auth.mode === "none") { fallbackImage(id); return; }
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
-          (auth.mode === "key" ? "&key=" + apiKey : ""), true);
-        xhr.responseType = "blob";
-        if (auth.mode === "bearer") xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
-        xhr.onload = function () {
-          if (xhr.status === 200) {
+        const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
+          (auth.mode === "key" ? "&key=" + apiKey : "");
+        const headers = auth.mode === "bearer" ? { Authorization: "Bearer " + accessToken } : {};
+        getBlobCached(origCacheKey(id), url, headers, null)
+          .then(function (blob) {
+            if (lbImg.dataset.fid !== id) return; // ผู้ใช้เปลี่ยนรูไปแล้ว
             if (lbImg._blobUrl) URL.revokeObjectURL(lbImg._blobUrl);
-            lbImg._blobUrl = URL.createObjectURL(xhr.response);
+            lbImg._blobUrl = URL.createObjectURL(blob);
             lbImg.src = lbImg._blobUrl;
-          } else {
+            if (lbOrig) lbOrig.classList.remove("show");
+          })
+          .catch(function () {
+            if (lbImg.dataset.fid !== id) return;
+            if (lbOrig) { lbOrig.disabled = false; lbOrig.textContent = "ดูต้นฉบับ"; }
             fallbackImage(id);
-          }
-        };
-        xhr.onerror = function () { fallbackImage(id); };
-        xhr.send();
+          });
+      }
+
+      // ดึงภาพย่อรูปถัดไปมารอล่วงหน้า (เบา — เป็นไฟล์ย่อจาก CDN)
+      function prefetchNextImage() {
+        const list = mediaList("image");
+        if (list.length < 2) return;
+        const cur = list.findIndex(function (item) { return item.id === lbImg.dataset.fid; });
+        const next = list[(cur + 1 + list.length) % list.length];
+        const cdn = next && cdnLargeUrl(mediaThumbs[next.id]);
+        if (cdn) { const im = new Image(); im.src = cdn; }
       }
       function fallbackImage(id) {
         lbImg.onerror = function () { showToast("โหลดรูปไม่ได้"); };
@@ -1360,6 +1710,33 @@
       }
       lbClose.addEventListener("click", closeLightbox);
       lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
+      if (lbOrig) lbOrig.addEventListener("click", function () { loadOriginalImage(lbImg.dataset.fid); });
+
+      // ตัวนับรูป "3 / 25"
+      function updateLbCount() {
+        const el = document.getElementById("lbCount");
+        if (!el) return;
+        const list = mediaList("image");
+        if (!list.length) { el.textContent = ""; return; }
+        const idx = list.findIndex(function (item) { return item.id === lbImg.dataset.fid; });
+        el.textContent = (idx >= 0 ? idx + 1 : "-") + " / " + list.length;
+      }
+      // ปัดนิ้วซ้าย/ขวาเปลี่ยนรูป (มือถือ) — แตะธรรมดาไม่ trigger กันปิดภาพโดยไม่ตั้งใจ
+      let lbTouchX = null, lbTouchY = null;
+      lightbox.addEventListener("touchstart", function (e) {
+        if (e.touches.length !== 1) { lbTouchX = null; return; }
+        lbTouchX = e.touches[0].clientX;
+        lbTouchY = e.touches[0].clientY;
+      }, { passive: true });
+      lightbox.addEventListener("touchend", function (e) {
+        if (lbTouchX === null || !e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - lbTouchX;
+        const dy = e.changedTouches[0].clientY - lbTouchY;
+        lbTouchX = null;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          navigateMedia("image", dx < 0 ? 1 : -1); // ปัดไปทางซ้าย → รูปถัดไป
+        }
+      }, { passive: true });
 
       // ===== Video Modal =====
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
@@ -1373,126 +1750,88 @@
               vidPlayer.style.display = "none";
               vidFrame.style.display = "none";
               vidFrame.src = "about:blank";
+              revokeCurrentDoc();
               vidProgressBar.style.width = "0%";
               vidLoadingText.textContent = "กำลังเตรียมวิดีโอ…";
               vidLoading.classList.add("show");
               videoModal.classList.add("show");
               videoModal.setAttribute("aria-hidden", "false");
               // เรียกคืนตำแหน่งที่เคยดูค้างไว้ (ถ้ามี)
-              const saved = localStorage.getItem("gdv_vpos_" + id);
+              const saved = lsGet("gdv_vpos_" + id);
               videoResumePos = saved ? Number(saved) : 0;
 
-              const auth = authParams();
-              if (auth.mode === "bearer") {
-                streamVideo(id);
-              } else if (auth.mode === "key") {
-                streamVideoWithKey(id);
-              } else {
-                fallbackIframe(id);
-              }
+              // สตรีมตรงก่อนเสมอ (เริ่มเล่นทันที + เลื่อนช่วงได้) — ไม่ได้ค่อย fallback ตามโหมด auth
+              tryStreamDirect(id);
             }
 
-      // สตรีมด้วย Bearer token — ใช้ XHR ดึง blob + แสดง progress
-      function streamVideo(id) {
-        const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media";
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url, true);
-        xhr.responseType = "blob";
-        xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
-        xhr.onprogress = function (e) {
-          if (e.lengthComputable) {
-            vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
-            vidLoadingText.textContent = "กำลังโหลด… " + Math.round(e.loaded / e.total * 100) + "%";
-          }
-        };
-        xhr.onload = function () {
-          if (xhr.status === 200) {
-            playBlob(xhr.response);
-          } else if (xhr.status === 403 || xhr.status === 401) {
-            vidLoadingText.textContent = "สิทธิ์ไม่เพียงพอ — ลองเปิดในแท็บใหม่";
-            fallbackIframe(id);
-          } else {
-            vidLoadingText.textContent = "โหลดไม่สำเร็จ (HTTP " + xhr.status + ")";
-            fallbackIframe(id);
-          }
-        };
-        xhr.onerror = function () {
-          vidLoadingText.textContent = "เครือข่ายผิดพลาด — ลองเปิดในแท็บใหม่";
-          fallbackIframe(id);
-        };
-        xhr.send();
-      }
+      // ===== เล่นวิดีโอแบบสตรีม — เริ่มดูทันที ไม่ต้องรอโหลดครบทั้งไฟล์ =====
+      let videoResumePos = 0; // ตำแหน่งล่าสุดของวิดีโอปัจจุบัน
 
-      // สตรีมด้วย API key → ลอง direct URL ก่อน (Range request/scalable seek)
-      function streamVideoWithKey(id) {
-        const directUrl = "https://drive.google.com/uc?export=download&id=" + id + "&key=" + apiKey;
+      // ลองตามลำดับ: ลิงก์ตรง drive.usercontent (ไม่โดนหน้าแจ้งไวรัส ไม่กินโควตา API)
+      // → ผ่าน API แบบ Range (เลื่อนดูช่วงไหนก็ได้ เฉพาะโหมดมี key)
+      // → iframe preview ของ Google (เล่นได้แน่นอนทุกกรณี รวมไฟล์ส่วนตัวที่ล็อกอินอยู่)
+      function tryStreamDirect(id) {
         revokeCurrentVideo();
         vidPlayer.style.display = "block";
-        vidPlayer.src = directUrl;
-        var fbTimer = setTimeout(function () {
-          if (vidPlayer.readyState === 0) { fallbackToBlob(id); }
-        }, 6000);
-        vidPlayer.addEventListener("canplay", function () { clearTimeout(fbTimer); vidPlayer.play().catch(function () {}); }, { once: true });
-        vidPlayer.onerror = function () { clearTimeout(fbTimer); fallbackToBlob(id); };
-      }
-      function fallbackToBlob(id) {
-        vidPlayer.src = "";
-        vidPlayer.onerror = null;
-        vidLoadingText.textContent = "กำลังโหลดผ่าน API…";
-        vidLoading.classList.add("show");
-        streamBlobFallback(id);
-      }
-      function streamBlobFallback(id) {
-        const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey;
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", url, true);
-        xhr.responseType = "blob";
-        xhr.onprogress = function (e) {
-          if (e.lengthComputable) {
-            vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
-            vidLoadingText.textContent = "กำลังโหลด… " + Math.round(e.loaded / e.total * 100) + "%";
+        const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
+        tryVideoSrc(first, function () {
+          if (authParams().mode === "key") {
+            tryVideoSrc("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey,
+              function () { fallbackIframe(id); });
+          } else {
+            fallbackIframe(id);
           }
-        };
-        xhr.onload = function () {
-          if (xhr.status === 200) playBlob(xhr.response);
-          else { vidLoadingText.textContent = "โหลดไม่สำเร็จ — ลองเปิดในแท็บใหม่"; fallbackIframe(id); }
-        };
-        xhr.onerror = function () { fallbackIframe(id); };
-        xhr.send();
+        });
       }
 
-      // เล่น blob ใน <video>
-            let videoResumePos = 0; // ตำแหน่งล่าสุดของวิดีโอปัจจุบัน
-            function playBlob(blob) {
-              revokeCurrentVideo();
-              currentVideoUrl = URL.createObjectURL(blob);
-              vidLoading.classList.remove("show");
-              vidPlayer.style.display = "block";
-              vidPlayer.src = currentVideoUrl;
-              // resume ตำแหน่งที่ค้างไว้ (ถ้ามี)
-              if (videoResumePos > 0) {
-                const tryResume = function () {
-                  if (vidPlayer.readyState >= 1) {
-                    try { vidPlayer.currentTime = videoResumePos; } catch (_) {}
-                  } else {
-                    setTimeout(tryResume, 200);
-                  }
-                };
-                tryResume();
-              }
-              vidPlayer.play().catch(function () {});
-            }
+      function tryVideoSrc(url, onFail) {
+        let done = false;
+        const timer = setTimeout(function () { if (!done) { done = true; onFail(); } }, 8000);
+        vidPlayer.onerror = function () {
+          if (done) return;
+          done = true; clearTimeout(timer); onFail();
+        };
+        vidPlayer.oncanplay = function () {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          vidPlayer.onerror = null;
+          vidPlayer.oncanplay = null;
+          vidLoading.classList.remove("show");
+          // กลับไปตำแหน่งที่เคยดูค้างไว้ (ถ้ามี)
+          if (videoResumePos > 0) {
+            try { vidPlayer.currentTime = videoResumePos; } catch (_) {}
+          }
+          vidPlayer.play().catch(function () {});
+        };
+        vidPlayer.src = url;
+      }
+
             // บันทึกตำแหน่งปัจจุบันเป็นระยะ (ทุก 3 วินาที) — กัน refresh/ปิดแล้วลืมที่
             function saveVideoPos() {
               if (vidPlayer && vidCurrentId && !isNaN(vidPlayer.currentTime) && vidPlayer.currentTime > 2) {
-                try { localStorage.setItem("gdv_vpos_" + vidCurrentId, Math.floor(vidPlayer.currentTime)); } catch (_) {}
+                lsSet("gdv_vpos_" + vidCurrentId, Math.floor(vidPlayer.currentTime));
+                pruneVpos(100);
               }
+            }
+            // เก็บกวาด gdv_vpos_* เก่าสุดออกให้เหลือไม่เกิน maxKeys (กัน localStorage บวม)
+            function pruneVpos(maxKeys) {
+              try {
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                  const k = localStorage.key(i);
+                  if (k && k.indexOf("gdv_vpos_") === 0) keys.push(k);
+                }
+                for (let i = 0; i < keys.length - maxKeys; i++) {
+                  lsRemove(keys[i]);
+                }
+              } catch (_) {}
             }
             window._gdvVideoTimer = window._gdvVideoTimer || setInterval(saveVideoPos, 3000);
             // เมื่อเล่นจบ (ended) → เล่นวิดีโอถัดไปในโฟลเดอร์อัตโนมัติ
             vidPlayer.addEventListener("ended", function () {
               // ล้างตำแหน่งที่ค้าง (เล่นจบแล้ว)
-              try { localStorage.removeItem("gdv_vpos_" + vidCurrentId); } catch (_) {}
+              lsRemove("gdv_vpos_" + vidCurrentId);
               const list = mediaList("video");
               if (list.length > 1) {
                 const cur = list.findIndex(function (item) { return item.id === vidCurrentId; });
@@ -1506,6 +1845,8 @@
 
       // Fallback: ใช้ iframe preview (อาจติดโควต้า แต่อย่างน้อยพอใช้)
       function fallbackIframe(id) {
+        vidPlayer.oncanplay = null;
+        vidPlayer.onerror = null;
         vidPlayer.pause();
         vidPlayer.src = "";
         vidPlayer.style.display = "none";
@@ -1520,71 +1861,88 @@
           currentVideoUrl = null;
         }
       }
+      function revokeCurrentDoc() {
+        if (currentDocUrl) {
+          URL.revokeObjectURL(currentDocUrl);
+          currentDocUrl = null;
+        }
+      }
       function closeVideo() {
         videoModal.classList.remove("show");
         vidPlayer.pause();
         vidPlayer.src = "";
         vidFrame.src = "about:blank";
         revokeCurrentVideo();
+        revokeCurrentDoc();
         videoModal.setAttribute("aria-hidden", "true");
       }
       vidClose.addEventListener("click", closeVideo);
       videoModal.addEventListener("click", function (e) { if (e.target === videoModal) closeVideo(); });
 
       function openDocument(id, name) {
-              vidTitle.textContent = name || "เอกสาร";
-              vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
-              vidPlayer.pause();
-              vidPlayer.src = "";
-              vidPlayer.style.display = "none";
-              vidLoading.classList.remove("show");
-              vidFrame.style.display = "block";
-              // ใช้ blob + iframe เปิดเอกสาร (PDF/office) ผ่าน alt=media ไม่ติด quota
-              const auth = authParams();
-              if (auth.mode !== "none") {
-                const xhr = new XMLHttpRequest();
-                const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
-                  (auth.mode === "key" ? "&key=" + apiKey : "");
-                xhr.open("GET", url, true);
-                xhr.responseType = "blob";
-                if (auth.mode === "bearer") xhr.setRequestHeader("Authorization", "Bearer " + accessToken);
-                vidLoading.classList.add("show");
-                vidLoadingText.textContent = "กำลังโหลดเอกสาร…";
-                vidProgressBar.style.width = "0%";
-                xhr.onprogress = function (e) {
-                  if (e.lengthComputable) {
-                    vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
-                    vidLoadingText.textContent = "กำลังโหลดเอกสาร… " + Math.round(e.loaded / e.total * 100) + "%";
-                  }
-                };
-                xhr.onload = function () {
-                  vidLoading.classList.remove("show");
-                  if (xhr.status === 200 && xhr.response) {
-                    const blobUrl = URL.createObjectURL(xhr.response);
-                    vidFrame.src = blobUrl;
-                  } else {
-                    fallbackDocIframe(id);
-                  }
-                };
-                xhr.onerror = function () { vidLoading.classList.remove("show"); fallbackDocIframe(id); };
-                xhr.send();
-              } else {
-                fallbackDocIframe(id);
+        vidTitle.textContent = name || "เอกสาร";
+        vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
+        vidPlayer.pause();
+        vidPlayer.src = "";
+        vidPlayer.style.display = "none";
+        vidLoading.classList.remove("show");
+        vidFrame.style.display = "block";
+        revokeCurrentDoc();
+        // ใช้ blob + iframe เปิดเอกสาร (PDF/office) ผ่าน alt=media ไม่ติด quota (+ แคช ดูซ้ำได้ทันที)
+        const auth = authParams();
+        if (auth.mode !== "none") {
+          const url = "https://www.googleapis.com/drive/v3/files/" + id + "?alt=media" +
+            (auth.mode === "key" ? "&key=" + apiKey : "");
+          const headers = auth.mode === "bearer" ? { Authorization: "Bearer " + accessToken } : {};
+          vidLoading.classList.add("show");
+          vidLoadingText.textContent = "กำลังโหลดเอกสาร…";
+          vidProgressBar.style.width = "0%";
+          getBlobCached(origCacheKey(id), url, headers,
+            function (e) {
+              if (e.lengthComputable) {
+                vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
+                vidLoadingText.textContent = "กำลังโหลดเอกสาร… " + Math.round(e.loaded / e.total * 100) + "%";
               }
-              videoModal.classList.add("show");
-              videoModal.setAttribute("aria-hidden", "false");
-            }
-            function fallbackDocIframe(id) {
+            })
+            .then(function (blob) {
               vidLoading.classList.remove("show");
-              vidFrame.style.display = "block";
-              vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
-            }
+              revokeCurrentDoc();
+              currentDocUrl = URL.createObjectURL(blob);
+              vidFrame.src = currentDocUrl;
+            })
+            .catch(function () { vidLoading.classList.remove("show"); fallbackDocIframe(id); });
+        } else {
+          fallbackDocIframe(id);
+        }
+        videoModal.classList.add("show");
+        videoModal.setAttribute("aria-hidden", "false");
+      }
+      function fallbackDocIframe(id) {
+        vidLoading.classList.remove("show");
+        vidFrame.style.display = "block";
+        revokeCurrentDoc();
+        vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
+      }
 
-      // ===== Esc key =====
+      // ===== Esc key + ลูกศรเปลี่ยนรูป =====
       document.addEventListener("keydown", function (e) {
+        if (lightbox.classList.contains("show") && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+          navigateMedia("image", e.key === "ArrowRight" ? 1 : -1);
+          return;
+        }
         if (e.key !== "Escape") return;
         if (lightbox.classList.contains("show")) closeLightbox();
         if (videoModal.classList.contains("show")) closeVideo();
+      });
+
+      // ===== Mobile bottom bar: ย้อนกลับ / หน้าหลัก / ค้นหา =====
+      if (mbBack) mbBack.addEventListener("click", function () { smartBack(); });
+      if (mbHome) mbHome.addEventListener("click", goHome);
+      if (mbSearch) mbSearch.addEventListener("click", function () {
+        const s = document.getElementById("fileSearch");
+        if (!s) { showToast("ยังไม่มีไฟล์ให้ค้นหา"); return; }
+        s.focus();
+        s.scrollIntoView({ behavior: "smooth", block: "center" });
       });
 
       // ===== Form submit =====
@@ -1602,105 +1960,181 @@
                 saveRecentFolder(id);
                 listFolder(id);
                 pushHash(id); // URL ตามโฟลเดอร์ที่เปิด
+                ensureFolderName(id);
               });
               driveLink.addEventListener("input", function () {
                 if (linkError.classList.contains("show")) showLinkError(false);
               });
 
-      // ===== Generic icons =====
+      // ===== ปุ่ม "วาง" — อ่านคลิปบอร์ดแล้วเปิดทันที =====
+      const pasteBtn = document.getElementById("pasteBtn");
+      if (pasteBtn) pasteBtn.addEventListener("click", function () {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(function (text) {
+            const t = (text || "").trim();
+            if (!t) { showToast("คลิปบอร์ดว่างเปล่า"); return; }
+            driveLink.value = t;
+            viewerForm.dispatchEvent(new Event("submit", { cancelable: true }));
+          }).catch(function () {
+            showToast("เบราว์เซอร์ไม่อนุญาตให้อ่านคลิปบอร์ด — กดค้างที่ช่องกรอกเพื่อวางเอง");
+          });
+        } else {
+          showToast("เบราว์เซอร์ไม่รองรับ — กดค้างที่ช่องกรอกเพื่อวางเอง");
+        }
+      });
+
+      // ===== Generic icons (แยกสี/รูปตามชนิดไฟล์จริง) =====
       function genericIconSvg(kind) {
+        const doc = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>';
         const icons = {
-          folder: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
-          video: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>',
-          image: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
-          file: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+          folder:  { c: "#b45309", s: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>' },
+          video:   { c: "#6b7280", s: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>' },
+          image:   { c: "#6b7280", s: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>' },
+          pdf:     { c: "#dc2626", s: doc + '<line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>' },
+          word:    { c: "#2563eb", s: doc + '<polyline points="7.5 12.5 9 17.5 10.5 13.5 12 17.5 13.5 12.5"/>' },
+          excel:   { c: "#059669", s: doc + '<line x1="8" y1="12" x2="8" y2="18"/><line x1="14" y1="12" x2="14" y2="18"/><line x1="8" y1="15" x2="14" y2="15"/>' },
+          ppt:     { c: "#ea580c", s: doc + '<rect x="8" y="12" width="8" height="6" rx="1"/><line x1="12" y1="9" x2="12" y2="12"/>' },
+          audio:   { c: "#7c3aed", s: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>' },
+          archive: { c: "#ca8a04", s: doc + '<path d="M12 11v3"/><circle cx="12" cy="17" r="0.5"/><line x1="10" y1="13" x2="14" y2="13"/>' },
+          text:    { c: "#6b7280", s: doc + '<line x1="8" y1="9" x2="12" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/>' },
+          file:    { c: "#6b7280", s: doc }
         };
-        return icons[kind] || icons.file;
+        const ic = icons[kind] || icons.file;
+        return '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="' + ic.c +
+          '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + ic.s + '</svg>';
       }
 
-      // ===== Recent Folders =====
-      function saveRecentFolder(id) {
-        let recents = JSON.parse(localStorage.getItem("gdv_recent") || "[]");
-        recents = recents.filter(function(r) { return r !== id; });
-        recents.unshift(id);
+      // ===== Recent Folders (เก็บ {id, name} — migrate จากรูปเดิมที่เป็น string id) =====
+      function loadRecents() {
+        return lsGetJSON("gdv_recent", []).map(function (r) {
+          if (typeof r === "string") return { id: r, name: null };
+          return { id: r && r.id, name: (r && r.name) || null };
+        }).filter(function (r) { return r && r.id; });
+      }
+      function saveRecentFolder(id, name) {
+        let recents = loadRecents();
+        const prev = recents.find(function (r) { return r.id === id; });
+        if (!name && prev && prev.name) name = prev.name; // รักษาชื่อเดิมถ้ารอบนี้ยังไม่รู้ชื่อ
+        recents = recents.filter(function (r) { return r.id !== id; });
+        recents.unshift({ id: id, name: name || null });
         if (recents.length > 8) recents.pop();
-        localStorage.setItem("gdv_recent", JSON.stringify(recents));
+        lsSet("gdv_recent", JSON.stringify(recents));
         renderRecentFolders();
+      }
+      // ชื่อโฟลเดอร์ root จาก Drive เมื่อยังไม่รู้ (เปิดผ่านฟอร์ม/ลิงก์แชร์) —
+      // ถ้าเคยรู้ชื่อแล้ว (อยู่ใน recents) ใช้เลยไม่ยิง API
+      function ensureFolderName(id) {
+        const known = loadRecents().find(function (r) { return r.id === id; });
+        if (known && known.name) { applyFolderName(id, known.name); return; }
+        const auth = authParams();
+        if (auth.mode === "none") return;
+        let url = "https://www.googleapis.com/drive/v3/files/" + id + "?fields=name";
+        if (auth.mode === "key") url += "&key=" + apiKey;
+        fetch(url, { headers: auth.headers || {} })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (data) { if (data && data.name) applyFolderName(id, data.name); })
+          .catch(function () {});
+      }
+      function applyFolderName(id, name) {
+        const top = navStack[navStack.length - 1];
+        if (top && top.id === id && top.name === "Drive") {
+          top.name = name;
+          renderBreadcrumb();
+          const h = document.querySelector(".files-header h2");
+          if (h) h.textContent = name;
+        }
+        const recents = loadRecents();
+        const r = recents.find(function (x) { return x.id === id; });
+        if (r && !r.name) {
+          r.name = name;
+          lsSet("gdv_recent", JSON.stringify(recents));
+          renderRecentFolders();
+        }
       }
       function renderRecentFolders() {
         const wrap = document.getElementById("recentFoldersWrap");
         const list = document.getElementById("recentFoldersList");
-        let recents = JSON.parse(localStorage.getItem("gdv_recent") || "[]");
+        const recents = loadRecents();
         if (!recents.length) { wrap.style.display = "none"; return; }
         wrap.style.display = "block";
         let html = "";
-        recents.forEach(function (id) {
-           html += '<button type="button" class="recent-item" data-id="' + escapeAttr(id) + '">' +
-                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
-                     'โฟลเดอร์ (' + escapeHtml(id.substring(0,6)) + '…)</button>';
+        recents.forEach(function (r) {
+          const label = r.name || ("โฟลเดอร์ (" + r.id.substring(0, 6) + "…)");
+          html += '<button type="button" class="recent-item" data-id="' + escapeAttr(r.id) + '" title="' + escapeAttr(label) + '">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>' +
+                    '<span class="rc-name">' + escapeHtml(label) + '</span></button>';
         });
         list.innerHTML = html;
         list.querySelectorAll(".recent-item").forEach(function (btn) {
            btn.addEventListener("click", function () {
               const id = btn.dataset.id;
+              const found = loadRecents().find(function (x) { return x.id === id; });
               driveLink.value = "https://drive.google.com/drive/folders/" + id;
-              navStack = [{ id: id, name: "Drive" }];
-              saveRecentFolder(id);
+              navStack = [{ id: id, name: (found && found.name) || "Drive" }];
+              saveRecentFolder(id, found && found.name);
               listFolder(id);
+              pushHash(id);
            });
         });
       }
       document.getElementById("clearRecentBtn").addEventListener("click", function () {
-         localStorage.removeItem("gdv_recent");
+         lsRemove("gdv_recent");
          renderRecentFolders();
       });
 
       // ===== Init =====
-            refreshClientIdStatus();
-            refreshKeyStatus();
-            renderRecentFolders();
-            driveLink.focus();
+      refreshClientIdStatus();
+      refreshKeyStatus();
+      renderRecentFolders();
+      driveLink.focus();
 
-            // ===== Deep link / hash routing (#/f/<folderId>) =====
-            // เปิดโฟลเดอร์จาก URL ได้ + กดปุ่มกลับเบราว์เซอร์ได้ (history)
-            function parseHash() {
-              const h = location.hash || "";
-              const m = h.match(/^#\/f\/([a-zA-Z0-9_-]+)/);
-              return m ? m[1] : null;
-            }
-            function currentHashId() {
-              const m = (location.hash || "").match(/^\/f\/([a-zA-Z0-9_-]+)/);
-              return m ? m[1] : null;
-            }
-            function pushNav(id, name) {
-              try {
-                history.pushState({ fid: id, name: name }, "", "#/f/" + id);
-              } catch (_) {
-                location.hash = "#/f/" + id; // fallback
-              }
-            }
-            function applyHash(id) {
-              if (!id) return;
-              driveLink.value = "https://drive.google.com/drive/folders/" + id;
-              navStack = [{ id: id, name: "Drive" }];
-              listFolder(id);
-            }
-            window.addEventListener("popstate", function () {
-              const id = currentHashId();
-              if (id) applyHash(id); else goHome();
-            });
-            // ถ้ามี hash เริ่มต้น (เช่น กดแชร์ลิงก์/refresh) ให้เปิดเลย
-            const initialHash = parseHash();
-            if (initialHash) {
-              setTimeout(function () { applyHash(initialHash); }, 100);
-            }
+      // ===== Deep link / hash routing (#/f/<folderId>) =====
+      // เปิดโฟลเดอร์จาก URL ได้ + กดปุ่มกลับเบราว์เซอร์ย้อนโฟลเดอร์ได้ (history)
+      function currentHashId() {
+        const m = (location.hash || "").match(/^#\/f\/([a-zA-Z0-9_-]+)/);
+        return m ? m[1] : null;
+      }
+      function applyHash(id) {
+        if (!id) return;
+        driveLink.value = "https://drive.google.com/drive/folders/" + id;
+        navStack = [{ id: id, name: "Drive" }];
+        listFolder(id);
+        ensureFolderName(id);
+      }
+      window.addEventListener("popstate", function () {
+        const id = currentHashId();
+        if (id) applyHash(id); else goHome();
+      });
+      // ถ้ามี hash เริ่มต้น (เช่น กดแชร์ลิงก์/refresh) ให้เปิดเลย
+      const initialHashId = currentHashId();
+      if (initialHashId) {
+        setTimeout(function () {
+          // สร้าง entry "หน้าหลัก" คั่นไว้ก่อน เพื่อให้กด Back กลับมาหน้าหลักในแอป
+          // แทนการออกจากเว็บทันที (กรณีเข้าลิงก์ hash ตรง ๆ ไม่มีประวัติในแอป)
+          try {
+            history.replaceState({ fid: null }, "", location.pathname + location.search);
+            history.pushState({ fid: initialHashId }, "", "#/f/" + initialHashId);
+          } catch (_) {}
+          applyHash(initialHashId);
+        }, 100);
+      }
 
-            // ===== Update hash เมื่อเปิดโฟลเดอร์/เข้า folder (เสริม navStack) =====
-                        function pushHash(id) {
-                          try { history.pushState({ fid: id }, "", "#/f/" + id); }
-                          catch (_) { location.hash = "#/f/" + id; }
-                        }
-                        // ผูกกับ open folder (ใน handleFileClick) และ breadcrumb — ใช้ pushHash ตอนเข้า/ออก
+      // ย้อนกลับอย่างฉลาด: มีประวัติในแอป → ย้อนปกติ / ไม่มี → กลับหน้าหลักแทนการออกจากเว็บ
+      function smartBack() {
+        const st = history.state;
+        if (st && st.fid) {
+          try { history.back(); return; } catch (_) {}
+        }
+        if (navStack.length > 1) { goUp(); return; }
+        goHome();
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (_) {}
+      }
+
+      // อัปเดต hash ตอนเปิดโฟลเดอร์ (ใช้ใน handleFileClick/breadcrumb/form) เพื่อ bookmark/ย้อนกลับ
+      function pushHash(id) {
+        try { history.pushState({ fid: id }, "", "#/f/" + id); }
+        catch (_) { location.hash = "#/f/" + id; }
+      }
     })();
   </script>
 </body>

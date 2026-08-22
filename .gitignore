@@ -5,6 +5,7 @@
 DriveViewer-Portable/
 gemini-chatbot/
 node_modules/
+.zcode/
 
 {const
 console.log('Server
