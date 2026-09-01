@@ -2559,7 +2559,65 @@
 
 
 
-      // ===== Renderers =====
+
+      // ===== MEGA: view inside site (megajs browser decrypt) =====
+      async function viewMegaFolder(collId){
+        var item = XBEP_COLLECTION.find(function(x){return x.id===collId});
+        if(!item || !item.mega_url){ renderApiError("ไม่มีลิงก์ MEGA"); return; }
+        if(item.mega_dead){ renderApiError("ลิงก์ MEGA หมดอายุ/ถูกลบ (-9)"); return; }
+        renderLoading();
+        breadcrumb.innerHTML = '<span style="opacity:.6">MEGA</span> <span>›</span> <span>'+escapeHtml(item.date||"")+'</span> <span style="opacity:.5">#'+escapeHtml(item.title||"")+'</span>';
+        try{
+          var mod = await import("https://cdn.jsdelivr.net/npm/megajs@1/+esm");
+          var File = mod.File || mod.default?.File || mod.default;
+          if(!File) throw new Error("โหลด megajs ไม่ได้");
+          var f = File.fromURL(item.mega_url);
+          await f.loadAttributes();
+          // f is folder; children holds files/folders
+          var nodes = f.children || (f.directory===false ? [f] : []);
+          if(!nodes.length){ filesWrap.innerHTML='<div class="state-box"><h3>MEGA โฟลเดอร์ว่าง</h3><p>'+escapeHtml(f.name||"")+' — <a href="'+item.mega_url+'" target="_blank" rel="noopener">เปิดบน mega.nz ↗</a></p></div>'; return; }
+          // map to render-like cards (reuse file card styles)
+          var html='<div class="files-header"><div><h2>'+escapeHtml(f.name||item.date||"MEGA")+'</h2><span class="files-count">'+nodes.length+' รายการ · <a href="'+item.mega_url+'" target="_blank" rel="noopener">เปิดบน mega.nz ↗</a></span></div></div>';
+          html+='<div class="sk-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">';
+          // sort: folders first then name
+          nodes.sort(function(a,b){ var ad=!!a.directory, bd=!!b.directory; if(ad!==bd) return bd-ad; return (a.name||"").localeCompare(b.name||""); });
+          nodes.forEach(function(ch){
+            var isDir = !!ch.directory;
+            var sz = ""; if(ch.size){ if(ch.size>1073741824) sz=(ch.size/1073741824).toFixed(2)+" GB"; else if(ch.size>1048576) sz=(ch.size/1048576).toFixed(1)+" MB"; else if(ch.size>1024) sz=(ch.size/1024).toFixed(0)+" KB"; else sz=ch.size+" B"; }
+            var icon = isDir ? "📁" : (/\.(jpg|jpeg|png|webp|gif)$/i.test(ch.name||"") ? "🖼️" : /\.(mp4|mkv|mov|webm|avi)$/i.test(ch.name||"") ? "🎬" : "📄");
+            html+='<div class="file-card" data-mega-name="'+escapeHtml(ch.name||"")+'" style="cursor:'+(isDir?'default':'pointer')+'"><div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:32px;background:var(--bg-elevated);border-radius:8px;height:120px">'+icon+'</div><div style="padding:8px 6px"><div style="font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+escapeHtml(ch.name||"")+'">'+escapeHtml(ch.name||"(ไม่มีชื่อ)")+'</div><div style="font-size:.72rem;color:var(--muted)">'+(isDir?"โฟลเดอร์":(sz||"ไฟล์"))+'</div></div></div>';
+          });
+          html+='</div><p style="margin-top:10px;font-size:.78rem;color:var(--muted)">💡 คลิกไฟล์เพื่อโหลดตัวอย่าง (ต้องรอถอดรหัส) — ไฟล์ใหญ่อาจช้า/ติดโควตา MEGA 5GB/6ชม. · <a href="'+item.mega_url+'" target="_blank" rel="noopener">เปิดบน mega.nz ดีที่สุดถ้าไฟล์ใหญ่</a></p>';
+          filesWrap.innerHTML=html;
+          // click to preview/download
+          filesWrap.querySelectorAll(".file-card").forEach(function(card, idx){
+            var ch = nodes[idx];
+            if(ch.directory) return;
+            card.addEventListener("click", async function(){
+              card.style.opacity=".6";
+              try{
+                var buf = await ch.downloadBuffer({maxMemory: 200*1024*1024});
+                var blob = new Blob([buf]);
+                var url = URL.createObjectURL(blob);
+                // image → lightbox, video → videoModal, else download
+                var name = ch.name||"";
+                if(/\.(jpg|jpeg|png|webp|gif)$/i.test(name)){
+                  lbImg.src=url; lbImg.onload=function(){URL.revokeObjectURL(url)}; lightbox.classList.add("open");
+                }else if(/\.(mp4|mkv|mov|webm|avi)$/i.test(name)){
+                  vidPlayer.src=url; vidPlayer.onloadeddata=function(){}; videoModal.classList.add("open"); vidPlayer.play().catch(function(){});
+                }else{
+                  var a=document.createElement("a"); a.href=url; a.download=name||"download"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(url)}, 60000);
+                }
+              }catch(e){ alert("โหลด MEGA ไม่สำเร็จ: "+(e.message||e)+" \nลองเปิดบน mega.nz แทน"); }
+              finally{ card.style.opacity=""}
+            });
+          });
+        }catch(e){
+          renderApiError("MEGA: "+(e.message||e));
+        }
+      }
+
+            // ===== Renderers =====
 
       function renderLoading() {
 
@@ -4477,6 +4535,7 @@
             var megaAliveLocal = !!c.mega_url && !c.mega_dead;
             var driveBtn = driveAliveLocal ? '<a class="btn-ghost" href="'+c.url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">Drive ↗</a>' : '';
             var megaBtn = megaAliveLocal ? '<a class="btn-ghost btn-mega" href="'+c.mega_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MEGA ↗</a>' : '';
+            var megaViewBtn = megaAliveLocal ? '<button type="button" class="btn-ghost" data-mega-view="'+c.id+'" style="flex:1;border-color:#d90007;color:#d90007">MEGA ในเว็บ</button>' : '';
             card.innerHTML =
               '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+megaBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
               '<div class="coll-title" title="'+String(c.desc).replace(/"/g,'&quot;')+'">'+c.title+'</div>'+
@@ -4485,10 +4544,18 @@
                 '<button type="button" class="btn-primary" data-open="'+c.id+'"'+(isDead?' disabled title="ไม่มีลิงก์ที่ใช้งานได้"':(!driveAliveLocal?' disabled title="Drive ลบแล้ว — ใช้ MEGA"':''))+' style="flex:1">เปิด</button>'+
                 driveBtn+
                 megaBtn+
-              '</div>';
+              '</div>'+
+              (megaViewBtn ? '<div style="display:flex;gap:6px;margin-top:6px">'+megaViewBtn+'</div>' : '');
             grid.appendChild(card);
           });
 
+          grid.querySelectorAll("[data-mega-view]").forEach(function(btn){
+            btn.addEventListener("click", function(e){
+              e.stopPropagation();
+              var id=btn.getAttribute("data-mega-view");
+              viewMegaFolder(id);
+            });
+          });
           grid.querySelectorAll("[data-open]").forEach(function(btn){
 
             btn.addEventListener("click", function(){
