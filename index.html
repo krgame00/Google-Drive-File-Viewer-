@@ -3838,29 +3838,22 @@
       // → iframe preview ของ Google (เล่นได้แน่นอนทุกกรณี รวมไฟล์ส่วนตัวที่ล็อกอินอยู่)
 
       function tryStreamDirect(id) {
-
         revokeCurrentVideo();
-
         vidPlayer.style.display = "block";
-
-        const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
-
-        tryVideoSrc(first, function () {
-
-          if (authParams().mode === "key") {
-
-            tryVideoSrc("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey,
-
-              function () { fallbackIframe(id); });
-
-          } else {
-
-            fallbackIframe(id);
-
-          }
-
+        // 1. ลองสตรีมผ่าน Cloudflare Worker Proxy ก่อน (แก้ปัญหาโควตาเต็ม + เล่น .mov / .mp4 ได้เลย)
+        const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;
+        tryVideoSrc(workerProxy, function () {
+          // 2. ถ้า Worker มีปัญหา ให้ fallback ไปลิงก์ตรง drive.usercontent
+          const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
+          tryVideoSrc(first, function () {
+            if (authParams().mode === "key") {
+              tryVideoSrc("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey,
+                function () { fallbackIframe(id); });
+            } else {
+              fallbackIframe(id);
+            }
+          });
         });
-
       }
 
 
@@ -3872,7 +3865,7 @@
 
         let done = false;
 
-        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail(); } }, 8000);
+        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail(); } }, 12000);
 
         vidPlayer.onerror = function () {
 
