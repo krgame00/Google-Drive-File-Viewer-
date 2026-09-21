@@ -3544,6 +3544,7 @@
       }
 
       function openLightbox(id, forceOriginal) {
+        if (videoModal.classList.contains("show")) closeVideo();
 
               lbImg.dataset.fid = id; // จำเป็น: media nav ใช้ชี้หา index
 
@@ -3687,8 +3688,6 @@
       lbClose.addEventListener("click", closeLightbox);
       const lbFsBtn = document.getElementById("lbFullscreen");
       if (lbFsBtn) lbFsBtn.addEventListener("click", toggleLightboxFullscreen);
-      lbClose.addEventListener("click", closeLightbox);
-
       lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
 
       if (lbOrig) lbOrig.addEventListener("click", function () { loadOriginalImage(lbImg.dataset.fid); });
@@ -3751,7 +3750,32 @@
 
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
 
+      let mediaSession = 0;
+      let videoAttemptTimer = null;
+      let videoAttempt = 0;
+      let mediaPreviousOverflow = "";
+      function cancelVideoAttempt() {
+        ++videoAttempt;
+        if (videoAttemptTimer !== null) clearTimeout(videoAttemptTimer);
+        videoAttemptTimer = null;
+        vidPlayer.onerror = null;
+        vidPlayer.oncanplay = null;
+      }
+      function resetMediaPlayback() {
+        ++mediaSession;
+        cancelVideoAttempt();
+        vidPlayer.pause();
+        vidPlayer.removeAttribute("src");
+        vidPlayer.load();
+        vidPlayer.style.display = "none";
+        vidFrame.src = "about:blank";
+        vidFrame.style.display = "none";
+        vidLoading.classList.remove("show");
+      }
       function openVideo(id, name) {
+        if (lightbox.classList.contains("show")) closeLightbox();
+        if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
+        resetMediaPlayback();
 
                     vidCurrentId = id;
 
@@ -3842,22 +3866,25 @@
 
 
       function tryVideoSrc(url, onFail) {
+        cancelVideoAttempt();
+        const session = mediaSession;
+        const attempt = videoAttempt;
 
         let done = false;
 
-        const timer = setTimeout(function () { if (!done) { done = true; onFail(); } }, 8000);
+        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail(); } }, 8000);
 
         vidPlayer.onerror = function () {
 
-          if (done) return;
+          if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
-          done = true; clearTimeout(timer); onFail();
+          done = true; cancelVideoAttempt(); onFail();
 
         };
 
         vidPlayer.oncanplay = function () {
 
-          if (done) return;
+          if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
           done = true;
 
@@ -3962,6 +3989,8 @@
       // Fallback: ใช้ iframe preview (อาจติดโควต้า แต่อย่างน้อยพอใช้)
 
       function fallbackIframe(id) {
+        if (!videoModal.classList.contains("show") || vidCurrentId !== id) return;
+        cancelVideoAttempt();
 
         vidPlayer.oncanplay = null;
 
@@ -4008,12 +4037,15 @@
       }
 
       function closeVideo() {
+        resetMediaPlayback();
+        vidCurrentId = null;
+        document.body.style.overflow = lightbox.classList.contains("show") ? "hidden" : mediaPreviousOverflow;
 
         videoModal.classList.remove("show");
 
         vidPlayer.pause();
 
-        vidPlayer.src = "";
+        vidPlayer.removeAttribute("src");
 
         vidFrame.src = "about:blank";
 
@@ -4032,6 +4064,12 @@
 
 
       function openDocument(id, name) {
+        if (lightbox.classList.contains("show")) closeLightbox();
+        if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
+        resetMediaPlayback();
+        const session = mediaSession;
+        vidCurrentId = null;
+        document.body.style.overflow = "hidden";
 
         vidTitle.textContent = name || "เอกสาร";
 
@@ -4039,7 +4077,7 @@
 
         vidPlayer.pause();
 
-        vidPlayer.src = "";
+        vidPlayer.removeAttribute("src");
 
         vidPlayer.style.display = "none";
 
@@ -4071,6 +4109,7 @@
 
             function (e) {
 
+              if (session !== mediaSession) return;
               if (e.lengthComputable) {
 
                 vidProgressBar.style.width = Math.round(e.loaded / e.total * 100) + "%";
@@ -4082,6 +4121,7 @@
             })
 
             .then(function (blob) {
+              if (session !== mediaSession) return;
 
               vidLoading.classList.remove("show");
 
@@ -4093,7 +4133,7 @@
 
             })
 
-            .catch(function () { vidLoading.classList.remove("show"); fallbackDocIframe(id); });
+            .catch(function () { if (session !== mediaSession) return; vidLoading.classList.remove("show"); fallbackDocIframe(id); });
 
         } else {
 
