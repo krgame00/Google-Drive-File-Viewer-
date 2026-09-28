@@ -1070,7 +1070,14 @@
 
     /* ===== Search box ===== */
 
-    .search-wrap { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 160px; max-width: 340px; }
+    .search-wrap { display: flex; flex-wrap: wrap; position: relative; gap: 6px; align-items: center; flex: 1; min-width: 160px; max-width: 340px; }
+    .search-scope { order: 3; flex-basis: 100%; color: var(--muted-soft); font-size: 11px; }
+    .favorite-folders { margin: 16px 0; }
+    .favorite-folders p { color: var(--muted-soft); font-size: 12px; }
+    .favorite-folder { display: inline-flex; max-width: 100%; margin: 4px; }
+    .favorite-folder button { min-height: 44px; overflow-wrap: anywhere; white-space: normal; }
+    .cover-status { position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 3; border: 0; border-radius: 6px; padding: 8px; background: #18181be6; color: #eee; font: inherit; font-size: 12px; text-align: center; }
+    button.cover-status { cursor: pointer; min-height: 44px; }
 
         .search-wrap input {
 
@@ -1090,7 +1097,7 @@
 
     .search-clear {
 
-      position: relative; right: 30px; background: none; border: none; color: var(--muted);
+      position: absolute; right: 6px; top: 3px; background: none; border: none; color: var(--muted);
 
       cursor: pointer; line-height: 1; font-size: 1rem; padding: 2px 4px;
 
@@ -1328,7 +1335,7 @@
 
                               .search-wrap input { font-size: 0.95rem; padding: 12px 14px; }
 
-                              .search-clear { right: 30px; top: auto; }
+                              .search-clear { right: 6px; top: 10px; }
 
                               .files-header .btn-primary { margin-left: auto; }
 
@@ -2644,12 +2651,79 @@
       // ===== Drive API: list folder (พร้อม pagination ดึงครบทุกหน้า & Concurrency Guard) =====
 
       async function openFolderAndReveal(folderId, folderName) {
-        renderBreadcrumb();
-        const target = document.getElementById("browserCard");
-        if (target && target.getClientRects().length) {
-          target.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
-        }
         await listFolder(folderId, folderName);
+      }
+
+      const folderPositions = new Map();
+      let displayedFolderId = null;
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+      function saveFolderPosition() {
+        if (!displayedFolderId) return;
+        const search = document.getElementById("fileSearch");
+        folderPositions.set(displayedFolderId, { y: window.scrollY, query: search ? search.value : "" });
+      }
+
+      function loadFavoriteFolders() {
+        try {
+          const data = JSON.parse(lsGet("gdv_favorites") || "[]");
+          return Array.isArray(data) ? data.filter(x => x && typeof x.id === "string" && /^[\w-]+$/.test(x.id) && typeof x.name === "string") : [];
+        } catch (_) { return []; }
+      }
+
+      function renderFavoriteFolders() {
+        let section = document.getElementById("favoriteFolders");
+        if (!section) {
+          section = document.createElement("section");
+          section.id = "favoriteFolders";
+          section.className = "favorite-folders";
+          document.getElementById("browserCard").before(section);
+        }
+        section.innerHTML = '<h3>★ รายการโปรด</h3><p>บันทึกในเบราว์เซอร์นี้ · เปิดโฟลเดอร์แล้วกด ☆ เพื่อเพิ่ม</p>';
+        loadFavoriteFolders().forEach(item => {
+          const row = document.createElement("span");
+          row.className = "favorite-folder";
+          const open = document.createElement("button");
+          open.type = "button";
+          open.className = "btn-ghost";
+          open.textContent = item.name;
+          open.onclick = () => {
+            navStack = [{ id: item.id, name: item.name }];
+            pushHash(item.id);
+            openFolderAndReveal(item.id, item.name);
+          };
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "btn-ghost";
+          remove.textContent = "×";
+          remove.setAttribute("aria-label", "ลบ " + item.name + " จากรายการโปรด");
+          remove.onclick = () => {
+            lsSet("gdv_favorites", JSON.stringify(loadFavoriteFolders().filter(x => x.id !== item.id)));
+            renderFavoriteFolders();
+            renderBreadcrumb();
+          };
+          row.append(open, remove);
+          section.appendChild(row);
+        });
+      }
+
+      function showFolderCoverStatus(target, failed) {
+        if (!target.isConnected) return;
+        const previous = target.querySelector(".cover-status");
+        if (previous) previous.remove();
+        const status = document.createElement(failed ? "button" : "span");
+        status.className = "cover-status";
+        status.textContent = failed ? "โหลดปกไม่สำเร็จ · ลองใหม่" : "ไม่มีภาพตัวอย่าง";
+        if (failed) {
+          status.type = "button";
+          status.onclick = event => {
+            event.stopPropagation();
+            status.remove();
+            folderCoverQueue.push(target);
+            drainFolderCovers();
+          };
+        }
+        target.appendChild(status);
       }
 
       let folderRequest = 0, folderAbort = null;
@@ -2722,7 +2796,8 @@
             if (folderCoverCache.size > 300) folderCoverCache.delete(folderCoverCache.keys().next().value);
           }
           cached.value.then(cover => {
-            if (!cover || !target.isConnected) return;
+            if (!target.isConnected) return;
+            if (!cover) { showFolderCoverStatus(target, false); return; }
             const img = document.createElement("img");
             img.className = "thumb-img";
             img.alt = "";
@@ -2738,9 +2813,9 @@
                 target.appendChild(badge);
               }
             };
-            img.onerror = () => folderCoverCache.delete(key);
+            img.onerror = () => { folderCoverCache.delete(key); showFolderCoverStatus(target, true); };
             img.src = cover.url;
-          }).catch(() => folderCoverCache.delete(key)).finally(() => {
+          }).catch(() => { folderCoverCache.delete(key); showFolderCoverStatus(target, true); }).finally(() => {
             folderCoverActive--;
             drainFolderCovers();
           });
@@ -2748,6 +2823,8 @@
       }
 
       async function listFolder(folderId, folderName) {
+        saveFolderPosition();
+        displayedFolderId = null;
         const request = ++folderRequest;
         if (folderAbort) folderAbort.abort();
         const controller = folderAbort = new AbortController();
@@ -2784,7 +2861,21 @@
             if (!pageToken) break;
           }
 
-          if (request === folderRequest) renderFiles(collected);
+          if (request === folderRequest) {
+            renderFiles(collected);
+            displayedFolderId = folderId;
+            const saved = folderPositions.get(folderId);
+            const search = document.getElementById("fileSearch");
+            if (saved && search) {
+              search.value = saved.query;
+              search.dispatchEvent(new Event("input"));
+            }
+            requestAnimationFrame(() => {
+              if (request !== folderRequest) return;
+              if (saved) window.scrollTo({ top: saved.y, behavior: "instant" });
+              else document.getElementById("browserCard").scrollIntoView({ block: "start", behavior: "instant" });
+            });
+          }
         } catch (e) {
           if (request !== folderRequest) return;
           renderApiError(e, folderId);
@@ -2976,7 +3067,8 @@
 
                 '<div class="search-wrap">' +
 
-                  '<input type="text" id="fileSearch" placeholder="ค้นหาไฟล์…" autocomplete="off" />' +
+                  '<input type="text" id="fileSearch" placeholder="ค้นหาในโฟลเดอร์นี้…" aria-label="ค้นหาเฉพาะโฟลเดอร์นี้ ไม่รวมโฟลเดอร์ย่อย" autocomplete="off" />' +
+                  '<small class="search-scope">เฉพาะโฟลเดอร์นี้ ไม่รวมโฟลเดอร์ย่อย</small>' +
 
                   '<button type="button" class="search-clear" id="searchClear" title="ล้างค้นหา" style="display:none;">&times;</button>' +
 
@@ -3223,7 +3315,7 @@
 
                   searchInput.addEventListener("input", applyFilter);
 
-                  if (searchClear) searchClear.addEventListener("click", function () { searchInput.value = ""; applyFilter(); });
+                  if (searchClear) searchClear.addEventListener("click", function () { searchInput.value = ""; applyFilter(); searchInput.focus(); });
 
                 }
 
@@ -3592,6 +3684,21 @@
                 '</span>';
 
         breadcrumb.innerHTML = html;
+        const favorite = document.createElement("button");
+        favorite.type = "button";
+        favorite.className = "btn-ghost btn-sm";
+        const current = navStack[navStack.length - 1];
+        const isFavorite = loadFavoriteFolders().some(x => x.id === current.id);
+        favorite.textContent = isFavorite ? "★ บันทึกแล้ว" : "☆ เพิ่มรายการโปรด";
+        favorite.setAttribute("aria-pressed", String(isFavorite));
+        favorite.onclick = () => {
+          const items = loadFavoriteFolders().filter(x => x.id !== current.id);
+          if (!isFavorite) items.unshift({ id: current.id, name: current.name || "Drive" });
+          lsSet("gdv_favorites", JSON.stringify(items));
+          renderFavoriteFolders();
+          renderBreadcrumb();
+        };
+        breadcrumb.appendChild(favorite);
 
         breadcrumb.querySelectorAll(".crumb").forEach(function (btn) {
           btn.addEventListener("click", function () {
@@ -3622,7 +3729,9 @@
         openFolderAndReveal(parent.id, parent.name);
       }
 
-      function goHome() {
+      function goHome(fromHistory) {
+        saveFolderPosition();
+        displayedFolderId = null;
         ++folderRequest;
         if (folderAbort) folderAbort.abort();
         navStack = [];
@@ -3635,7 +3744,7 @@
         if (mobileBar) { mobileBar.classList.remove("show"); mobileBar.setAttribute("aria-hidden", "true"); }
         document.body.classList.remove("has-mobile-bar");
         if (mbSearch) mbSearch.disabled = true;
-        try { history.pushState(null, "", location.pathname + location.search); } catch(_) {}
+        if (fromHistory !== true) { try { history.pushState(null, "", location.pathname + location.search); } catch(_) {} }
         const collCard = document.getElementById("collectionsCard");
         if (collCard) collCard.scrollIntoView({ behavior: "smooth", block: "start" });
       }
@@ -4574,6 +4683,7 @@
       refreshKeyStatus();
 
       renderRecentFolders();
+      renderFavoriteFolders();
 
       driveLink.focus();
 
@@ -4970,7 +5080,7 @@
 
         const id = currentHashId();
 
-        if (id) applyHash(id); else goHome();
+        if (id) applyHash(id); else goHome(true);
 
       });
 
