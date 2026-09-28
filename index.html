@@ -575,6 +575,8 @@
 
     .file-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
+    .collection-cover { border-radius: 8px; margin-bottom: 10px; aspect-ratio: 16 / 9; }
+    .folder-video-badge { position: absolute; right: 8px; bottom: 8px; z-index: 2; background: #18181bcc; color: white; border-radius: 50%; padding: 5px 9px; pointer-events: none; }
     .file-thumb .thumb-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
     .file-thumb .icon-svg { width: 38px; height: 38px; opacity: 0.5; }
@@ -2651,6 +2653,100 @@
       }
 
       let folderRequest = 0, folderAbort = null;
+      const folderCoverCache = new Map();
+      const folderCoverQueue = [];
+      let folderCoverActive = 0;
+      const folderCoverObserved = new Set();
+      const folderCoverObserver = typeof IntersectionObserver === "function" ? new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          folderCoverObserver.unobserve(entry.target);
+          folderCoverObserved.delete(entry.target);
+          folderCoverQueue.push(entry.target);
+        });
+        drainFolderCovers();
+      }, { rootMargin: "200px" }) : null;
+
+      async function findFolderCover(folderId) {
+        const auth = authParams();
+        if (auth.mode === "none") return null;
+        const signal = AbortSignal.timeout(12000);
+        let pageToken = "";
+        // Bound API work; only inspect media directly inside this folder.
+        for (let page = 0; page < 3; page++) {
+          const query = "'" + folderId.replace(/'/g, "\\'") + "' in parents and trashed=false and (mimeType contains 'image/' or mimeType contains 'video/')";
+          let url = "https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(query) +
+            "&orderBy=name&pageSize=100&fields=files(thumbnailLink,mimeType),nextPageToken";
+          if (pageToken) url += "&pageToken=" + encodeURIComponent(pageToken);
+          if (auth.mode === "key") url += "&key=" + encodeURIComponent(apiKey);
+          const response = await fetch(url, { headers: auth.headers || {}, signal });
+          if (!response.ok) throw new Error("Folder cover unavailable");
+          const data = await response.json();
+          const file = (data.files || []).find(f => f.thumbnailLink);
+          if (file) return { url: file.thumbnailLink, video: file.mimeType.startsWith("video/") };
+          pageToken = data.nextPageToken;
+          if (!pageToken) break;
+        }
+        return null;
+      }
+
+      function observeFolderCovers(root) {
+        folderCoverObserved.forEach(el => {
+          if (!el.isConnected) {
+            folderCoverObserver.unobserve(el);
+            folderCoverObserved.delete(el);
+          }
+        });
+        root.querySelectorAll("[data-folder-cover]").forEach(el => {
+          if (el.dataset.coverObserved) return;
+          el.dataset.coverObserved = "1";
+          if (folderCoverObserver) {
+            folderCoverObserved.add(el);
+            folderCoverObserver.observe(el);
+          } else folderCoverQueue.push(el);
+        });
+        drainFolderCovers();
+      }
+
+      function drainFolderCovers() {
+        while (folderCoverActive < 3 && folderCoverQueue.length) {
+          const target = folderCoverQueue.shift();
+          if (!target.isConnected) continue;
+          folderCoverActive++;
+          const id = target.dataset.folderCover;
+          const key = (accessToken || apiKey) + ":" + id;
+          let cached = folderCoverCache.get(key);
+          if (!cached || cached.expires < Date.now()) {
+            cached = { expires: Date.now() + 300000, value: findFolderCover(id) };
+            folderCoverCache.set(key, cached);
+            if (folderCoverCache.size > 300) folderCoverCache.delete(folderCoverCache.keys().next().value);
+          }
+          cached.value.then(cover => {
+            if (!cover || !target.isConnected) return;
+            const img = document.createElement("img");
+            img.className = "thumb-img";
+            img.alt = "";
+            img.decoding = "async";
+            img.onload = () => {
+              if (!target.isConnected) return;
+              target.appendChild(img);
+              if (cover.video) {
+                const badge = document.createElement("span");
+                badge.className = "folder-video-badge";
+                badge.textContent = "▶";
+                badge.title = "ปกจากวิดีโอ";
+                target.appendChild(badge);
+              }
+            };
+            img.onerror = () => folderCoverCache.delete(key);
+            img.src = cover.url;
+          }).catch(() => folderCoverCache.delete(key)).finally(() => {
+            folderCoverActive--;
+            drainFolderCovers();
+          });
+        }
+      }
+
       async function listFolder(folderId, folderName) {
         const request = ++folderRequest;
         if (folderAbort) folderAbort.abort();
@@ -2998,7 +3094,7 @@
 
             '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-type="' + dataType + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
 
-              '<div class="file-thumb">' +
+              '<div class="file-thumb"' + (isFolder ? ' data-folder-cover="' + escapeAttr(f.id) + '"' : '') + '>' +
 
                 '<span class="thumb-badge ' + kind + '">' + escapeHtml(badgeText) + '</span>' +
 
@@ -3035,6 +3131,7 @@
         html += '</div>';
 
         filesWrap.innerHTML = html;
+        observeFolderCovers(filesWrap);
 
         if (mbSearch) mbSearch.disabled = false; // มีไฟล์แล้ว → ปุ่มค้นหาแถบล่างใช้ได้
 
@@ -4715,9 +4812,20 @@
                 odBtn+
                 mfBtn+
               '</div>';
+            if (driveAliveLocal && c.kind !== "file") {
+              const folderId = extractId(c.url);
+              if (folderId) {
+                const cover = document.createElement("div");
+                cover.className = "file-thumb collection-cover";
+                cover.dataset.folderCover = folderId;
+                cover.innerHTML = genericIconSvg("folder");
+                card.prepend(cover);
+              }
+            }
             grid.appendChild(card);
           });
 
+          observeFolderCovers(grid);
           grid.querySelectorAll("[data-open]").forEach(function(btn){
 
             btn.addEventListener("click", function(){
