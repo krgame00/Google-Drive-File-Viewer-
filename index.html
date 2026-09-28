@@ -621,6 +621,15 @@
 
     .file-meta { padding: 9px 11px; position: relative; }
 
+    .hide-folder-covers [data-folder-cover] .thumb-img, .hide-folder-covers [data-folder-cover] .folder-video-badge, .hide-folder-covers [data-folder-cover] .cover-status { display: none; }
+    .personal-tools { display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0; align-items: center; }
+    .personal-tools p { flex-basis: 100%; }
+    .personal-tools button, .personal-tools label, #personalLibrary summary { min-height: 44px; padding: 10px; }
+    .personal-tools [hidden] { display: none; }
+    .personal-file-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+    .watched-toggle { margin-top: 8px; min-height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; }
+    .watched-toggle[aria-pressed="true"] { color: #86efac; border-color: #4ade8080; }
+    .watched-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .file-meta-content { width: calc(100% - 28px); }
 
     .file-name {
@@ -1524,6 +1533,66 @@
     .source-status.unavailable { color: var(--danger); border-color: var(--danger-border); background: var(--danger-bg); }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
     .coll-check-time { margin-left: auto; color: var(--muted-soft); font-size: 10px; }
+
+    /* Compact touch layout: keep controls tappable without oversized cards. */
+    @media (max-width: 680px) {
+      body { padding: 12px 10px 80px; }
+      .card { padding: 12px; }
+      .favorite-folders { margin: 12px 0; min-width: 0; }
+      .favorite-folders h3 { margin: 0 0 6px; font-size: 15px; }
+      .favorite-folders p { margin: 5px 0 8px; line-height: 1.45; }
+      .favorite-folder { display: flex; width: 100%; margin: 4px 0; gap: 4px; }
+      .favorite-folder > button:first-child { flex: 1; min-width: 0; text-align: left; font-size: 13px; line-height: 1.4; padding: 7px 10px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+      .favorite-folder > button:last-child { flex: 0 0 44px; width: 44px; padding: 6px; }
+      .later-items { max-height: 240px; overflow-y: auto; }
+      #continueWatching, #favoriteFolders { max-height: 300px; overflow-y: auto; }
+      .personal-tools { gap: 6px; }
+      .personal-tools > button { flex: 1 1 140px; min-width: 0; font-size: 13px; white-space: normal; }
+      .personal-tools > label { width: 100%; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+      #personalLibrary summary { font-size: 13px; padding: 10px 0; }
+      .files-header > div, .view-toggle { min-width: 0; max-width: 100%; }
+      .files-header h2 { font-size: 16px; overflow-wrap: anywhere; }
+      .view-toggle { flex-wrap: wrap; }
+      .view-toggle button, #sortBtn, #densityBtn { min-height: 44px; padding: 6px 9px; font-size: 12px; }
+      .search-wrap input { font-size: 16px; min-width: 0; padding-right: 42px; }
+      .search-clear { width: 36px; min-height: 40px; top: 2px; right: 3px; }
+      .breadcrumb-actions { width: 100%; margin-left: 0; gap: 4px; }
+      .breadcrumb-actions button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; font-size: 12px; }
+      .files-grid, .files-grid.list-view { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      .files-grid .file-card { display: flex; align-items: flex-start; min-width: 0; }
+      .files-grid .file-thumb { flex: 0 0 80px; width: 80px; height: 80px; aspect-ratio: 1; }
+      .files-grid .file-meta { flex: 1; min-width: 0; padding: 8px; }
+      .files-grid .file-meta-content { width: 100%; min-width: 0; padding-right: 28px; }
+      .file-card .file-name { padding: 0; font-size: 13px; line-height: 1.45; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+      .file-sub { font-size: 11px; margin-top: 3px; }
+      .file-card .watched-toggle { min-height: 44px; margin-top: 4px; padding: 5px 8px; font-size: 11px; }
+      .personal-file-actions { display: inline-flex; gap: 4px; }
+      .file-card .dl-btn { right: 2px; top: 4px; width: 32px; min-height: 44px; }
+      .file-thumb .cover-status { left: 2px; right: 2px; bottom: 2px; padding: 3px; font-size: 10px; }
+      .collection-cover { aspect-ratio: 2.5 / 1; }
+      .coll-card { padding: 12px; }
+      .coll-title { font-size: 14px; }
+      .coll-actions { gap: 5px; flex-wrap: wrap; }
+      .coll-actions button, .coll-actions a { min-height: 44px; padding: 6px 8px; font-size: 12px; }
+    }
+
+    @media (max-width: 680px) {
+      #collectionsCard .coll-grid { gap: 8px; }
+      #collectionsCard .coll-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 8px; padding: 9px; align-content: start; }
+      #collectionsCard .coll-card:has(.collection-cover) { grid-template-columns: 64px minmax(0, 1fr); }
+      #collectionsCard .coll-card:has(.collection-cover) > :not(.collection-cover):not(.coll-actions) { grid-column: 2; }
+      #collectionsCard .collection-cover { grid-column: 1; grid-row: 1 / 5; width: 64px; height: 64px; aspect-ratio: 1; margin: 0; border-radius: 6px; }
+      #collectionsCard .coll-head { gap: 4px; font-size: 10px; line-height: 1.3; }
+      #collectionsCard .coll-kind, #collectionsCard .mega-badge, #collectionsCard .od-badge, #collectionsCard .mf-badge { display: none; }
+      #collectionsCard .coll-title { min-height: 0; font-size: 13px; line-height: 1.4; }
+      #collectionsCard .coll-id { font-size: 11px; line-height: 1.3; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+      #collectionsCard .coll-status { margin: 0; gap: 3px; }
+      #collectionsCard .source-status { font-size: 10px; padding: 1px 4px; }
+      #collectionsCard .coll-check-time { font-size: 9px; margin-left: 0; }
+      #collectionsCard .coll-actions { grid-column: 1 / -1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin-top: 4px; }
+      #collectionsCard .coll-actions .btn-primary, #collectionsCard .coll-actions .btn-ghost { min-width: 0; min-height: 44px; padding: 5px 3px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+      #collectionsCard .collection-cover .cover-status { font-size: 9px; padding: 2px; }
+    }
   </style>
 
 </head>
@@ -2745,6 +2814,16 @@
         const auth = authParams();
         if (auth.mode === "none") return null;
         const signal = AbortSignal.timeout(12000);
+        const selected = readPersonalData().covers.find(item => item.id === folderId);
+        if (selected) {
+          let url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(selected.fileId) + "?fields=thumbnailLink,mimeType";
+          if (auth.mode === "key") url += "&key=" + encodeURIComponent(apiKey);
+          const response = await fetch(url, { headers: auth.headers || {}, signal });
+          if (!response.ok) throw new Error("Selected cover unavailable");
+          const file = await response.json();
+          if (!file.thumbnailLink) throw new Error("Selected cover has no thumbnail");
+          return { url: file.thumbnailLink, video: false };
+        }
         let pageToken = "";
         // Bound API work; only inspect media directly inside this folder.
         for (let page = 0; page < 3; page++) {
@@ -2785,7 +2864,8 @@
       function drainFolderCovers() {
         while (folderCoverActive < 3 && folderCoverQueue.length) {
           const target = folderCoverQueue.shift();
-          if (!target.isConnected) continue;
+          if (!target.isConnected || readPersonalData().hideCovers) continue;
+          const coverVersion = target.dataset.coverVersion;
           folderCoverActive++;
           const id = target.dataset.folderCover;
           const key = (accessToken || apiKey) + ":" + id;
@@ -2796,14 +2876,14 @@
             if (folderCoverCache.size > 300) folderCoverCache.delete(folderCoverCache.keys().next().value);
           }
           cached.value.then(cover => {
-            if (!target.isConnected) return;
+            if (!target.isConnected || target.dataset.coverVersion !== coverVersion || readPersonalData().hideCovers) return;
             if (!cover) { showFolderCoverStatus(target, false); return; }
             const img = document.createElement("img");
             img.className = "thumb-img";
             img.alt = "";
             img.decoding = "async";
             img.onload = () => {
-              if (!target.isConnected) return;
+              if (!target.isConnected || target.dataset.coverVersion !== coverVersion || readPersonalData().hideCovers) return;
               target.appendChild(img);
               if (cover.video) {
                 const badge = document.createElement("span");
@@ -2813,9 +2893,9 @@
                 target.appendChild(badge);
               }
             };
-            img.onerror = () => { folderCoverCache.delete(key); showFolderCoverStatus(target, true); };
+            img.onerror = () => { folderCoverCache.delete(key); if (target.dataset.coverVersion === coverVersion && !readPersonalData().hideCovers) showFolderCoverStatus(target, true); };
             img.src = cover.url;
-          }).catch(() => { folderCoverCache.delete(key); showFolderCoverStatus(target, true); }).finally(() => {
+          }).catch(() => { folderCoverCache.delete(key); if (target.dataset.coverVersion === coverVersion && !readPersonalData().hideCovers) showFolderCoverStatus(target, true); }).finally(() => {
             folderCoverActive--;
             drainFolderCovers();
           });
@@ -3223,6 +3303,8 @@
         html += '</div>';
 
         filesWrap.innerHTML = html;
+        attachWatchedButtons();
+        attachPersonalButtons();
         observeFolderCovers(filesWrap);
 
         if (mbSearch) mbSearch.disabled = false; // มีไฟล์แล้ว → ปุ่มค้นหาแถบล่างใช้ได้
@@ -3968,6 +4050,7 @@
         vidPlayer.oncanplay = null;
       }
       function resetMediaPlayback() {
+        saveVideoPos();
         ++mediaSession;
         cancelVideoAttempt();
         vidPlayer.pause();
@@ -4017,7 +4100,8 @@
 
               // เรียกคืนตำแหน่งที่เคยดูค้างไว้ (ถ้ามี)
 
-              const saved = lsGet("gdv_vpos_" + id);
+              const historyItem = loadContinueWatching().find(item => item.id === id);
+              const saved = historyItem ? historyItem.position : lsGet("gdv_vpos_" + id);
 
               videoResumePos = saved ? Number(saved) : 0;
 
@@ -4115,17 +4199,289 @@
 
             // บันทึกตำแหน่งปัจจุบันเป็นระยะ (ทุก 3 วินาที) — กัน refresh/ปิดแล้วลืมที่
 
-            function saveVideoPos() {
+      function validatePersonalData(data) {
+        if (!data || data.format !== "drive-viewer-personal" || data.version !== 1) throw new Error("รูปแบบไฟล์สำรองไม่รองรับ");
+        const validId = id => typeof id === "string" && /^[\w-]{1,200}$/.test(id);
+        const list = (key, check, project) => {
+          if (!Array.isArray(data[key]) || data[key].length > 10000 || !data[key].every(check)) throw new Error("ข้อมูล " + key + " ไม่ถูกต้อง");
+          return data[key].map(project);
+        };
+        const named = x => x && validId(x.id) && typeof x.name === "string" && x.name.length <= 2000;
+        if (typeof data.hideCovers !== "boolean") throw new Error("ค่าปกไม่ถูกต้อง");
+        return {
+          format: "drive-viewer-personal", version: 1,
+          favorites: list("favorites", named, x => ({ id: x.id, name: x.name })),
+          watched: list("watched", validId, x => x),
+          continueWatching: list("continueWatching", x => named(x) && Number.isFinite(x.position) && x.position > 2 && x.position < 1e9, x => ({ id: x.id, name: x.name, position: Math.floor(x.position), updated: Number.isFinite(x.updated) ? x.updated : 0 })).slice(0, 30),
+          watchLater: list("watchLater", x => named(x) && ["image", "video"].includes(x.kind), x => ({ id: x.id, name: x.name, kind: x.kind })),
+          covers: list("covers", x => x && validId(x.id) && validId(x.fileId), x => ({ id: x.id, fileId: x.fileId })),
+          hideCovers: data.hideCovers
+        };
+      }
 
-              if (vidPlayer && vidCurrentId && !isNaN(vidPlayer.currentTime) && vidPlayer.currentTime > 2) {
+      function readPersonalData() {
+        const read = (key, fallback) => {
+          try { return JSON.parse(lsGet(key) || "null") ?? fallback; } catch (_) { return fallback; }
+        };
+        const result = { format: "drive-viewer-personal", version: 1, favorites: [], watched: [], continueWatching: [], watchLater: [], covers: [], hideCovers: read("gdv_hide_covers", false) === true };
+        const keys = { favorites: "gdv_favorites", watched: "gdv_watched", continueWatching: "gdv_continue", watchLater: "gdv_watch_later", covers: "gdv_covers" };
+        Object.entries(keys).forEach(([field, key]) => {
+          const value = read(key, []);
+          if (!Array.isArray(value)) return;
+          result[field] = value.slice(0, 10000).filter(item => {
+            try { validatePersonalData({ ...result, [field]: [item] }); return true; } catch (_) { return false; }
+          });
+        });
+        return validatePersonalData(result);
+      }
 
-                lsSet("gdv_vpos_" + vidCurrentId, Math.floor(vidPlayer.currentTime));
+      function mergePersonalData(current, incoming) {
+        const merged = { ...incoming };
+        ["favorites", "continueWatching", "watchLater", "covers"].forEach(key => {
+          merged[key] = [...new Map([...current[key], ...incoming[key]].map(item => [item.id, item])).values()];
+        });
+        merged.continueWatching.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+        merged.continueWatching = merged.continueWatching.slice(0, 30);
+        merged.watched = [...new Set([...current.watched, ...incoming.watched])];
+        return validatePersonalData(merged);
+      }
 
-                pruneVpos(100);
+      function applyPersonalData(input) {
+        const data = validatePersonalData(input);
+        const values = { gdv_favorites: data.favorites, gdv_watched: data.watched, gdv_continue: data.continueWatching, gdv_watch_later: data.watchLater, gdv_covers: data.covers, gdv_hide_covers: data.hideCovers };
+        const previous = Object.keys(values).map(key => [key, localStorage.getItem(key)]);
+        try {
+          Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, JSON.stringify(value)));
+        } catch (error) {
+          previous.forEach(([key, value]) => { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch (_) {} });
+          throw error;
+        }
+      }
 
-              }
+      function updatePersonalData(change) {
+        try { const data = readPersonalData(); change(data); applyPersonalData(data); return true; }
+        catch (_) { alert("บันทึกไม่ได้ พื้นที่เก็บข้อมูลอาจเต็มหรือถูกปิดใช้งาน"); return false; }
+      }
 
-            }
+      function renderPersonalLibrary() {
+        let section = document.getElementById("personalLibrary");
+        if (!section) {
+          section = document.createElement("section");
+          section.id = "personalLibrary";
+          section.className = "favorite-folders";
+          document.getElementById("browserCard").before(section);
+        }
+        const settingsOpen = !!section.querySelector("details[open]");
+        const data = readPersonalData();
+        document.documentElement.classList.toggle("hide-folder-covers", data.hideCovers);
+        section.innerHTML = '<h3>ดูภายหลัง</h3><p>เก็บรูปและวิดีโอไว้เปิดภายหลังในเบราว์เซอร์นี้</p><div class="later-items"></div><details><summary>สำรองข้อมูลและตั้งค่าปก</summary><div class="personal-tools"></div></details>';
+        section.querySelector("details").open = settingsOpen;
+        const items = section.querySelector(".later-items");
+        if (!data.watchLater.length) items.textContent = "กด + ดูภายหลัง บนรูปหรือวิดีโอเพื่อเพิ่มรายการ";
+        data.watchLater.forEach(item => {
+          const row = document.createElement("span"); row.className = "favorite-folder";
+          const open = document.createElement("button"); open.type = "button"; open.className = "btn-ghost";
+          open.textContent = (item.kind === "video" ? "▶ " : "▧ ") + item.name;
+          open.onclick = () => handleFileClick(item.id, item.kind, item.name);
+          const remove = document.createElement("button"); remove.type = "button"; remove.className = "btn-ghost"; remove.textContent = "×";
+          remove.setAttribute("aria-label", "ลบ " + item.name + " จากดูภายหลัง");
+          remove.onclick = () => {
+            if (updatePersonalData(state => { state.watchLater = state.watchLater.filter(x => x.id !== item.id); })) { renderPersonalLibrary(); attachPersonalButtons(); }
+          };
+          row.append(open, remove); items.appendChild(row);
+        });
+        const tools = section.querySelector(".personal-tools");
+        const makeButton = (label, action) => { const b = document.createElement("button"); b.type = "button"; b.className = "btn-ghost"; b.textContent = label; b.onclick = action; tools.appendChild(b); return b; };
+        makeButton("ส่งออกข้อมูลส่วนตัว", () => {
+          saveVideoPos();
+          const blob = new Blob([JSON.stringify(readPersonalData(), null, 2)], { type: "application/json" });
+          const url = URL.createObjectURL(blob); const link = document.createElement("a");
+          link.href = url; link.download = "drive-viewer-personal-" + new Date().toISOString().slice(0, 10) + ".json";
+          document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+        });
+        const file = document.createElement("input"); file.type = "file"; file.accept = ".json,application/json"; file.hidden = true; tools.appendChild(file);
+        makeButton("นำเข้าข้อมูลส่วนตัว", () => file.click());
+        const status = document.createElement("p"); status.setAttribute("role", "status"); tools.appendChild(status);
+        let pending = null;
+        const apply = makeButton("รวมข้อมูลจากไฟล์นี้", () => {
+          if (!pending) return;
+          try { applyPersonalData(mergePersonalData(readPersonalData(), pending)); location.reload(); }
+          catch (_) { status.textContent = "นำเข้าไม่สำเร็จ ตรวจพื้นที่เก็บข้อมูลแล้วลองใหม่"; }
+        });
+        apply.hidden = true;
+        let importRequest = 0;
+        file.onchange = async () => {
+          const request = ++importRequest;
+          pending = null; apply.hidden = true;
+          const selected = file.files[0]; if (!selected) return;
+          try {
+            if (selected.size > 2 * 1024 * 1024) throw new Error("ไฟล์ใหญ่เกิน 2 MB");
+            const parsed = validatePersonalData(JSON.parse(await selected.text()));
+            if (request !== importRequest) return;
+            pending = parsed;
+            status.textContent = "พร้อมรวม: โปรด " + pending.favorites.length + " · ดูแล้ว " + pending.watched.length + " · ดูต่อ " + pending.continueWatching.length + " · ดูภายหลัง " + pending.watchLater.length + " · ปก " + pending.covers.length + " (ค่าจากไฟล์ใช้แทนรายการที่ซ้ำ)";
+            apply.hidden = false;
+          } catch (error) { if (request === importRequest) status.textContent = "อ่านไฟล์ไม่ได้: " + error.message; }
+          file.value = "";
+        };
+        const label = document.createElement("label");
+        const hidden = document.createElement("input"); hidden.type = "checkbox"; hidden.checked = data.hideCovers;
+        hidden.onchange = () => {
+          if (updatePersonalData(state => { state.hideCovers = hidden.checked; })) { refreshFolderCovers(); renderPersonalLibrary(); }
+          else hidden.checked = !hidden.checked;
+        };
+        label.append(hidden, " ซ่อนปกโฟลเดอร์ทั้งหมด"); tools.appendChild(label);
+        makeButton("ใช้ปกอัตโนมัติสำหรับโฟลเดอร์ที่เปิดอยู่", () => {
+          if (!displayedFolderId) { status.textContent = "เปิดโฟลเดอร์ก่อนเปลี่ยนปก"; return; }
+          if (updatePersonalData(state => { state.covers = state.covers.filter(x => x.id !== displayedFolderId); })) { refreshFolderCovers(); attachPersonalButtons(); status.textContent = "เปลี่ยนเป็นปกอัตโนมัติแล้ว"; }
+        });
+        const help = document.createElement("p"); help.textContent = "เลือกปกได้จากปุ่ม ใช้เป็นปกโฟลเดอร์ บนรูปภายในโฟลเดอร์ · ไฟล์สำรองไม่รวม API key หรือข้อมูลเข้าสู่ระบบ"; tools.appendChild(help);
+      }
+
+      function attachPersonalButtons() {
+        const data = readPersonalData();
+        filesWrap.querySelectorAll(".personal-file-actions").forEach(el => el.remove());
+        filesWrap.querySelectorAll('.file-card[data-kind="video"], .file-card[data-kind="image"]').forEach(card => {
+          const actions = document.createElement("div"); actions.className = "personal-file-actions";
+          const later = document.createElement("button"); later.type = "button"; later.className = "watched-toggle";
+          const saved = data.watchLater.some(x => x.id === card.dataset.id);
+          later.textContent = saved ? "✓ ดูภายหลัง" : "+ ดูภายหลัง"; later.setAttribute("aria-pressed", String(saved));
+          later.onclick = event => {
+            event.stopPropagation();
+            if (updatePersonalData(state => {
+              state.watchLater = state.watchLater.filter(x => x.id !== card.dataset.id);
+              if (!saved) state.watchLater.unshift({ id: card.dataset.id, name: card.dataset.name, kind: card.dataset.kind });
+            })) { renderPersonalLibrary(); attachPersonalButtons(); }
+          };
+          actions.appendChild(later);
+          if (card.dataset.kind === "image") {
+            const cover = document.createElement("button"); cover.type = "button"; cover.className = "watched-toggle";
+            const folderId = navStack.length ? navStack[navStack.length - 1].id : null;
+            const selected = data.covers.some(x => x.id === folderId && x.fileId === card.dataset.id);
+            cover.textContent = selected ? "✓ ปกโฟลเดอร์นี้" : "ใช้เป็นปกโฟลเดอร์";
+            cover.setAttribute("aria-pressed", String(selected));
+            cover.onclick = event => {
+              event.stopPropagation(); if (!folderId) return;
+              if (updatePersonalData(state => { state.covers = state.covers.filter(x => x.id !== folderId); state.covers.push({ id: folderId, fileId: card.dataset.id }); })) { refreshFolderCovers(); attachPersonalButtons(); }
+            };
+            actions.appendChild(cover);
+          }
+          card.querySelector(".file-meta-content").appendChild(actions);
+        });
+      }
+
+      function refreshFolderCovers() {
+        document.documentElement.classList.toggle("hide-folder-covers", readPersonalData().hideCovers);
+        folderCoverCache.clear();
+        document.querySelectorAll("[data-folder-cover]").forEach(target => {
+          target.dataset.coverVersion = String(Number(target.dataset.coverVersion || 0) + 1);
+          target.querySelectorAll(".thumb-img, .folder-video-badge, .cover-status").forEach(el => el.remove());
+          delete target.dataset.coverObserved;
+        });
+        observeFolderCovers(document);
+      }
+
+      function loadWatchedVideos() {
+        try {
+          const ids = JSON.parse(lsGet("gdv_watched") || "[]");
+          return Array.isArray(ids) ? [...new Set(ids.filter(id => typeof id === "string" && /^[\w-]+$/.test(id)))] : [];
+        } catch (_) { return []; }
+      }
+
+      function toggleWatchedVideo(id) {
+        const ids = loadWatchedVideos();
+        const watched = !ids.includes(id);
+        lsSet("gdv_watched", JSON.stringify(watched ? ids.concat(id) : ids.filter(x => x !== id)));
+        return watched;
+      }
+
+      function attachWatchedButtons() {
+        const watched = new Set(loadWatchedVideos());
+        filesWrap.querySelectorAll('.file-card[data-kind="video"]').forEach(card => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "watched-toggle";
+          const update = value => {
+            button.textContent = value ? "✓ ดูแล้ว" : "○ ยังไม่ดู";
+            button.setAttribute("aria-pressed", String(value));
+            button.setAttribute("aria-label", card.dataset.name + (value ? " · ดูแล้ว กดเพื่อเปลี่ยนเป็นยังไม่ดู" : " · ยังไม่ดู กดเพื่อทำเครื่องหมายดูแล้ว"));
+            button.title = "บันทึกสถานะในเบราว์เซอร์นี้";
+          };
+          update(watched.has(card.dataset.id));
+          button.addEventListener("click", event => {
+            event.stopPropagation();
+            update(toggleWatchedVideo(card.dataset.id));
+          });
+          card.querySelector(".file-meta-content").appendChild(button);
+        });
+      }
+
+      function loadContinueWatching() {
+        try {
+          const items = JSON.parse(lsGet("gdv_continue") || "[]");
+          return Array.isArray(items) ? items.filter(x => x && typeof x.id === "string" && /^[\w-]+$/.test(x.id) && typeof x.name === "string" && Number.isFinite(x.position) && x.position > 2).slice(0, 30) : [];
+        } catch (_) { return []; }
+      }
+
+      function saveVideoPos() {
+        if (!vidCurrentId || vidPlayer.style.display === "none") return;
+        const time = vidPlayer.currentTime;
+        if (!Number.isFinite(time)) return;
+        const items = loadContinueWatching().filter(x => x.id !== vidCurrentId);
+        if (vidPlayer.ended) {
+          lsRemove("gdv_vpos_" + vidCurrentId);
+        } else {
+          if (time <= 2) return;
+          const position = Math.floor(time);
+          lsSet("gdv_vpos_" + vidCurrentId, position);
+          items.unshift({ id: vidCurrentId, name: vidTitle.textContent || "วิดีโอ", position, updated: Date.now() });
+        }
+        lsSet("gdv_continue", JSON.stringify(items.slice(0, 30)));
+        pruneVpos(100);
+      }
+
+      function renderContinueWatching() {
+        let section = document.getElementById("continueWatching");
+        if (!section) {
+          section = document.createElement("section");
+          section.id = "continueWatching";
+          section.className = "favorite-folders";
+          document.getElementById("browserCard").before(section);
+        }
+        section.innerHTML = '<h3>ดูต่อจากครั้งล่าสุด</h3><p>บันทึกในเบราว์เซอร์นี้ สูงสุด 30 รายการ · จำเวลาได้เฉพาะเครื่องเล่นโดยตรง ไม่รวมพรีวิว Google Drive</p>';
+        const items = loadContinueWatching();
+        if (!items.length) {
+          const empty = document.createElement("p");
+          empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
+          section.appendChild(empty);
+        }
+        items.forEach(item => {
+          const row = document.createElement("span");
+          row.className = "favorite-folder";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "btn-ghost";
+          const minutes = Math.floor(item.position / 60);
+          const seconds = String(item.position % 60).padStart(2, "0");
+          button.textContent = "▶ " + item.name + " · ดูต่อ " + minutes + ":" + seconds;
+          button.onclick = () => {
+            lsSet("gdv_vpos_" + item.id, item.position);
+            openVideo(item.id, item.name);
+          };
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "btn-ghost";
+          remove.textContent = "×";
+          remove.setAttribute("aria-label", "ลบ " + item.name + " จากรายการดูต่อ");
+          remove.onclick = () => {
+            lsSet("gdv_continue", JSON.stringify(loadContinueWatching().filter(x => x.id !== item.id)));
+            lsRemove("gdv_vpos_" + item.id);
+            renderContinueWatching();
+          };
+          row.append(button, remove);
+          section.appendChild(row);
+        });
+      }
 
             // เก็บกวาด gdv_vpos_* เก่าสุดออกให้เหลือไม่เกิน maxKeys (กัน localStorage บวม)
 
@@ -4153,6 +4509,7 @@
 
             }
 
+            window.addEventListener("pagehide", saveVideoPos);
             window._gdvVideoTimer = window._gdvVideoTimer || setInterval(saveVideoPos, 3000);
 
             // เมื่อเล่นจบ (ended) → เล่นวิดีโอถัดไปในโฟลเดอร์อัตโนมัติ
@@ -4168,6 +4525,7 @@
               if (list.length > 1) {
 
                 const cur = list.findIndex(function (item) { return item.id === vidCurrentId; });
+                if (cur < 0) return; // A resumed file may belong to another folder.
 
                 const next = list[(cur + 1) % list.length];
 
@@ -4253,6 +4611,7 @@
         revokeCurrentDoc();
 
         videoModal.setAttribute("aria-hidden", "true");
+        renderContinueWatching();
 
       }
 
@@ -4684,7 +5043,9 @@
 
       renderRecentFolders();
       renderFavoriteFolders();
+      renderContinueWatching();
 
+      renderPersonalLibrary();
       driveLink.focus();
 
 
