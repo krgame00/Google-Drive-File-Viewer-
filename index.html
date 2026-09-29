@@ -1045,7 +1045,7 @@
     .coll-pagi button{min-width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--muted);cursor:pointer;font-size:12px;padding:0 10px}
     .coll-pagi button.active{background:var(--text);color:var(--bg);border-color:var(--text)}
     .coll-pagi button:disabled{opacity:.4;pointer-events:none}
-    .coll-pagi-info{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin:0 6px}
+    .coll-pagi-info{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin:4px 0 0;flex-basis:100%;text-align:center;overflow-wrap:anywhere}
     .filter-chips{max-height:none;overflow:visible}
     .filter-chips.collapsed .filter-chip:nth-child(n+13){display:none}
     .filter-chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--muted);cursor:pointer}
@@ -1787,7 +1787,7 @@
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowDead" style="accent-color:var(--accent)"> แสดงรายการใช้ไม่ได้</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowNoDate" checked style="accent-color:var(--accent)"> แสดงชื่อที่ไม่มีวันที่</label>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> แบ่งหน้า (5 รายการ)</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
           <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
 
         </div>
@@ -5156,8 +5156,30 @@
         let showDead = localStorage.getItem("gdv_coll_showDead")==="1";
         let showNoDate = localStorage.getItem("gdv_coll_showNoDate")!=="0"; // default show
         let collPage = parseInt(localStorage.getItem("gdv_coll_page")||"1",10) || 1;
-        let collPageMode = localStorage.getItem("gdv_coll_pagemode")!=="0"; // true = 5/page
-        const COLL_PAGE_SIZE = 5;
+        let collPageMode = localStorage.getItem("gdv_coll_pagemode")!=="0";
+        function collectionLayout(width, mobile) {
+          const columns = Math.max(1, Math.floor((width + 10) / 230));
+          return {pageSize: mobile ? 4 : columns * 2, buttons: width < 340 ? 1 : width < 480 ? 3 : 5};
+        }
+        let collLayout = collectionLayout(grid.clientWidth || 320, window.matchMedia('(max-width: 680px)').matches);
+        let COLL_PAGE_SIZE = collLayout.pageSize;
+        let collResizeTimer;
+        function resizeCollectionPages() {
+          clearTimeout(collResizeTimer);
+          collResizeTimer = setTimeout(function () {
+            if (!grid.clientWidth) return;
+            const next = collectionLayout(grid.clientWidth, window.matchMedia('(max-width: 680px)').matches);
+            if (next.pageSize === COLL_PAGE_SIZE && next.buttons === collLayout.buttons) return;
+            const firstItem = (collPage - 1) * COLL_PAGE_SIZE;
+            COLL_PAGE_SIZE = next.pageSize;
+            collLayout = next;
+            collPage = Math.floor(firstItem / COLL_PAGE_SIZE) + 1;
+            localStorage.setItem('gdv_coll_page', String(collPage));
+            render();
+          }, 120);
+        }
+        if (window.ResizeObserver) new ResizeObserver(resizeCollectionPages).observe(grid);
+        window.addEventListener('resize', resizeCollectionPages);
 
         let collapsed = localStorage.getItem("gdv_coll_collapsed")==="1";
 
@@ -5268,7 +5290,9 @@
 
           if(!filtered.length){ if(emptyEl) emptyEl.style.display=""; var emptyPagi=document.getElementById("collPagi"); if(emptyPagi) emptyPagi.innerHTML=""; return; } else { if(emptyEl) emptyEl.style.display="none"; }
 
-          // ---- pagination slice (5/หน้า) ----
+          // Keep complete rows for the current collection width.
+          var sizeLabel = document.getElementById('collPageSizeLabel');
+          if (sizeLabel) sizeLabel.textContent = 'แบ่งหน้า (' + COLL_PAGE_SIZE + ' รายการ)';
           var totalPages = collPageMode ? Math.max(1, Math.ceil(filtered.length / COLL_PAGE_SIZE)) : 1;
           if(collPage > totalPages) collPage = totalPages;
           if(collPage < 1) collPage = 1;
@@ -5281,11 +5305,11 @@
             el.style.display="flex";
             var h='';
             h+='<button type="button" id="cpPrev" '+(collPage<=1?'disabled':'')+'>‹ ก่อน</button>';
-            // page numbers: show max 5 around current
-            var start=Math.max(1, collPage-2), end=Math.min(totalPages, start+4);
-            if(end-start<4) start=Math.max(1, end-4);
+            var visiblePages = collLayout.buttons;
+            var start=Math.max(1, collPage-Math.floor(visiblePages/2)), end=Math.min(totalPages, start+visiblePages-1);
+            if(end-start<visiblePages-1) start=Math.max(1, end-visiblePages+1);
             for(var p=start;p<=end;p++){
-              h+='<button type="button" class="'+(p===collPage?'active':'')+'" data-p="'+p+'">'+p+'</button>';
+              h+='<button type="button" aria-label="หน้า '+p+'" '+(p===collPage?'aria-current="page" ':'')+'class="'+(p===collPage?'active':'')+'" data-p="'+p+'">'+p+'</button>';
             }
             h+='<button type="button" id="cpNext" '+(collPage>=totalPages?'disabled':'')+'>ถัดไป ›</button>';
             h+='<span class="coll-pagi-info">หน้า '+collPage+'/'+totalPages+' • '+filtered.length+' รายการ</span>';
