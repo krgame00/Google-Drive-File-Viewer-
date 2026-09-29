@@ -968,7 +968,7 @@
 
     /* ===== Density (ขนาดการ์ด: เล็ก/ปกติ/ใหญ่) ===== */
 
-    .files-grid.density-sm { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px; }
+    .files-grid.density-sm { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 
     .files-grid.density-lg { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
 
@@ -1565,7 +1565,10 @@
       .breadcrumb-actions { width: 100%; margin-left: 0; gap: 4px; }
       .breadcrumb-actions button { flex: 1; min-width: 0; min-height: 44px; padding: 6px; font-size: 12px; }
       .file-card .watched-toggle { min-height: 44px; margin-top: 4px; padding: 5px 8px; font-size: 11px; }
-      .personal-file-actions { display: inline-flex; gap: 4px; }
+      .personal-file-actions { display: contents; }
+      .files-grid:not(.list-view) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+      .files-grid.density-lg:not(.list-view) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+      .files-grid.list-view { grid-template-columns: minmax(0, 1fr); }
       .collection-cover { aspect-ratio: 2.5 / 1; }
       .coll-card { padding: 12px; }
       .coll-title { font-size: 14px; }
@@ -1596,7 +1599,8 @@
       #collectionsCard .coll-status { margin: 0; gap: 3px; }
       #collectionsCard .source-status { font-size: 10px; padding: 1px 4px; }
       #collectionsCard .coll-check-time { font-size: 9px; margin-left: 0; }
-      #collectionsCard .coll-actions { grid-column: 1 / -1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin-top: 4px; }
+      #collectionsCard .coll-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 4px; }
+      #collectionsCard .coll-actions > :last-child:nth-child(odd) { grid-column: 1 / -1; }
       #collectionsCard .coll-actions .btn-primary, #collectionsCard .coll-actions .btn-ghost { min-width: 0; min-height: 44px; padding: 5px 3px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
       #collectionsCard .collection-cover .cover-status { font-size: 9px; padding: 2px; }
     }
