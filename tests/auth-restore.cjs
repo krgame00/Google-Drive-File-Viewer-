@@ -12,6 +12,11 @@ store.set('gdv_auth_remember','client');ctx.initTokenClient();assert.equal(reque
 config.error_callback({type:'popup_failed_to_open'});assert.equal(ctx.accessToken,null);
 ctx.initTokenClient();assert.equal(requests.length,1,'no automatic retry loop');
 const pending=ctx.ensureToken();assert.equal(requests.at(-1).prompt,'');config.callback({access_token:'temporary',expires_in:3600});assert.equal(await pending,'temporary');assert.equal(store.get('gdv_auth_remember'),'client');assert(![...store.values()].includes('temporary'));
+const before= requests.length;
+const renewed=ctx.ensureToken(true);
+assert.equal(requests.length,before+1,'401 retry must request a fresh token even before local expiry');
+assert.equal(ctx.accessToken,null,'rejected token must not remain usable');
+config.callback({access_token:'renewed',expires_in:3600});assert.equal(await renewed,'renewed');
 ctx.tokenExpiry=0;const denied=ctx.ensureToken();config.callback({error:'access_denied'});assert.equal(await denied,null);assert.equal(ctx.accessToken,null);assert.equal(ctx.tokenResolver,null);
 console.log('PASS restore once, popup fallback, reuse consent, memory-only token and error cleanup');
 })().catch(e=>{console.error(e);process.exitCode=1});
