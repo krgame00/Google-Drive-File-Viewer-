@@ -1071,9 +1071,13 @@
 
     .files-grid.list-view .file-thumb { width: 64px; height: 48px; flex-shrink: 0; aspect-ratio: auto; }
 
-    .files-grid.list-view .file-meta { flex: 1; padding: 8px 12px; }
+    .files-grid.list-view .file-meta { flex: 1; min-width: 0; padding: 8px 52px 8px 12px; }
 
-    .files-grid.list-view .dl-btn { top: auto; right: 8px; }
+    .files-grid.list-view .dl-btn { top: 50%; right: 4px; transform: translateY(-50%); width: 44px; height: 44px; }
+    .files-grid.list-view .file-meta-content { display: flex; flex-wrap: wrap; gap: 0 4px; }
+    .files-grid.list-view .file-meta-content > .file-name,
+    .files-grid.list-view .file-meta-content > .file-sub { flex: 0 0 100%; margin-right: 0; }
+    .files-grid.list-view .file-meta-content .watched-toggle { flex: 0 1 auto; max-width: calc(50% - 2px); padding: 5px 10px; }
 
     .files-grid.list-view .file-name { font-size: 0.85rem; }
 
