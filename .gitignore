@@ -1,14 +1,10 @@
-﻿*.bak
+*.bak
 .vscode/
-*/console.log('Server
-*/{const
-DriveViewer-Portable/
-gemini-chatbot/
-node_modules/
 .zcode/
+node_modules/
+gemini-chatbot/
+DriveViewer-Portable/
 
-{const
-console.log('Server
-*/{const
-*/console.log('Server
-
+# รายงาน/ผลลัพธ์ที่สคริปต์ generate ใหม่เสมอ
+# (ไฟล์ที่ track ไว้แล้วใน reports/ เช่น drive_alive_report.json ยัง commit ตามปกติ)
+reports/

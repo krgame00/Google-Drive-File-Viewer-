@@ -2,9 +2,9 @@ import pathlib, re, json, sys, subprocess
 
 ROOT = pathlib.Path(r"C:/Users/PC/ZCodeProject")
 IDX = ROOT / "index.html"
-REPORT = ROOT / "drive_alive_report.json"
-CHECK = ROOT / "check_drive_alive.py"
-PATCH = ROOT / "patch_alive_from_report.py"
+REPORT = ROOT / "reports" / "drive_alive_report.json"
+CHECK = ROOT / "scripts" / "check_drive_alive.py"
+PATCH = ROOT / "scripts" / "patch_alive_from_report.py"
 
 print("=== Daily Drive check start ===")
 # 1. check
@@ -40,7 +40,7 @@ def sh(cmd): return sp.run(cmd, shell=True, capture_output=True, text=True, cwd=
 r = sh("git status --porcelain")
 print(r.stdout[:500])
 if "index.html" in r.stdout or "drive_alive_report.json" in r.stdout or "M" in r.stdout:
-    sh("git add index.html drive_alive_report.json collections_merged.json")
+    sh("git add index.html reports/drive_alive_report.json collections_merged.json")
     msg = f"chore: daily Drive alive {alive}/{len(coll)} (dead {dead})"
     r = sh(f'git commit -m "{msg}"')
     print(r.stdout[:500])

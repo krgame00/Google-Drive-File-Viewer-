@@ -1,6 +1,6 @@
 import pathlib, re, json
 IDX = pathlib.Path(r"C:/Users/PC/ZCodeProject/index.html")
-REPORT = pathlib.Path(r"C:/Users/PC/ZCodeProject/drive_alive_report.json")
+REPORT = pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/drive_alive_report.json")
 if not REPORT.exists():
     print("no report"); raise SystemExit(1)
 rep = json.loads(REPORT.read_text(encoding="utf-8"))
