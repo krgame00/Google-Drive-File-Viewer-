@@ -1567,6 +1567,16 @@
       .coll-actions button, .coll-actions a { min-height: 44px; padding: 6px 8px; font-size: 12px; }
     }
 
+    @media (min-width: 681px) {
+      #collectionsCard .coll-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); align-items: start; }
+      #collectionsCard .coll-card { gap: 7px; }
+      #collectionsCard .collection-cover { margin-bottom: 2px; }
+      #collectionsCard .coll-title { min-height: 0; line-height: 1.45; }
+      #collectionsCard .coll-id { font-size: 12px; line-height: 1.4; }
+      #collectionsCard .coll-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 3px; }
+      #collectionsCard .coll-actions .btn-primary, #collectionsCard .coll-actions .btn-ghost { min-width: 0; min-height: 44px; padding: 7px 5px; white-space: nowrap; }
+      #collectionsCard .coll-actions > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+    }
     @media (max-width: 680px) {
       #collectionsCard .coll-grid { gap: 8px; }
       #collectionsCard .coll-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 8px; padding: 9px; align-content: start; }
