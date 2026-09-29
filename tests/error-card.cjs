@@ -40,5 +40,7 @@ assert(html.includes('id="errSignIn"'),'sign-in-and-retry button exists');
 assert(html.includes('id="errSwitchAccount"'),'switch-account button exists');
 assert(html.includes('ลงชื่อเข้าใช้และลองใหม่'),'sign-in button label present');
 assert(html.includes('error-state.signedout')&&html.includes('error-state.quota'),'CSS covers new error categories');
+assert(html.includes('function folderRecovery'),'folderRecovery helper is defined (was a ReferenceError since 8d3786e)');
+assert(html.includes('id="emptyBackHome"'),'empty-folder recovery box has back-to-collection button');
 
 console.log('PASS error card classifier, sign-in/switch buttons and reason plumbing');

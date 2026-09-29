@@ -3128,6 +3128,18 @@
         }
       }
 
+      function folderRecovery() {
+        // ปุ่มกู้คืนสำหรับ state-box "ไม่พบไฟล์ที่เข้าถึงได้" (โฟลเดอร์ว่าง/ไฟล์ข้างในไม่มีสิทธิ์)
+        const cur = navStack[navStack.length - 1];
+        const driveDirectLink = cur
+          ? '<a class="btn-ghost" href="https://drive.google.com/drive/folders/' + encodeURIComponent(cur.id) + '" target="_blank" rel="noopener" style="min-height:36px;padding:7px 12px;display:inline-flex;align-items:center;gap:5px;text-decoration:none;"><span>เปิดใน Drive ↗</span></a>'
+          : '';
+        return '<div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px;">' +
+                 '<button type="button" class="btn-primary" id="emptyBackHome" style="min-height:36px;padding:7px 14px;">กลับคลัง</button>' +
+                 driveDirectLink +
+               '</div>';
+      }
+
       function renderFiles(files) {
 
               renderBreadcrumb();
@@ -3149,6 +3161,9 @@
                     '<h3>ไม่พบไฟล์ที่เข้าถึงได้</h3><p>โฟลเดอร์อาจว่าง หรือบัญชีปัจจุบันไม่มีสิทธิ์ดูไฟล์ภายใน ลองเปิดใน Google Drive หรือลงชื่อเข้าใช้บัญชีที่มีสิทธิ์</p>' + folderRecovery() +
 
                   '</div>';
+
+                const emptyBackBtn = document.getElementById("emptyBackHome");
+                if (emptyBackBtn) emptyBackBtn.addEventListener("click", goHome);
 
                 return;
 
