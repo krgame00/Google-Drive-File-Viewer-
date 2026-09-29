@@ -2635,6 +2635,7 @@
           }
 
           accessToken = null; tokenExpiry = 0; userProfile = null;
+          if (videoModal.classList.contains("show")) closeVideo();
 
           refreshAuthUI(false);
 
@@ -4112,16 +4113,69 @@
 
 
 
-      // ลองตามลำดับ: ลิงก์ตรง drive.usercontent (ไม่โดนหน้าแจ้งไวรัส ไม่กินโควตา API)
+      // Signed-in playback uses a same-origin service worker to add the bearer header.
 
-      // → ผ่าน API แบบ Range (เลื่อนดูช่วงไหนก็ได้ เฉพาะโหมดมี key)
+      // Signed-out playback retains public sources, then falls back to Drive preview.
 
-      // → iframe preview ของ Google (เล่นได้แน่นอนทุกกรณี รวมไฟล์ส่วนตัวที่ล็อกอินอยู่)
+      // Drive permissions, quotas and browser codec support still apply.
+
+      let streamWorkerReady = null;
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function (event) {
+          if (event.source !== navigator.serviceWorker.controller || !event.ports[0]) return;
+          if (!event.data || event.data.type !== 'drive-stream-token') return;
+          const allowed = event.data.id === vidCurrentId && videoModal.classList.contains('show') && Date.now() < tokenExpiry;
+          event.ports[0].postMessage({token: allowed ? accessToken : null});
+        });
+      }
+
+      function prepareStreamWorker() {
+        if (!window.isSecureContext || !('serviceWorker' in navigator) || location.protocol === 'file:') return Promise.resolve(false);
+        if (!streamWorkerReady) {
+          streamWorkerReady = new Promise(function (resolve) {
+            const workers = navigator.serviceWorker;
+            const script = new URL('drive-stream-sw.js', location.href).href;
+            function finish(ok) {
+              clearTimeout(timer);
+              workers.removeEventListener('controllerchange', check);
+              resolve(ok);
+            }
+            function check() { if (workers.controller && workers.controller.scriptURL === script) finish(true); }
+            const timer = setTimeout(function () { finish(false); }, 6000);
+            workers.addEventListener('controllerchange', check);
+            workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function () { finish(false); });
+            check();
+          }).then(function (ok) { if (!ok) streamWorkerReady = null; return ok; });
+        }
+        return streamWorkerReady;
+      }
 
       function tryStreamDirect(id) {
+        if (!accessToken) { tryPublicStream(id); return; }
+        const session = mediaSession;
+        const token = accessToken;
+        prepareStreamWorker().then(function (ready) {
+          if (session !== mediaSession || token !== accessToken || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+          if (!ready || Date.now() >= tokenExpiry) {
+            showToast(Date.now() >= tokenExpiry ? 'เซสชัน Google หมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กำลังเปิดพรีวิว Google');
+            fallbackIframe(id);
+            return;
+          }
+          revokeCurrentVideo();
+          vidPlayer.style.display = 'block';
+          const url = new URL('__drive_stream', location.href);
+          url.searchParams.set('id', id);
+          tryVideoSrc(url.href, function () {
+            showToast('สตรีมด้วยบัญชีไม่สำเร็จ กำลังเปิดพรีวิว Google');
+            fallbackIframe(id);
+          });
+        });
+      }
+
+      function tryPublicStream(id) {
         revokeCurrentVideo();
         vidPlayer.style.display = "block";
-        // 1. ลองสตรีมผ่าน Cloudflare Worker Proxy ก่อน (แก้ปัญหาโควตาเต็ม + เล่น .mov / .mp4 ได้เลย)
+        // Public proxy only; no account credentials are sent to Cloudflare.
         const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;
         tryVideoSrc(workerProxy, function () {
           // 2. ถ้า Worker มีปัญหา ให้ fallback ไปลิงก์ตรง drive.usercontent
