@@ -626,11 +626,13 @@
     .personal-tools p { flex-basis: 100%; }
     .personal-tools button, .personal-tools label, #personalLibrary summary { min-height: 44px; padding: 10px; }
     .personal-tools [hidden] { display: none; }
-    .personal-file-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+    .personal-file-actions { display: contents; }
     .watched-toggle { margin-top: 8px; min-height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; }
     .watched-toggle[aria-pressed="true"] { color: #86efac; border-color: #4ade8080; }
     .watched-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .file-meta-content { width: calc(100% - 28px); }
+    .file-meta-content { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 4px; }
+    .file-meta-content > .file-name, .file-meta-content > .file-sub { grid-column: 1 / -1; min-width: 0; margin-right: 28px; }
+    .file-card .file-meta-content .watched-toggle { min-width: 0; padding: 5px 4px; font-size: 11px; line-height: 1.35; }
 
     .file-name {
 
