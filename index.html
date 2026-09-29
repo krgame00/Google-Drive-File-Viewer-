@@ -1788,6 +1788,7 @@
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowDead" style="accent-color:var(--accent)"> แสดงรายการใช้ไม่ได้</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowNoDate" checked style="accent-color:var(--accent)"> แสดงชื่อที่ไม่มีวันที่</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
+          <button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button>
           <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
 
         </div>
@@ -5236,30 +5237,51 @@
           var label=dead===true ? 'ใช้ไม่ได้' : dead===false ? 'ใช้ได้ตามข้อมูล' : 'ยังไม่ตรวจ';
           return '<span class="source-status '+state+'">'+provider+': '+label+'</span>';
         }
+        function collMatches(c){
+          var driveAlive = !c.dead;
+          var megaAlive = !!c.mega_url && !c.mega_dead;
+          var anyAlive = driveAlive || megaAlive || !!c.od_url || !!c.mf_url;
+          if(!anyAlive && !showDead) return false;
+          var isNoDate = !c.dead && (!c.drive_name || c.drive_name==="มืด" || c.drive_name==="โฟลเดอร์ไม่มีชื่อ" || !/\d{1,2}\.\d{1,2}\.\d{2}/.test(c.drive_name||""));
+          if(isNoDate && !showNoDate) return false;
+          var byDate = activeDate==="all" || (c.date||"ไม่ระบุ")===activeDate;
+          if(!byDate) return false;
+          if(!q) return true;
+          var hay=(c.title+" "+(c.drive_name||"")+" "+c.desc+" "+c.date+" "+c.id+" "+(c.mega_url||"")).toLowerCase();
+          return hay.indexOf(q)!==-1;
+        }
+        function openCollectionItem(item){
+          // ใช้ flow เดิมของ viewer
+          driveLink.value = item.url;
+          var extId = extractId(item.url);
+          if(extId && item.kind==="file"){
+            var mime=item.drive_mime||"";
+            var name=item.drive_name||item.title||"";
+            if(mime.startsWith("image/")) handleFileClick(extId,"image",name);
+            else if(mime.startsWith("video/")) handleFileClick(extId,"video",name);
+            else window.open("https://drive.google.com/file/d/"+encodeURIComponent(extId)+"/view","_blank","noopener");
+            return;
+          }
+          if(extId){
+            // push navStack? ให้ listFolder จัดการ breadcrumb เอง
+            navStack.push({id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()});
+            pushHash(extId);
+            openFolderAndReveal(extId);
+          }
+        }
+        function randomPick(pool, avoidId){
+          if(!pool || !pool.length) return null;
+          if(pool.length>1 && avoidId!=null){
+            var notAvoid = pool.filter(function(c){ return c.id!==avoidId; });
+            if(notAvoid.length) pool = notAvoid;
+          }
+          return pool[Math.floor(Math.random()*pool.length)];
+        }
         function render(){
 
           if(collapsed) return;
 
-          var filtered = XBEP_COLLECTION.filter(function(c){
-            var driveAlive = !c.dead;
-            var megaAlive = !!c.mega_url && !c.mega_dead;
-            var anyAlive = driveAlive || megaAlive || !!c.od_url || !!c.mf_url;
-            if(!anyAlive && !showDead) return false;
-            var isNoDate = !c.dead && (!c.drive_name || c.drive_name==="มืด" || c.drive_name==="โฟลเดอร์ไม่มีชื่อ" || !/\d{1,2}\.\d{1,2}\.\d{2}/.test(c.drive_name||""));
-            if(isNoDate && !showNoDate) return false;
-
-
-            var byDate = activeDate==="all" || (c.date||"ไม่ระบุ")===activeDate;
-
-            if(!byDate) return false;
-
-            if(!q) return true;
-
-            var hay=(c.title+" "+(c.drive_name||"")+" "+c.desc+" "+c.date+" "+c.id+" "+(c.mega_url||"")).toLowerCase();
-
-            return hay.indexOf(q)!==-1;
-
-          });
+          var filtered = XBEP_COLLECTION.filter(collMatches);
 
           filtered.sort(function(a,b){if(sortMode==="name") return (a.drive_name||a.title||"").localeCompare(b.drive_name||b.title||"","th",{numeric:true});var ad=dateKey(a.date),bd=dateKey(b.date);if(!ad || !bd) return ad ? -1 : bd ? 1 : 0;return sortMode==="oldest" ? ad-bd : bd-ad;});
           grid.innerHTML="";
@@ -5362,35 +5384,7 @@
 
               var item=XBEP_COLLECTION.find(function(x){return x.id===id});
 
-              if(!item) return;
-
-              // ใช้ flow เดิมของ viewer
-
-              driveLink.value = item.url;
-
-              var extId = extractId(item.url);
-
-              if(extId && item.kind==="file"){
-                var mime=item.drive_mime||"";
-                var name=item.drive_name||item.title||"";
-                if(mime.startsWith("image/")) handleFileClick(extId,"image",name);
-                else if(mime.startsWith("video/")) handleFileClick(extId,"video",name);
-                else window.open("https://drive.google.com/file/d/"+encodeURIComponent(extId)+"/view","_blank","noopener");
-                return;
-              }
-              if(extId){
-
-                // push navStack? ให้ listFolder จัดการ breadcrumb เอง
-
-                navStack.push({id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()});
-
-                pushHash(extId);
-
-                openFolderAndReveal(extId);
-
-
-
-              }
+              if(item) openCollectionItem(item);
 
             });
 
@@ -5448,6 +5442,24 @@
 
           document.getElementById("collectionsCard").scrollIntoView({behavior:"smooth", block:"start"});
 
+        });
+
+        var randomBtn=document.getElementById("collRandom");
+        var lastRandomId=null;
+        if(randomBtn) randomBtn.addEventListener("click", function(){
+          var pool = XBEP_COLLECTION.filter(collMatches);
+          var openable = pool.filter(function(c){ return !c.dead; });
+          var fallback = pool.filter(function(c){ return c.dead && ((c.mega_url&&!c.mega_dead)||!!c.od_url||!!c.mf_url); });
+          var pick = randomPick(openable.length ? openable : fallback, lastRandomId);
+          if(!pick) return;
+          lastRandomId = pick.id;
+          if(pick.dead){
+            // Drive ใช้ไม่ได้ — เปิดลิงก์สำรองแทน
+            var alt = (pick.mega_url&&!pick.mega_dead) ? pick.mega_url : (pick.od_url||pick.mf_url);
+            if(alt) window.open(alt,"_blank","noopener");
+            return;
+          }
+          openCollectionItem(pick);
         });
 
 
