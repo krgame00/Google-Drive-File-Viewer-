@@ -2500,85 +2500,59 @@
 
 
 
-      function initTokenClient() {
-
-        if (!clientId) return;
-
-        waitForGis(function () {
-
-          tokenClient = google.accounts.oauth2.initTokenClient({
-
-            client_id: clientId,
-
-            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-
-            callback: function (resp) {
-
-              if (resp && !resp.error) {
-
-                accessToken = resp.access_token;
-
-                tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
-
-                fetchUserProfile();
-
-                refreshAuthUI(true);
-
-              } else if (tokenResolver) {
-
-                tokenResolver(null, resp && resp.error);
-
-              }
-
-              if (tokenResolver) {
-
-                const r = tokenResolver;
-
-                tokenResolver = null;
-
-                r(accessToken, null);
-
-              }
-
-            }
-
-          });
-
-        });
-
+      let authRestoreAttempted = false;
+      function finishTokenRequest(resp) {
+        if (resp && !resp.error && resp.access_token) {
+          accessToken = resp.access_token;
+          tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+          lsSet('gdv_auth_remember', clientId);
+          fetchUserProfile();
+        } else {
+          accessToken = null;
+          tokenExpiry = 0;
+          userProfile = null;
+        }
+        refreshAuthUI(!!accessToken);
+        const resolve = tokenResolver;
+        tokenResolver = null;
+        if (resolve) resolve(accessToken);
       }
 
-
-
-      // ขอ token ใหม่ หรือใช้ token เดิมถ้ายังไม่หมดอายุ
+      function initTokenClient() {
+        if (!clientId) return;
+        waitForGis(function () {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: clientId,
+            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+            callback: finishTokenRequest,
+            error_callback: function () { finishTokenRequest(null); }
+          });
+          refreshAuthUI(!!accessToken);
+          if (!authRestoreAttempted && !accessToken && lsGet('gdv_auth_remember') === clientId) {
+            authRestoreAttempted = true;
+            // Best effort only: browsers can block this popup without a user gesture.
+            // Never loop; leave a reconnect button when interaction is required.
+            try { tokenClient.requestAccessToken({prompt: 'none'}); }
+            catch (_) { finishTokenRequest(null); }
+          }
+        });
+      }
 
       function ensureToken() {
-
         return new Promise(function (resolve) {
-
-          if (accessToken && Date.now() < tokenExpiry - 60000) {
-
-            resolve(accessToken); return;
-
-          }
-
-          if (!tokenClient) { resolve(null); return; }
-
+          if (accessToken && Date.now() < tokenExpiry - 60000) { resolve(accessToken); return; }
+          if (!tokenClient || tokenResolver) { resolve(null); return; }
           tokenResolver = resolve;
-
-          // prompt '' = silent refresh ถ้ามี session; 'consent' = ขอครั้งแรก
-
-          tokenClient.requestAccessToken({ prompt: accessToken ? "" : "consent" });
-
+          const remembered = lsGet('gdv_auth_remember') === clientId;
+          try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+          catch (_) { finishTokenRequest(null); }
         });
-
       }
-
-
 
       async function fetchUserProfile() {
 
         if (!accessToken) return;
+        const profileToken = accessToken;
 
         try {
 
@@ -2588,7 +2562,10 @@
 
           });
 
-          if (res.ok) userProfile = await res.json();
+          if (res.ok) {
+            const profile = await res.json();
+            if (accessToken === profileToken) { userProfile = profile; refreshAuthUI(true); }
+          }
 
         } catch (_) {}
 
@@ -2622,9 +2599,9 @@
 
         } else {
 
-          userInfo.innerHTML = '<span class="auth-placeholder">ยังไม่ได้ลงชื่อเข้าใช้ Google</span>';
-
-          authBtnText.textContent = "ลงชื่อเข้าใช้ Google";
+          const remembered = lsGet('gdv_auth_remember') === clientId;
+          userInfo.innerHTML = '<span class="auth-placeholder">' + (remembered ? 'จำการเชื่อมต่อ Google ไว้แล้ว · กดเชื่อมต่ออีกครั้งหากเบราว์เซอร์ไม่อนุญาตให้อัตโนมัติ' : 'ยังไม่ได้ลงชื่อเข้าใช้ Google') + '</span>';
+          authBtnText.textContent = remembered ? "เชื่อมต่อ Google อีกครั้ง" : "ลงชื่อเข้าใช้ Google";
 
         }
 
@@ -2645,6 +2622,7 @@
           }
 
           accessToken = null; tokenExpiry = 0; userProfile = null;
+          lsRemove('gdv_auth_remember');
           if (videoModal.classList.contains("show")) closeVideo();
 
           refreshAuthUI(false);
