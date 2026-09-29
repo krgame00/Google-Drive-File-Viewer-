@@ -6,7 +6,7 @@ function setup({token='test-token',status=206,type='video/mp4',client=true}={}) 
   const events={},calls=[];
   const ctx={URL,Headers,Response,MessageChannel,setTimeout,clearTimeout,
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
-      clients:{get:async()=>client?{url:'https://example.com/app/index.html',postMessage(data,ports){ports[0].postMessage({token});ports[0].close()}}:null}},
+      clients:{get:async()=>client?{url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}}}:null}},
     fetch:async(url,options)=>{calls.push({url,options});return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':'bytes 0-3/100'}})}};
   vm.runInNewContext(fs.readFileSync('drive-stream-sw.js','utf8'),ctx);
   const request=(path='__drive_stream?id=file1',method='GET')=>{

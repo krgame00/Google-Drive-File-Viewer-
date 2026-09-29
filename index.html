@@ -1808,6 +1808,7 @@
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowNoDate" checked style="accent-color:var(--accent)"> แสดงชื่อที่ไม่มีวันที่</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
           <button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button>
+          <button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button>
           <button type="button" class="btn-ghost btn-sm" id="collMobileView" aria-pressed="false">มุมมองรายการ</button>
           <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
 
@@ -1905,11 +1906,14 @@
 
       </div>
 
-      <div class="video-footer">
+      <div class="video-footer" style="flex-wrap:wrap">
+        <div id="vidErrorStatus" role="status" style="flex-basis:100%;font-size:12px;color:#fbbf24" hidden></div>
 
         <div class="video-title" id="vidTitle">วิดีโอ</div>
 
         <a id="vidOpenTab" href="#" target="_blank" rel="noopener">เปิดในแท็บใหม่ ↗</a>
+        <button type="button" class="btn-ghost btn-sm" id="vidRetry">ลองเล่นใหม่</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidReconnect">เชื่อมต่อ Google ใหม่</button>
 
       </div>
 
@@ -2732,6 +2736,18 @@
 
       }
 
+      document.addEventListener('click', function(event) {
+        if(!event.target.closest('#folderZipInfo')) return;
+        const files=allFiles.filter(f=>f.mimeType!=='application/vnd.google-apps.folder');
+        const bytes=files.reduce((sum,f)=>sum+(Number(f.size)||0),0);
+        const unknown=files.filter(f=>!f.size).length;
+        const folder=navStack[navStack.length-1];
+        if(!folder) return;
+        if(confirm('ไฟล์ในโฟลเดอร์นี้ '+files.length+' ไฟล์ · ขนาดที่ทราบ '+formatSize(bytes)+'\nไม่รวมโฟลเดอร์ย่อย'+(unknown?' และมี '+unknown+' ไฟล์ที่ไม่ทราบขนาด':'')+'\nเปิด Google Drive แล้วเลือกดาวน์โหลดได้ ความคืบหน้าและการยกเลิกจัดการใน Google Drive/เบราว์เซอร์')) {
+          window.open('https://drive.google.com/drive/folders/'+encodeURIComponent(folder.id),'_blank','noopener');
+        }
+      });
+
 
 
       // ===== Drive API: list folder (พร้อม pagination ดึงครบทุกหน้า & Concurrency Guard) =====
@@ -3266,7 +3282,7 @@
 
                 '</div>' +
 
-                '<button type="button" class="btn-primary btn-sm" onclick="window.open(\'https://drive.google.com/drive/u/0/folders/' + escapeAttr(currentFolderId) + '\', \'_blank\')" title="เปิดโฟลเดอร์นี้ใน Google Drive เพื่อดาวน์โหลด ZIP (Google บีบให้เอง — ไม่เปลือง quota)" style="display: flex; align-items: center; gap: 4px;">' +
+                '<button type="button" class="btn-primary btn-sm" id="folderZipInfo" title="ดูขนาดไฟล์ก่อนเปิด Google Drive เพื่อดาวน์โหลด ZIP" style="display: flex; align-items: center; gap: 4px;">' +
 
                                   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>' +
 
@@ -4142,6 +4158,7 @@
         vidLoading.classList.remove("show");
       }
       function openVideo(id, name) {
+        document.getElementById('vidErrorStatus').hidden=true;
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         resetMediaPlayback();
@@ -4208,9 +4225,29 @@
       // Drive permissions, quotas and browser codec support still apply.
 
       let streamWorkerReady = null;
+      document.getElementById('vidRetry').addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) openVideo(vidCurrentId, vidTitle.textContent);
+      });
+      document.getElementById('vidReconnect').addEventListener('click', function () {
+        const id=vidCurrentId, session=mediaSession, name=vidTitle.textContent;
+        ensureToken(true).then(function(token){
+          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) openVideo(id,name);
+        });
+      });
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', function (event) {
-          if (event.source !== navigator.serviceWorker.controller || !event.ports[0]) return;
+          if (event.source !== navigator.serviceWorker.controller) return;
+          if (event.data && event.data.type === 'drive-stream-error') {
+            if(event.data.id===vidCurrentId && videoModal.classList.contains('show')) {
+              const category=classifyApiError(event.data.status,event.data.reason,!!accessToken);
+              const messages={session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
+              const status=document.getElementById('vidErrorStatus');
+              status.textContent=messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่';
+              status.hidden=false;
+            }
+            return;
+          }
+          if (!event.ports[0]) return;
           if (!event.data || event.data.type !== 'drive-stream-token') return;
           const allowed = event.data.id === vidCurrentId && videoModal.classList.contains('show') && Date.now() < tokenExpiry;
           event.ports[0].postMessage({token: allowed ? accessToken : null});
@@ -5474,6 +5511,21 @@
                 card.prepend(cover);
               }
             }
+            const checkLink=document.createElement('button');
+            checkLink.type='button'; checkLink.className='btn-ghost btn-sm'; checkLink.textContent='ตรวจ Drive ซ้ำ';
+            const checkResult=document.createElement('span'); checkResult.setAttribute('role','status'); checkResult.style.cssText='font-size:11px;overflow-wrap:anywhere';
+            checkLink.addEventListener('click',async function(){
+              const id=extractId(c.url), auth=authParams();
+              if(!id || auth.mode==='none') {checkResult.textContent='ยังไม่ทราบ · ต้องตั้ง API Key หรือล็อกอิน';return;}
+              checkLink.disabled=true; checkResult.textContent='กำลังตรวจ…';
+              const controller=new AbortController(), timer=setTimeout(()=>controller.abort(),10000);
+              try {
+                const response=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id)+'?fields=id&supportsAllDrives=true'+(auth.mode==='key'?'&key='+encodeURIComponent(apiKey):''),{headers:auth.headers||{},signal:controller.signal,cache:'no-store'});
+                checkResult.textContent=(response.ok?'เข้าถึงได้ด้วยสิทธิ์ปัจจุบัน':response.status===404?'ไม่พบหรือไม่มีสิทธิ์เข้าถึง':'ยังไม่ทราบ · HTTP '+response.status)+' · '+new Date().toLocaleTimeString('th-TH');
+              } catch(_){checkResult.textContent='ยังไม่ทราบ · เชื่อมต่อไม่สำเร็จ';}
+              finally {clearTimeout(timer);checkLink.disabled=false;}
+            });
+            card.appendChild(checkLink);card.appendChild(checkResult);
             grid.appendChild(card);
           });
 
@@ -5547,27 +5599,52 @@
         });
 
         var mobileViewBtn=document.getElementById("collMobileView");
+        function applyMobileView(list) {
+          grid.classList.toggle("mobile-list", list);
+          if(mobileViewBtn) {
+            mobileViewBtn.textContent=list ? "มุมมองการ์ด" : "มุมมองรายการ";
+            mobileViewBtn.setAttribute("aria-pressed", String(list));
+          }
+        }
+        applyMobileView(lsGet('gdv_coll_view') === 'list');
         if(mobileViewBtn) mobileViewBtn.addEventListener("click", function(){
-          var list=grid.classList.toggle("mobile-list");
-          mobileViewBtn.textContent=list ? "มุมมองการ์ด" : "มุมมองรายการ";
-          mobileViewBtn.setAttribute("aria-pressed", String(list));
+          var list=!grid.classList.contains("mobile-list");
+          applyMobileView(list);
+          lsSet('gdv_coll_view', list ? 'list' : 'cards');
         });
         var randomBtn=document.getElementById("collRandom");
         var lastRandomId=null;
+        var randomSeen=new Set(), randomHistory=[];
+        var randomBack=document.getElementById('collRandomBack');
+        function openRandomItem(pick) {
+          if(pick.dead) {
+            var alt=(pick.mega_url&&!pick.mega_dead) ? pick.mega_url : (pick.od_url||pick.mf_url);
+            if(alt) window.open(alt,'_blank','noopener');
+          } else openCollectionItem(pick);
+        }
+        if(randomBack) randomBack.addEventListener('click', function(){
+          if(randomHistory.length<2) return;
+          randomHistory.pop();
+          var previous=randomHistory[randomHistory.length-1];
+          lastRandomId=previous.id;
+          randomBack.disabled=randomHistory.length<2;
+          openRandomItem(previous);
+        });
         if(randomBtn) randomBtn.addEventListener("click", function(){
           var pool = XBEP_COLLECTION.filter(collMatches);
           var openable = pool.filter(function(c){ return !c.dead; });
           var fallback = pool.filter(function(c){ return c.dead && ((c.mega_url&&!c.mega_dead)||!!c.od_url||!!c.mf_url); });
-          var pick = randomPick(openable.length ? openable : fallback, lastRandomId);
+          var candidates=openable.length ? openable : fallback;
+          var unseen=candidates.filter(function(c){return !randomSeen.has(c.id);});
+          if(!unseen.length) { candidates.forEach(function(c){randomSeen.delete(c.id);}); unseen=candidates; }
+          var pick = randomPick(unseen, lastRandomId);
           if(!pick) return;
           lastRandomId = pick.id;
-          if(pick.dead){
-            // Drive ใช้ไม่ได้ — เปิดลิงก์สำรองแทน
-            var alt = (pick.mega_url&&!pick.mega_dead) ? pick.mega_url : (pick.od_url||pick.mf_url);
-            if(alt) window.open(alt,"_blank","noopener");
-            return;
-          }
-          openCollectionItem(pick);
+          randomSeen.add(pick.id);
+          randomHistory.push(pick);
+          if(randomHistory.length>100) randomHistory.shift();
+          if(randomBack) randomBack.disabled=randomHistory.length<2;
+          openRandomItem(pick);
         });
 
 

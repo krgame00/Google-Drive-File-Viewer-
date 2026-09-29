@@ -38,7 +38,10 @@ async function streamFile(event, id) {
     const client = event.clientId && await self.clients.get(event.clientId);
     if (!client || !client.url.startsWith(self.registration.scope)) return failure(401);
     const token = await requestToken(client, id);
-    if (!token) return failure(401);
+    if (!token) {
+      client.postMessage({type:'drive-stream-error',id,status:401});
+      return failure(401);
+    }
     const headers = new Headers({Authorization: 'Bearer ' + token});
     const range = request.headers.get('Range');
     if (range) headers.set('Range', range);
@@ -47,7 +50,9 @@ async function streamFile(event, id) {
       redirect: 'error', signal: request.signal
     });
     if (!upstream.ok) {
-      if (upstream.body) await upstream.body.cancel();
+      let reason='';
+      try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
+      client.postMessage({type:'drive-stream-error',id,status:upstream.status,reason});
       return failure(upstream.status);
     }
     const type = upstream.headers.get('Content-Type') || '';
