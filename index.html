@@ -1645,6 +1645,11 @@
     .video-toolbar { display: flex; gap: 8px; padding: 8px; flex: 0 0 auto; background: #111; }
     .video-toolbar .lb-close, .video-toolbar .media-nav { position: static; transform: none; width: 44px; height: 44px; flex: 0 0 44px; font-size: 26px; }
     .video-toolbar .lb-close { order: 3; margin-left: auto; }
+    #vidFullscreen { min-height: 44px; padding: 8px 12px; margin-left: 4px; }
+    .video-box:fullscreen { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden; }
+    .video-box:fullscreen .ratio { flex: 1 1 0; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; }
+    .video-box:fullscreen .video-footer { display: none; }
+    .video-box:fullscreen .video-toolbar { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
     .video-box { max-height: 94dvh; overflow-y: auto; }
     .video-box .ratio { min-height: 0; max-height: 65dvh; }
     .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
@@ -1656,6 +1661,7 @@
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
       .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
+      .video-box:fullscreen .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
       .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }
       .video-footer .video-title { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -1942,6 +1948,7 @@
       <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า">&#8249;</button>
 
       <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
+      <button type="button" class="btn-ghost btn-sm" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น">เต็มจอ</button>
       </div>
 
       <div class="ratio">
@@ -4326,7 +4333,12 @@
       function handleDriveStreamError(data) {
         if (!data || data.type !== 'drive-stream-error') return false;
         if (data.id !== vidCurrentId || !videoModal.classList.contains('show')) return false;
-        if (data.attempt != null && Number(data.attempt) !== videoAttempt) return false;
+        const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
+        if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
+        if (data.reason === 'streamFetchFailed') {
+          setVideoStatus('error', 'เชื่อมต่อแหล่งสตรีมไม่ได้ [FETCH] อาจเกิดจากเครือข่ายหรือการบล็อกคำขอ หากใช้ Brave ลองปิด Shields เฉพาะเว็บนี้ชั่วคราวแล้วรีเฟรชเพื่อทดสอบ');
+          return true;
+        }
         const category = classifyApiError(data.status, data.reason, !!accessToken);
         const messages = {session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
         setVideoStatus('error', messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่');
@@ -4334,6 +4346,7 @@
       }
       function cancelVideoAttempt() {
         ++videoAttempt;
+        failedVideoAttempt = null;
         if (videoAttemptTimer !== null) clearTimeout(videoAttemptTimer);
         videoAttemptTimer = null;
         if (videoSlowTimer !== null) clearTimeout(videoSlowTimer);
@@ -4418,6 +4431,31 @@
       // Drive permissions, quotas and browser codec support still apply.
 
       let streamWorkerReady = null;
+      let failedVideoAttempt = null;
+      function configurePreviewFullscreen() {
+        const mobile = window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
+        // Use the app wrapper on mobile instead of the embedded player's fullscreen path.
+        vidFrame.setAttribute('allow', mobile ? "autoplay; encrypted-media; fullscreen 'none'" : 'autoplay; encrypted-media; fullscreen');
+        if (mobile) vidFrame.removeAttribute('allowfullscreen');
+        else vidFrame.setAttribute('allowfullscreen', '');
+      }
+      function togglePlayerFullscreen() {
+        if (!videoModal.classList.contains('show')) return Promise.resolve();
+        const box = videoModal.querySelector('.video-box');
+        const failed = function () { showToast('เปิดเต็มจอไม่ได้ ลองเปิดในแท็บใหม่'); };
+        try {
+          if (document.fullscreenElement === box) return Promise.resolve(document.exitFullscreen()).catch(failed);
+          if (!box.requestFullscreen || document.fullscreenElement) { failed(); return Promise.resolve(); }
+          return Promise.resolve(box.requestFullscreen()).catch(failed);
+        } catch (_) { failed(); return Promise.resolve(); }
+      }
+      document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
+      document.addEventListener('fullscreenchange', function () {
+        const active = document.fullscreenElement === videoModal.querySelector('.video-box');
+        const button = document.getElementById('vidFullscreen');
+        button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
+        button.setAttribute('aria-pressed', String(active));
+      });
       document.getElementById('vidPreview').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
@@ -4465,15 +4503,18 @@
         return streamWorkerReady;
       }
 
-      function showStreamFailure(message) {
+      function showStreamFailure(message, diagnostic) {
+        const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         cancelVideoAttempt();
+        failedVideoAttempt = failedAttempt;
         vidPlayer.pause();
         vidPlayer.removeAttribute('src');
         vidPlayer.load();
         vidPlayer.style.display = 'none';
         const status = document.getElementById('vidErrorStatus');
         // Preserve a more specific permission/quota error reported by the worker.
-        setVideoStatus('error', status && !status.hidden && status.textContent ? status.textContent : message);
+        const detail = typeof diagnostic === 'string' && /^M[0-4]\/N[0-3]\/R[0-4]$/.test(diagnostic) ? ' [' + diagnostic + ']' : '';
+        setVideoStatus('error', (status && !status.hidden && status.textContent ? status.textContent : message) + detail);
       }
 
       function tryStreamDirect(id) {
@@ -4490,10 +4531,10 @@
           vidPlayer.style.display = 'block';
           const url = new URL('__drive_stream', location.href);
           url.searchParams.set('id', id);
-          tryVideoSrc(url.href, function (reason) {
+          tryVideoSrc(url.href, function (reason, diagnostic) {
             showStreamFailure(reason === 'timeout'
               ? 'วิดีโอใช้เวลาโหลดนานเกิน 1 นาที กดลองเล่นใหม่ ตรวจสอบเครือข่าย หรือเลือกใช้พรีวิว Google'
-              : 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google');
+              : 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google', diagnostic);
           }, 60000);
         });
       }
@@ -4528,7 +4569,7 @@
 
         let done = false;
 
-        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail('timeout'); } }, timeoutMs);
+        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('timeout'); } }, timeoutMs);
 
         // โหลดช้ากว่าปกติ — แจ้งเตือนหลัง 15 วินาที แต่ยังรอต่อถึงเพดานที่ตั้งไว้
 
@@ -4538,7 +4579,8 @@
 
           if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
-          done = true; cancelVideoAttempt(); onFail('media');
+          const diagnostic = 'M' + (Number(vidPlayer.error && vidPlayer.error.code) || 0) + '/N' + (Number(vidPlayer.networkState) || 0) + '/R' + (Number(vidPlayer.readyState) || 0);
+          done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('media', diagnostic);
 
         };
 
@@ -4947,7 +4989,8 @@
 
         vidPlayer.style.display = "none";
 
-        setVideoStatus('preview', 'พรีวิว Google ใช้การลงชื่อเข้าใช้ของ Google แยกจากเว็บนี้ และอาจติดข้อจำกัดการเล่น');
+        configurePreviewFullscreen();
+        setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน');
 
         vidFrame.style.display = "block";
 
@@ -4982,6 +5025,9 @@
       }
 
       function closeVideo() {
+        if (document.fullscreenElement && videoModal.contains && videoModal.contains(document.fullscreenElement) && document.exitFullscreen) {
+          Promise.resolve(document.exitFullscreen()).catch(function () {});
+        }
         resetMediaPlayback();
         vidCurrentId = null;
         document.body.style.overflow = lightbox.classList.contains("show") ? "hidden" : mediaPreviousOverflow;
@@ -5014,6 +5060,8 @@
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         resetMediaPlayback();
+        vidFrame.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
+        vidFrame.setAttribute('allowfullscreen', '');
         const session = mediaSession;
         vidCurrentId = null;
         document.body.style.overflow = "hidden";

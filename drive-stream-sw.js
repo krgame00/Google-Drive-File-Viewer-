@@ -45,10 +45,14 @@ async function streamFile(event, id, attempt) {
     const headers = new Headers({Authorization: 'Bearer ' + token});
     const range = request.headers.get('Range');
     if (range) headers.set('Range', range);
-    const upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+    let upstream;
+    try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
       method: request.method, headers, credentials: 'omit', cache: 'no-store',
       redirect: 'error', signal: request.signal
-    });
+    }); } catch (_) {
+      if (!request.signal.aborted) client.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
+      return failure(502);
+    }
     if (!upstream.ok) {
       let reason='';
       try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}

@@ -10,6 +10,8 @@ test('queued event from previous source cannot start playback',()=>{let {ctx}=se
 test('save position before clearing media source',()=>{const {ctx}=setup();let saved=false;ctx.saveVideoPos=()=>{saved=true};ctx.vidPlayer.removeAttribute=()=>assert.equal(saved,true);ctx.resetMediaPlayback();assert.equal(saved,true)});
 test('Drive fallback unloads native player before showing iframe',()=>{
   const {ctx}=setup();const steps=[];
+  ctx.window={matchMedia:()=>({matches:true})};
+  vm.runInContext(fn('configurePreviewFullscreen'),ctx);
   ctx.videoModal.classList.contains=()=>true;
   ctx.vidPlayer.pause=()=>steps.push('pause');
   ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
@@ -21,6 +23,13 @@ test('Drive fallback unloads native player before showing iframe',()=>{
   assert.equal(ctx.vidPlayer.style.display,'none');
   assert.equal(ctx.vidFrame.style.display,'block');
   assert.equal(ctx.vidFrame.src,'https://drive.google.com/file/d/old/preview');
+});
+test('closing an app fullscreen player exits fullscreen and restores scrolling',()=>{
+  const {ctx}=setup();let exited=0;
+  ctx.document.fullscreenElement={};ctx.videoModal.contains=()=>true;
+  ctx.document.exitFullscreen=()=>{exited++;return Promise.resolve()};
+  ctx.closeVideo();
+  assert.equal(exited,1);assert.equal(ctx.document.body.style.overflow,'');
 });
 test('authenticated startup timeout is configurable and reports timeout once',()=>{
   const {ctx,timers}=setup();const delays=[];let reason,calls=0;
@@ -108,9 +117,34 @@ test('stream request carries the attempt token for worker error matching',()=>{
   assert.equal(url.searchParams.get('attempt'),String(ctx.videoAttempt));
 });
 test('media error message stays hedged and never claims quota',()=>{
-  const m=html.match(/showStreamFailure\(reason === 'timeout'\s*\?\s*'([^']*)'\s*:\s*'([^']*)'\)/);
+  const m=html.match(/showStreamFailure\(reason === 'timeout'\s*\?\s*'([^']*)'\s*:\s*'([^']*)'/);
   assert(m,'media failure message found');
   assert(!/โควตา|quota/i.test(m[2]),'media error must not claim quota');
   assert(/อาจ|หรือ/.test(m[2]),'media error stays hedged');
+});
+test('media failure captures numeric diagnostics before unloading video',()=>{
+  const {ctx}=setup();let diagnostic;
+  ctx.vidPlayer.error={code:4,message:'private url'};
+  ctx.vidPlayer.networkState=3;ctx.vidPlayer.readyState=0;
+  ctx.tryVideoSrc('stream',(reason,details)=>{assert.equal(reason,'media');diagnostic=details});
+  ctx.vidPlayer.onerror();
+  assert.equal(diagnostic,'M4/N3/R0');
+});
+test('fetch failure is distinguished from a Google server response',()=>{
+  const {ctx,els}=setup();ctx.videoModal.classList.contains=()=>true;
+  ctx.handleDriveStreamError({type:'drive-stream-error',id:'old',attempt:0,status:502,reason:'streamFetchFailed'});
+  assert.match(els.vidErrorStatus.textContent,/FETCH/);
+  assert(!els.vidErrorStatus.textContent.includes('Google Drive ขัดข้อง'));
+});
+test('late worker error for the failed source is retained but a retry invalidates it',()=>{
+  const {ctx,els}=setup();ctx.videoModal.classList.contains=()=>true;ctx.accessToken='token';
+  ctx.tryVideoSrc('stream',(reason,diagnostic)=>ctx.showStreamFailure('Media failure',diagnostic));
+  const failedAttempt=ctx.videoAttempt;
+  ctx.vidPlayer.onerror();
+  assert.equal(ctx.handleDriveStreamError({type:'drive-stream-error',id:'old',attempt:failedAttempt,status:401}),true);
+  assert.match(els.vidErrorStatus.textContent,/เซสชัน/);
+  ctx.tryVideoSrc('retry',()=>{});
+  assert.equal(ctx.handleDriveStreamError({type:'drive-stream-error',id:'old',attempt:failedAttempt,status:403}),false);
+  assert.equal(els.vidErrorStatus.hidden,true);
 });
 process.exitCode=failures?1:0;

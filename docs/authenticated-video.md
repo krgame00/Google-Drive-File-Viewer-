@@ -22,6 +22,15 @@ Stream errors are bound to the file id and playback attempt, so a stale
 failure cannot override a newer retry. Google download permissions,
 quotas, token expiration and browser codec support remain applicable.
 
+On startup failure the UI includes numeric browser diagnostics (`M` for
+MediaError.code, `N` for networkState, `R` for readyState), captured before
+unloading the video. These codes classify the failure but do not prove a
+specific codec or blocker. A failed upstream fetch reports `FETCH`, distinct
+from an HTTP error returned by Google. Neither token, media URL nor raw error
+message is included. Comparing the same permitted file in Chrome and Brave,
+then temporarily changing Shields for this site only, helps isolate blocking
+from browser playback differences; it does not establish the cause by itself.
+
 Validation: `node --test tests/authenticated-stream.cjs` exercises streaming
 headers, error types, missing authentication, isolated client lookup, HEAD,
 and asynchronous player cancellation. Run the existing tests/*.cjs as well.

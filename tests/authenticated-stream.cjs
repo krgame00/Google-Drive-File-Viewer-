@@ -2,12 +2,12 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const {MessageChannel}=require('node:worker_threads');
-function setup({token='test-token',status=206,type='video/mp4',client=true}={}) {
+function setup({token='test-token',status=206,type='video/mp4',client=true,fetchFails=false}={}) {
   const events={},calls=[],errors=[];
   const ctx={URL,Headers,Response,MessageChannel,setTimeout,clearTimeout,
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
       clients:{get:async()=>client?{url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else{errors.push(data)}}}:null}},
-    fetch:async(url,options)=>{calls.push({url,options});return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':'bytes 0-3/100'}})}};
+    fetch:async(url,options)=>{calls.push({url,options});if(fetchFails)throw new Error('private diagnostic test-token');return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':'bytes 0-3/100'}})}};
   vm.runInNewContext(fs.readFileSync('drive-stream-sw.js','utf8'),ctx);
   const request=(path='__drive_stream?id=file1',method='GET')=>{
     let result;
@@ -40,6 +40,12 @@ test('ignores unrelated assets and rejects invalid IDs and methods',async()=>{
 test('preserves actual media type and HEAD body semantics',async()=>{
   const {request}=setup({status:200,type:'video/quicktime'});const res=await request('__drive_stream?id=file1','HEAD');
   assert.equal(res.headers.get('Content-Type'),'video/quicktime');assert.equal(await res.text(),'');
+});
+test('fetch failure reports a safe connection diagnostic bound to attempt',async()=>{
+  const {request,errors}=setup({fetchFails:true});
+  assert.equal((await request('__drive_stream?id=file1&attempt=7')).status,502);
+  assert.equal(errors.length,1);assert.equal(errors[0].reason,'streamFetchFailed');
+  assert.equal(errors[0].attempt,'7');assert(!JSON.stringify(errors).includes('test-token'));
 });
 
 function playerSetup() {
