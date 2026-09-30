@@ -1649,14 +1649,21 @@
     .video-box .ratio { min-height: 0; max-height: 65dvh; }
     .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
     .video-footer { flex-shrink: 0; }
+    .video-help { width: 100%; }
+    .video-help summary { min-height: 44px; padding: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
+    .video-help-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
-      .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; height: min(58dvh, 480px); }
+      .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
       .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }
       .video-footer .video-title { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
       .video-footer button { min-width: 0; min-height: 44px; white-space: normal; font-size: 12px; padding: 8px; }
+      .video-footer #vidOpenTab { display: flex; align-items: center; min-height: 44px; font-size: 13px; }
+      .video-footer .video-help { grid-column: 1 / -1; }
+      .video-help-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .video-help-actions #vidReconnect { grid-column: 1 / -1; }
     }
   </style>
 
@@ -1961,9 +1968,14 @@
         <div class="video-title" id="vidTitle">วิดีโอ</div>
 
         <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแท็บใหม่ ↗</a>
+        <details class="video-help">
+          <summary>เล่นไม่ได้? ลองใหม่ / เชื่อมต่อ Google</summary>
+          <div class="video-help-actions">
         <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
         <button type="button" class="btn-ghost btn-sm" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">ใช้พรีวิว Google</button>
         <button type="button" class="btn-ghost btn-sm" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">เชื่อมต่อ Google ใหม่</button>
+          </div>
+        </details>
 
       </div>
 
