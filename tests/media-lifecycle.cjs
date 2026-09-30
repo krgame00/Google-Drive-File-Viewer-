@@ -157,3 +157,20 @@ test('public sources clear account-stream CORS mode before setting src',()=>{
   assert.match(steps[1],/^source:https:/);
 });
 process.exitCode=failures?1:0;
+test('blob fallback plays the full file through the page fetch (Brave workaround)',async()=>{
+  const {ctx,els}=setup();
+  ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;ctx.accessToken='t';
+  ctx.authParams=()=>({mode:'bearer'});
+  ctx.fetch=async()=>({ok:true,blob:async()=>'BLOB'});
+  ctx.URL={createObjectURL:()=>'blob:loaded',revokeObjectURL(){}};
+  vm.runInContext(fn('loadVideoAsBlob'),ctx);
+  await ctx.loadVideoAsBlob('fileA');
+  await new Promise(r=>setTimeout(r,20));
+  assert.match(String(els.vidPlayer.src),/^blob:loaded/,'video plays from the page-fetched blob');
+  assert.match(els.vidLoadingText.textContent,/ทั้งไฟล์/,'status explains full-file loading');
+});
+test('blob fallback button exists in the video help actions',()=>{
+  assert(html.includes('id="vidBlob"'),'vidBlob button present');
+  assert(html.includes("getElementById('vidBlob').addEventListener"),'vidBlob is wired');
+});
+process.exitCode=failures?1:0;

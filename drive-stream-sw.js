@@ -15,17 +15,25 @@ function failure(status) {
   }});
 }
 
-function requestToken(client, id) {
+function requestToken(clients, id) {
   return new Promise(resolve => {
-    const channel = new MessageChannel();
+    let settled = false;
     const finish = token => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      channel.port1.close();
       resolve(typeof token === 'string' ? token : null);
     };
     const timer = setTimeout(() => finish(null), 3000);
-    channel.port1.onmessage = event => finish(event.data && event.data.token);
-    client.postMessage({type: 'drive-stream-token', id}, [channel.port2]);
+    // Each client gets its own MessageChannel port; the page answering for the
+    // file that is currently playing supplies the first valid token.
+    let sent = 0;
+    for (const client of clients) {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = event => finish(event.data && event.data.token);
+      try { client.postMessage({type: 'drive-stream-token', id}, [channel.port2]); sent++; } catch (_) {}
+    }
+    if (!sent) { settled = true; clearTimeout(timer); resolve(null); }
   });
 }
 
@@ -34,12 +42,21 @@ async function streamFile(event, id, attempt) {
   if (!['GET', 'HEAD'].includes(request.method)) return failure(405);
   if (!id || !/^[\w-]{1,200}$/.test(id)) return failure(400);
   try {
-    // Request credentials only from the tab making this media request.
-    const client = event.clientId && await self.clients.get(event.clientId);
-    if (!client || !client.url.startsWith(self.registration.scope)) return failure(401);
-    const token = await requestToken(client, id);
+    // Media element requests can arrive without a clientId (observed on Brave),
+    // so ask every in-scope window client; the page only answers for the file
+    // it is currently playing, which keeps the handshake scoped.
+    const targets = [];
+    const primary = event.clientId && await self.clients.get(event.clientId);
+    if (primary && primary.url.startsWith(self.registration.scope)) targets.push(primary);
+    if (!targets.length) {
+      const all = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+      for (const c of all) if (c.url.startsWith(self.registration.scope)) targets.push(c);
+    }
+    if (!targets.length) return failure(401);
+    const reporter = targets[0];
+    const token = await requestToken(targets, id);
     if (!token) {
-      client.postMessage({type:'drive-stream-error',id,status:401,attempt});
+      reporter.postMessage({type:'drive-stream-error',id,status:401,attempt});
       return failure(401);
     }
     const headers = new Headers({Authorization: 'Bearer ' + token});
@@ -50,13 +67,13 @@ async function streamFile(event, id, attempt) {
       method: request.method, headers, credentials: 'omit', cache: 'no-store',
       redirect: 'error', signal: request.signal
     }); } catch (_) {
-      if (!request.signal.aborted) client.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
+      if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
       return failure(502);
     }
     if (!upstream.ok) {
       let reason='';
       try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
-      client.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
+      reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
       return failure(upstream.status);
     }
     const type = upstream.headers.get('Content-Type') || '';

@@ -1979,6 +1979,7 @@
           <summary>เล่นไม่ได้? ลองใหม่ / เชื่อมต่อ Google</summary>
           <div class="video-help-actions">
         <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidBlob" title="ดาวน์โหลดไฟล์เต็มด้วยบัญชีที่เชื่อมต่อ แล้วเล่นจากไฟล์ในเครื่อง — ทางแก้เมื่อเบราว์เซอร์บล็อกการสตรีมผ่าน service worker (ใช้เน็ตตามขนาดไฟล์)">โหลดทั้งไฟล์แทน</button>
         <button type="button" class="btn-ghost btn-sm" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">ใช้พรีวิว Google</button>
         <button type="button" class="btn-ghost btn-sm" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">เชื่อมต่อ Google ใหม่</button>
           </div>
@@ -4468,6 +4469,9 @@
           if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) openVideo(id,name);
         });
       });
+      document.getElementById('vidBlob').addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) loadVideoAsBlob(vidCurrentId);
+      });
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', function (event) {
           if (event.source !== navigator.serviceWorker.controller) return;
@@ -4564,6 +4568,33 @@
       }
 
 
+
+      function loadVideoAsBlob(id) {
+        // ทางแก้เมื่อเบราว์เซอร์ (เช่น Brave) บล็อก fetch ข้ามโดเมนจาก service worker:
+        // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง แล้วเล่นจากไฟล์ในเครื่อง (ไม่มี seek ก่อนโหลดครบ)
+        if (!id || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+        const auth = authParams();
+        if (auth.mode === 'none') { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้'); return; }
+        const btn = document.getElementById('vidBlob');
+        if (btn) btn.disabled = true;
+        setVideoStatus('loading', 'กำลังโหลดทั้งไฟล์แทนการสตรีม (ใช้เน็ตตามขนาดไฟล์)…');
+        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
+        const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
+        fetch(url, { headers: headers })
+          .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.blob(); })
+          .then(function (blob) {
+            if (id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            revokeCurrentVideo();
+            currentVideoUrl = URL.createObjectURL(blob);
+            vidPlayer.removeAttribute('crossorigin');
+            tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ'); }, 120000);
+            setVideoStatus('loading', 'กำลังโหลดทั้งไฟล์แทนการสตรีม (ใช้เน็ตตามขนาดไฟล์)…');
+          })
+          .catch(function (err) {
+            if (id === vidCurrentId && videoModal.classList.contains('show')) setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')');
+            if (btn) btn.disabled = false;
+          });
+      }
 
       function tryVideoSrc(url, onFail, timeoutMs = 12000) {
         cancelVideoAttempt();
