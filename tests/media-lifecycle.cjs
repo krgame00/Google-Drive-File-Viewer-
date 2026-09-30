@@ -147,4 +147,13 @@ test('late worker error for the failed source is retained but a retry invalidate
   assert.equal(ctx.handleDriveStreamError({type:'drive-stream-error',id:'old',attempt:failedAttempt,status:403}),false);
   assert.equal(els.vidErrorStatus.hidden,true);
 });
+test('public sources clear account-stream CORS mode before setting src',()=>{
+  const {ctx}=setup();const steps=[];
+  ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
+  ctx.tryVideoSrc=url=>steps.push('source:'+url);
+  vm.runInContext(fn('tryPublicStream'),ctx);
+  ctx.tryPublicStream('file1');
+  assert.equal(steps[0],'remove:crossorigin');
+  assert.match(steps[1],/^source:https:/);
+});
 process.exitCode=failures?1:0;

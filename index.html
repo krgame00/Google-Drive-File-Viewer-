@@ -4528,10 +4528,13 @@
             return;
           }
           revokeCurrentVideo();
+          // CORS mode is required for service-worker partial media responses,
+          // including this same-origin endpoint; configure it before src.
+          vidPlayer.setAttribute('crossorigin', 'anonymous');
           vidPlayer.style.display = 'block';
           const url = new URL('__drive_stream', location.href);
           url.searchParams.set('id', id);
-          tryVideoSrc(url.href, function (reason, diagnostic) {
+          tryVideoSrc(url, function (reason, diagnostic) {
             showStreamFailure(reason === 'timeout'
               ? 'วิดีโอใช้เวลาโหลดนานเกิน 1 นาที กดลองเล่นใหม่ ตรวจสอบเครือข่าย หรือเลือกใช้พรีวิว Google'
               : 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google', diagnostic);
@@ -4541,6 +4544,8 @@
 
       function tryPublicStream(id) {
         revokeCurrentVideo();
+        // Public download sources may not expose CORS headers.
+        vidPlayer.removeAttribute('crossorigin');
         vidPlayer.style.display = "block";
         // Public proxy only; no account credentials are sent to Cloudflare.
         const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;

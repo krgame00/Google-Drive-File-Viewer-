@@ -55,16 +55,18 @@ function playerSetup() {
   let ready;const sources=[],fallbacks=[],errors=[];
   const ctx={accessToken:'test-token',tokenExpiry:Date.now()+60000,Date,URL,
     location:{href:'https://example.com/app/index.html#/f/folder'},mediaSession:1,vidCurrentId:'file1',
-    videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{}},revokeCurrentVideo(){},showToast(){},
+    videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{},setAttribute(name,value){this[name]=value}},revokeCurrentVideo(){},showToast(){},
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
     showStreamFailure:message=>errors.push(message),
-    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
+    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
   vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
   return {ctx,sources,fallbacks,errors,ready:async(value)=>{ready(value);await Promise.resolve()}};
 }
 test('logged-in playback uses scoped local URL without exposing token',async()=>{
   const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(true);
-  assert.equal(sources[0].url,'https://example.com/app/__drive_stream?id=file1');
+  assert.equal(String(sources[0].url),'https://example.com/app/__drive_stream?id=file1');
+  assert.equal(sources[0].cors,'anonymous','CORS is configured before assigning a service-worker media source');
+  assert(sources[0].url instanceof URL,'pass URL object so tryVideoSrc can attach the attempt ID');
   assert.equal(sources[0].timeout,60000);
   sources[0].fail('timeout');assert.deepEqual(fallbacks,[]);assert.match(errors[0],/นาน/);
 });

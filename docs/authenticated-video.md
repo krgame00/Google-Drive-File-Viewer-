@@ -6,6 +6,11 @@ requesting tab for its in-memory OAuth token via a private MessageChannel.
 The tab responds only while that file's modal is open and the token is valid.
 The worker sends Authorization and Range directly to the Google Drive media API.
 Neither credentials nor media are cached. Tokens never appear in media URLs.
+The account stream sets `crossorigin="anonymous"` on the video before assigning
+its same-origin URL, allowing service-worker partial responses in CORS mode.
+The URL object is passed to the source loader so it can append the playback
+attempt ID used for matching error reports. Public playback removes this CORS
+setting because external download sources may not provide CORS headers.
 Closing or switching a video invalidates pending setup; signing out closes it.
 
 This replaces the need to pass credentials through the Cloudflare Worker.
