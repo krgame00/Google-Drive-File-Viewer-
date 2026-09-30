@@ -14,8 +14,12 @@ The supplied Cloudflare script is unchanged and must not be given OAuth tokens.
 
 Deploy `index.html` and `drive-stream-sw.js` together in the same directory.
 GitHub Pages HTTPS is supported; opening index.html with file:// cannot use
-service workers. Unsupported browsers or failed streams fall back to the
-Google preview with a brief explanatory message. Google download permissions,
+service workers. Unsupported browsers or failed streams show an error card
+with cause-matched actions: retry, reconnect the account, or explicitly open
+the Google preview (the preview signs in with Google's own session, separate
+from the account connected here). Streams never auto-switch to the preview.
+Stream errors are bound to the file id and playback attempt, so a stale
+failure cannot override a newer retry. Google download permissions,
 quotas, token expiration and browser codec support remain applicable.
 
 Validation: `node --test tests/authenticated-stream.cjs` exercises streaming

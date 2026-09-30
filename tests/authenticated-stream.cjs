@@ -3,10 +3,10 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const {MessageChannel}=require('node:worker_threads');
 function setup({token='test-token',status=206,type='video/mp4',client=true}={}) {
-  const events={},calls=[];
+  const events={},calls=[],errors=[];
   const ctx={URL,Headers,Response,MessageChannel,setTimeout,clearTimeout,
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
-      clients:{get:async()=>client?{url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}}}:null}},
+      clients:{get:async()=>client?{url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else{errors.push(data)}}}:null}},
     fetch:async(url,options)=>{calls.push({url,options});return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':'bytes 0-3/100'}})}};
   vm.runInNewContext(fs.readFileSync('drive-stream-sw.js','utf8'),ctx);
   const request=(path='__drive_stream?id=file1',method='GET')=>{
@@ -14,7 +14,7 @@ function setup({token='test-token',status=206,type='video/mp4',client=true}={}) 
     events.fetch({clientId:'tab-1',request:new Request('https://example.com/app/'+path,{method,headers:{Range:'bytes=0-3'}}),respondWith(p){result=p}});
     return result;
   };
-  return {request,calls};
+  return {request,calls,errors};
 }
 test('streams ranges with bearer header, without token in URL or cache',async()=>{
   const {request,calls}=setup();const res=await request();
@@ -71,4 +71,14 @@ test('close, file switch and logout cancel asynchronous setup',async()=>{
 test('unsupported browser explains failure and signed-out user keeps public playback',async()=>{
   const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
   ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');
+});
+test('error reports echo the attempt token from the request',async()=>{
+  const {request,errors}=setup({token:null});
+  assert.equal((await request('__drive_stream?id=file1&attempt=7')).status,401);
+  assert.equal(errors.length,1,'token failure reports once to the tab');
+  assert.equal(errors[0].attempt,'7');assert.equal(errors[0].id,'file1');
+  const s2=setup({status:403,type:'application/json'});
+  assert.equal((await s2.request('__drive_stream?id=file1&attempt=9')).status,403);
+  assert.equal(s2.errors.length,1);
+  assert.equal(s2.errors[0].attempt,'9');assert.equal(s2.errors[0].status,403);
 });

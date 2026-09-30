@@ -5,7 +5,7 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   const endpoint = new URL('__drive_stream', self.registration.scope);
   if (url.origin === endpoint.origin && url.pathname === endpoint.pathname) {
-    event.respondWith(streamFile(event, url.searchParams.get('id')));
+    event.respondWith(streamFile(event, url.searchParams.get('id'), url.searchParams.get('attempt')));
   }
 });
 
@@ -29,7 +29,7 @@ function requestToken(client, id) {
   });
 }
 
-async function streamFile(event, id) {
+async function streamFile(event, id, attempt) {
   const request = event.request;
   if (!['GET', 'HEAD'].includes(request.method)) return failure(405);
   if (!id || !/^[\w-]{1,200}$/.test(id)) return failure(400);
@@ -39,7 +39,7 @@ async function streamFile(event, id) {
     if (!client || !client.url.startsWith(self.registration.scope)) return failure(401);
     const token = await requestToken(client, id);
     if (!token) {
-      client.postMessage({type:'drive-stream-error',id,status:401});
+      client.postMessage({type:'drive-stream-error',id,status:401,attempt});
       return failure(401);
     }
     const headers = new Headers({Authorization: 'Bearer ' + token});
@@ -52,7 +52,7 @@ async function streamFile(event, id) {
     if (!upstream.ok) {
       let reason='';
       try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
-      client.postMessage({type:'drive-stream-error',id,status:upstream.status,reason});
+      client.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
       return failure(upstream.status);
     }
     const type = upstream.headers.get('Content-Type') || '';

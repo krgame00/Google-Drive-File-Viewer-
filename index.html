@@ -752,11 +752,33 @@
 
       display: none; align-items: center; justify-content: center;
 
-      z-index: 100; padding: 0; cursor: zoom-out;
+      z-index: 100; padding: 0; cursor: zoom-out; touch-action: none;
 
       animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
     }
+
+    .lb-reset {
+
+      position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left));
+
+      min-height: 44px; padding: 8px 14px; border-radius: 999px; z-index: 2;
+
+      background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); color: #fff;
+
+      font: inherit; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(12px); transition: all 0.2s;
+
+    }
+
+    .lb-reset:hover { background: rgba(255,255,255,0.2); }
+
+    .lb-ui { transition: opacity 0.2s, visibility 0.2s; }
+
+    .lightbox.img-controls-hidden .lb-ui { opacity: 0; visibility: hidden; pointer-events: none; }
+
+    @media (prefers-reduced-motion: reduce) { .lb-ui { transition: none; } }
+
+    .lb-orig { min-height: 44px; padding: 8px 14px; }
 
     .lightbox.show { display: flex; }
 
@@ -1882,16 +1904,18 @@
 
   <div class="lightbox" id="lightbox" aria-hidden="true">
 
-      <button type="button" class="lb-close" id="lbClose" aria-label="ปิด">&times;</button>
-      <button type="button" class="lb-fs" id="lbFullscreen" aria-label="เต็มจอ" title="เต็มจอ (F)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+      <button type="button" class="lb-close lb-ui" id="lbClose" aria-label="ปิด">&times;</button>
+      <button type="button" class="lb-fs lb-ui" id="lbFullscreen" aria-label="เต็มจอ" title="เต็มจอ (F)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
 
-      <div class="lb-count" id="lbCount"></div>
+      <div class="lb-count lb-ui" id="lbCount"></div>
 
-      <button type="button" class="lb-orig" id="lbOrig">ดูต้นฉบับ</button>
+      <button type="button" class="lb-orig lb-ui" id="lbOrig">ดูต้นฉบับ</button>
 
-      <button type="button" class="media-nav prev" id="lbPrev" aria-label="รูปก่อนหน้า">&#8249;</button>
+      <button type="button" class="lb-reset lb-ui" id="lbReset" title="คืนขนาดพอดีจอ (คีย์บอร์ด: R)">คืนขนาด</button>
 
-      <button type="button" class="media-nav next" id="lbNext" aria-label="รูปถัดไป">&#8250;</button>
+      <button type="button" class="media-nav prev lb-ui" id="lbPrev" aria-label="รูปก่อนหน้า">&#8249;</button>
+
+      <button type="button" class="media-nav next lb-ui" id="lbNext" aria-label="รูปถัดไป">&#8250;</button>
 
       <img id="lbImg" alt="รูปภาพขยายเต็มจอ" />
 
@@ -1932,14 +1956,14 @@
       </div>
 
       <div class="video-footer" style="flex-wrap:wrap">
-        <div id="vidErrorStatus" role="status" style="flex-basis:100%;font-size:12px;color:#fbbf24" hidden></div>
+        <div id="vidErrorStatus" role="status" aria-live="polite" style="flex-basis:100%;font-size:12px;color:#fbbf24" hidden></div>
 
         <div class="video-title" id="vidTitle">วิดีโอ</div>
 
-        <a id="vidOpenTab" href="#" target="_blank" rel="noopener">เปิดในแท็บใหม่ ↗</a>
-        <button type="button" class="btn-ghost btn-sm" id="vidRetry">ลองเล่นใหม่</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidPreview">ใช้พรีวิว Google</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidReconnect">เชื่อมต่อ Google ใหม่</button>
+        <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแท็บใหม่ ↗</a>
+        <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">ใช้พรีวิว Google</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">เชื่อมต่อ Google ใหม่</button>
 
       </div>
 
@@ -3977,6 +4001,12 @@
 
               lbImg.src = "";
 
+              resetImageView();
+
+              setImageControlsVisible(true);
+
+              cancelImageTap();
+
               updateLbCount();
 
               if (lbOrig) { lbOrig.classList.remove("show"); lbOrig.disabled = false; lbOrig.textContent = "ดูต้นฉบับ"; }
@@ -4094,6 +4124,8 @@
         lightbox.classList.remove("show");
         lightbox.setAttribute("aria-hidden", "true");
         lbImg.src = "";
+        resetImageView();
+        cancelImageTap();
         if (lbImg._blobUrl) { URL.revokeObjectURL(lbImg._blobUrl); lbImg._blobUrl = null; }
         document.body.style.overflow = "";
         if (document.fullscreenElement && document.exitFullscreen) {
@@ -4104,7 +4136,7 @@
       lbClose.addEventListener("click", closeLightbox);
       const lbFsBtn = document.getElementById("lbFullscreen");
       if (lbFsBtn) lbFsBtn.addEventListener("click", toggleLightboxFullscreen);
-      lightbox.addEventListener("click", function (e) { if (e.target === lightbox) closeLightbox(); });
+      lightbox.addEventListener("click", function (e) { if (e.target === lightbox && !imgDownOnImage) closeLightbox(); imgDownOnImage = false; });
 
       if (lbOrig) lbOrig.addEventListener("click", function () { loadOriginalImage(lbImg.dataset.fid); });
 
@@ -4128,37 +4160,134 @@
 
       }
 
-      // ปัดนิ้วซ้าย/ขวาเปลี่ยนรูป (มือถือ) — แตะธรรมดาไม่ trigger กันปิดภาพโดยไม่ตั้งใจ
+      // ===== ตัวดูภาพ: ซูมสองนิ้ว ลากภาพ ปัดเปลี่ยนภาพ (Pointer Events) =====
 
-      let lbTouchX = null, lbTouchY = null;
+      let imageView = { scale: 1, x: 0, y: 0 };
 
-      lightbox.addEventListener("touchstart", function (e) {
+      function clampImageScale(v) {
+        v = Number(v); if (!isFinite(v)) return 1;
+        return Math.min(4, Math.max(1, v));
+      }
 
-        if (e.touches.length !== 1) { lbTouchX = null; return; }
+      function clampImagePan(state, w, h) {
+        const s = clampImageScale(state.scale);
+        const mx = Math.max(0, (w || 0) * (s - 1) / 2), my = Math.max(0, (h || 0) * (s - 1) / 2);
+        return { scale: s, x: Math.min(mx, Math.max(-mx, state.x || 0)) || 0, y: Math.min(my, Math.max(-my, state.y || 0)) || 0 };
+      }
 
-        lbTouchX = e.touches[0].clientX;
+      function applyImageView() {
+        lbImg.style.transform = 'translate(' + imageView.x + 'px,' + imageView.y + 'px) scale(' + imageView.scale + ')';
+      }
 
-        lbTouchY = e.touches[0].clientY;
+      function resetImageView() {
+        imageView = { scale: 1, x: 0, y: 0 };
+        applyImageView();
+        return { scale: imageView.scale, x: imageView.x, y: imageView.y };
+      }
 
-      }, { passive: true });
+      function imageGestureMode(pointerCount, scale) {
+        if (pointerCount >= 2) return 'pinch';
+        return scale > 1 ? 'pan' : 'swipe';
+      }
 
-      lightbox.addEventListener("touchend", function (e) {
+      function swipeNavigateFor(dx, dy, threshold) {
+        threshold = threshold || 48;
+        if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.5) return dx < 0 ? 1 : -1;
+        return 0;
+      }
 
-        if (lbTouchX === null || !e.changedTouches.length) return;
-
-        const dx = e.changedTouches[0].clientX - lbTouchX;
-
-        const dy = e.changedTouches[0].clientY - lbTouchY;
-
-        lbTouchX = null;
-
-        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-
-          navigateMedia("image", dx < 0 ? 1 : -1); // ปัดไปทางซ้าย → รูปถัดไป
-
+      let imageControlsVisible = true;
+      let imgTapTimer = null;
+      let imgLastTapTime = 0, imgLastTapX = 0, imgLastTapY = 0;
+      function setImageControlsVisible(visible) {
+        const controls = document.querySelectorAll ? document.querySelectorAll('.lightbox .lb-ui') : [];
+        const focusEl = document.activeElement;
+        if (!visible && focusEl && focusEl.classList && focusEl.classList.contains('lb-ui')) return false;
+        for (const el of controls) {
+          el.classList.toggle('lb-ui-hidden', !visible);
+          el.setAttribute('aria-hidden', visible ? 'false' : 'true');
         }
+        imageControlsVisible = !!visible;
+        return true;
+      }
+      function cancelImageTap() {
+        if (imgTapTimer !== null) { clearTimeout(imgTapTimer); imgTapTimer = null; }
+      }
+      function handleImageTap(x, y, moved) {
+        if (moved) return 'none';
+        const now = Date.now();
+        if (now - imgLastTapTime < 300 && Math.abs(x - imgLastTapX) < 40 && Math.abs(y - imgLastTapY) < 40) {
+          cancelImageTap();
+          imgLastTapTime = 0;
+          if (imageView.scale > 1.01) { resetImageView(); } else { imageView = clampImagePan({ scale: 2, x: 0, y: 0 }, lbImg.clientWidth, lbImg.clientHeight); applyImageView(); }
+          setImageControlsVisible(true);
+          return 'zoom';
+        }
+        imgLastTapTime = now; imgLastTapX = x; imgLastTapY = y;
+        cancelImageTap();
+        imgTapTimer = setTimeout(function () { imgTapTimer = null; setImageControlsVisible(!imageControlsVisible); }, 280);
+        return 'single';
+      }
 
-      }, { passive: true });
+      const imgPointers = new Map();
+      let imgGesture = null;
+      let imgDownOnImage = false;
+
+      lightbox.addEventListener('pointerdown', function (e) {
+        if (e.target !== lbImg) return; // ปุ่ม/พื้นหลังใช้พฤติกรรมเดิม
+        imgDownOnImage = true;
+        imgPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (imgPointers.size >= 2) {
+          const pts = Array.from(imgPointers.values());
+          const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+          imgGesture = { mode: 'pinch', startDist: d, startScale: imageView.scale, midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2, panX: imageView.x, panY: imageView.y };
+        } else {
+          imgGesture = { mode: imageGestureMode(1, imageView.scale), startX: e.clientX, startY: e.clientY, panX: imageView.x, panY: imageView.y };
+        }
+        try { lightbox.setPointerCapture(e.pointerId); } catch (_) {}
+      });
+
+      lightbox.addEventListener('pointermove', function (e) {
+        if (!imgPointers.has(e.pointerId) || !imgGesture) return;
+        imgPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        const vw = lbImg.clientWidth || window.innerWidth, vh = lbImg.clientHeight || window.innerHeight;
+        if (imgGesture.mode === 'pinch' && imgPointers.size >= 2) {
+          const pts = Array.from(imgPointers.values());
+          const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
+          const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+          const scale = clampImageScale(imgGesture.startScale * d / imgGesture.startDist);
+          const k = scale / imgGesture.startScale;
+          imageView = clampImagePan({ scale: scale, x: mx - (imgGesture.midX - imgGesture.panX) * k, y: my - (imgGesture.midY - imgGesture.panY) * k }, vw, vh);
+          applyImageView();
+        } else if (imgGesture.mode === 'pan' && imgPointers.size === 1) {
+          const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
+          imageView = clampImagePan({ scale: imageView.scale, x: imgGesture.panX + dx, y: imgGesture.panY + dy }, vw, vh);
+          applyImageView();
+        }
+      });
+
+      lightbox.addEventListener('pointerup', function (e) {
+        if (!imgPointers.has(e.pointerId)) return;
+        imgPointers.delete(e.pointerId);
+        if (imgGesture && imgGesture.mode === 'swipe') {
+          const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
+          const moved = Math.abs(dx) + Math.abs(dy) >= 8;
+          const dir = moved ? swipeNavigateFor(dx, dy) : 0;
+          if (dir) navigateMedia('image', dir);
+          handleImageTap(e.clientX, e.clientY, moved);
+        }
+        imgGesture = null;
+      });
+      lightbox.addEventListener('pointercancel', function (e) {
+        imgPointers.delete(e.pointerId);
+        imgGesture = null;
+        cancelImageTap();
+      });
+      const lbResetBtn = document.getElementById('lbReset');
+      if (lbResetBtn) lbResetBtn.addEventListener('click', resetImageView);
+      window.addEventListener('orientationchange', function () {
+        if (lightbox.classList.contains('show')) resetImageView();
+      });
 
 
 
@@ -4170,10 +4299,33 @@
       let videoAttemptTimer = null;
       let videoAttempt = 0;
       let mediaPreviousOverflow = "";
+      let videoStatus = 'closed';
+      let videoSlowTimer = null;
+      function setVideoStatus(state, message) {
+        videoStatus = state;
+        const status = document.getElementById ? document.getElementById('vidErrorStatus') : null;
+        const loadingText = document.getElementById ? document.getElementById('vidLoadingText') : null;
+        if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
+        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } }
+        else if (state === 'closed') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
+        else { vidLoading.classList.add('show'); if (status) status.hidden = true; if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…'); }
+        return videoStatus;
+      }
+      function handleDriveStreamError(data) {
+        if (!data || data.type !== 'drive-stream-error') return false;
+        if (data.id !== vidCurrentId || !videoModal.classList.contains('show')) return false;
+        if (data.attempt != null && Number(data.attempt) !== videoAttempt) return false;
+        const category = classifyApiError(data.status, data.reason, !!accessToken);
+        const messages = {session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
+        setVideoStatus('error', messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่');
+        return true;
+      }
       function cancelVideoAttempt() {
         ++videoAttempt;
         if (videoAttemptTimer !== null) clearTimeout(videoAttemptTimer);
         videoAttemptTimer = null;
+        if (videoSlowTimer !== null) clearTimeout(videoSlowTimer);
+        videoSlowTimer = null;
         vidPlayer.onerror = null;
         vidPlayer.oncanplay = null;
       }
@@ -4190,7 +4342,6 @@
         vidLoading.classList.remove("show");
       }
       function openVideo(id, name) {
-        document.getElementById('vidErrorStatus').hidden=true;
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         resetMediaPlayback();
@@ -4218,9 +4369,7 @@
 
               vidProgressBar.style.width = "0%";
 
-              vidLoadingText.textContent = "กำลังเตรียมวิดีโอ…";
-
-              vidLoading.classList.add("show");
+              setVideoStatus("connecting", "กำลังเตรียมวิดีโอ…");
 
               videoModal.classList.add("show");
               document.body.style.overflow = "hidden";
@@ -4258,12 +4407,7 @@
 
       let streamWorkerReady = null;
       document.getElementById('vidPreview').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) {
-          const status = document.getElementById('vidErrorStatus');
-          status.textContent = 'พรีวิว Google ใช้การลงชื่อเข้าใช้ของ Google แยกจากเว็บนี้ และอาจติดข้อจำกัดการเล่น';
-          status.hidden = false;
-          fallbackIframe(vidCurrentId);
-        }
+        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
       document.getElementById('vidRetry').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) openVideo(vidCurrentId, vidTitle.textContent);
@@ -4278,13 +4422,7 @@
         navigator.serviceWorker.addEventListener('message', function (event) {
           if (event.source !== navigator.serviceWorker.controller) return;
           if (event.data && event.data.type === 'drive-stream-error') {
-            if(event.data.id===vidCurrentId && videoModal.classList.contains('show')) {
-              const category=classifyApiError(event.data.status,event.data.reason,!!accessToken);
-              const messages={session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
-              const status=document.getElementById('vidErrorStatus');
-              status.textContent=messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่';
-              status.hidden=false;
-            }
+            handleDriveStreamError(event.data);
             return;
           }
           if (!event.ports[0]) return;
@@ -4321,11 +4459,9 @@
         vidPlayer.removeAttribute('src');
         vidPlayer.load();
         vidPlayer.style.display = 'none';
-        vidLoading.classList.remove('show');
         const status = document.getElementById('vidErrorStatus');
         // Preserve a more specific permission/quota error reported by the worker.
-        if (status.hidden) status.textContent = message;
-        status.hidden = false;
+        setVideoStatus('error', status && !status.hidden && status.textContent ? status.textContent : message);
       }
 
       function tryStreamDirect(id) {
@@ -4345,7 +4481,7 @@
           tryVideoSrc(url.href, function (reason) {
             showStreamFailure(reason === 'timeout'
               ? 'วิดีโอใช้เวลาโหลดนานเกิน 1 นาที กดลองเล่นใหม่ ตรวจสอบเครือข่าย หรือเลือกใช้พรีวิว Google'
-              : 'สตรีมวิดีโอไม่สำเร็จ อาจเกิดจากเครือข่าย สิทธิ์ หรือรูปแบบวิดีโอ กดลองเล่นใหม่หรือเชื่อมต่อ Google ใหม่');
+              : 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google');
           }, 60000);
         });
       }
@@ -4376,9 +4512,15 @@
         const session = mediaSession;
         const attempt = videoAttempt;
 
+        if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
+
         let done = false;
 
         const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail('timeout'); } }, timeoutMs);
+
+        // โหลดช้ากว่าปกติ — แจ้งเตือนหลัง 15 วินาที แต่ยังรอต่อถึงเพดานที่ตั้งไว้
+
+        videoSlowTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) setVideoStatus('loading', 'โหลดนานกว่าปกติ กำลังพยายามต่อ…'); }, 15000);
 
         vidPlayer.onerror = function () {
 
@@ -4394,13 +4536,9 @@
 
           done = true;
 
-          clearTimeout(timer);
+          cancelVideoAttempt();
 
-          vidPlayer.onerror = null;
-
-          vidPlayer.oncanplay = null;
-
-          vidLoading.classList.remove("show");
+          setVideoStatus('playing');
 
           // กลับไปตำแหน่งที่เคยดูค้างไว้ (ถ้ามี)
 
@@ -4413,6 +4551,8 @@
           vidPlayer.play().catch(function () {});
 
         };
+
+        setVideoStatus('loading');
 
         vidPlayer.src = url;
 
@@ -4735,6 +4875,18 @@
             window.addEventListener("pagehide", saveVideoPos);
             window._gdvVideoTimer = window._gdvVideoTimer || setInterval(saveVideoPos, 3000);
 
+            // สถานะเครื่องเล่นจริง → อัปเดตข้อความบนหน้า (เล่นได้/กำลังบัฟเฟอร์)
+
+            vidPlayer.addEventListener("loadedmetadata", function () {
+              if (videoModal.classList.contains("show") && videoStatus === 'connecting') setVideoStatus('loading');
+            });
+            vidPlayer.addEventListener("playing", function () {
+              if (videoModal.classList.contains("show")) setVideoStatus('playing');
+            });
+            vidPlayer.addEventListener("waiting", function () {
+              if (videoModal.classList.contains("show") && videoStatus !== 'error') setVideoStatus('buffering');
+            });
+
             // เมื่อเล่นจบ (ended) → เล่นวิดีโอถัดไปในโฟลเดอร์อัตโนมัติ
 
             vidPlayer.addEventListener("ended", function () {
@@ -4783,7 +4935,7 @@
 
         vidPlayer.style.display = "none";
 
-        vidLoading.classList.remove("show");
+        setVideoStatus('preview', 'พรีวิว Google ใช้การลงชื่อเข้าใช้ของ Google แยกจากเว็บนี้ และอาจติดข้อจำกัดการเล่น');
 
         vidFrame.style.display = "block";
 
@@ -4835,6 +4987,7 @@
         revokeCurrentDoc();
 
         videoModal.setAttribute("aria-hidden", "true");
+        setVideoStatus('closed');
         renderContinueWatching();
 
       }
@@ -4950,6 +5103,7 @@
           if (e.key === "ArrowLeft") { navigateMedia("image", -1); return; }
           if (e.key === "ArrowRight") { navigateMedia("image", 1); return; }
           if (e.key === "f" || e.key === "F") { toggleLightboxFullscreen(); return; }
+          if (e.key === "r" || e.key === "R" || e.key === "0") { resetImageView(); return; }
         }
         if (videoModal.classList.contains("show")) {
           if (e.shiftKey && e.key === "ArrowLeft") { navigateMedia("video", -1); return; }
