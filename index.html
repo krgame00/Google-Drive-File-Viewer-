@@ -3567,6 +3567,12 @@
 
                                                 ];
 
+                                                function naturalCompare(a, b) {
+
+                                                  // เรียงตัวเลขในชื่อแบบธรรมชาติ: "ไฟล์ 2" มาก่อน "ไฟล์ 10" (ไม่ใช่ 1, 10, 2)
+                                                  return String(a).localeCompare(String(b), "th", { numeric: true });
+                                                }
+
                                                 function cmpSort(a, b) {
 
                                                   // โฟลเดอร์มาก่อนเสมอ
@@ -3585,11 +3591,11 @@
 
                                                   if (sortKey === "kind") { va = a.mimeType || ""; vb = b.mimeType || ""; return va < vb ? -1 : va > vb ? 1 : 0; }
 
-                                                  // name: เรียงไทย/อังกฤษ case-insensitive
+                                                  // name: เรียงไทย/อังกฤษ case-insensitive + ตัวเลขแบบธรรมชาติ (1, 2, 10 ไม่ใช่ 1, 10, 2)
 
                                                   va = String(a.name || "").toLowerCase(); vb = String(b.name || "").toLowerCase();
 
-                                                  return va < vb ? -1 : va > vb ? 1 : 0;
+                                                  return naturalCompare(va, vb);
 
                                                 }
 
