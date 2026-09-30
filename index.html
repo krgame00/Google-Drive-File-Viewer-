@@ -752,7 +752,7 @@
 
       display: none; align-items: center; justify-content: center;
 
-      z-index: 100; padding: 24px; cursor: zoom-out;
+      z-index: 100; padding: 0; cursor: zoom-out;
 
       animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -762,7 +762,7 @@
 
     .lightbox img {
 
-      max-width: 100%; max-height: 90vh; object-fit: contain; border-radius: 8px;
+      width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0;
 
       animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -1374,7 +1374,7 @@
 
                               .video-modal .media-nav { top: calc(50% - 20px); }
 
-                              .lightbox img { max-height: 85vh; }
+                              .lightbox img { max-height: 100%; }
 
                               .video-modal { padding: 8px; }
 
@@ -1527,6 +1527,12 @@
       .lb-close { top: 12px; right: 12px; }
       .lb-count { top: 14px; }
     }
+    .lightbox .lb-close { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); }
+    .lightbox .lb-fs { top: max(12px, env(safe-area-inset-top)); right: calc(max(12px, env(safe-area-inset-right)) + 50px); }
+    .lightbox .lb-count { top: max(14px, env(safe-area-inset-top)); }
+    .lightbox .lb-orig { bottom: max(12px, env(safe-area-inset-bottom)); }
+    .lightbox .media-nav.prev { left: max(6px, env(safe-area-inset-left)); }
+    .lightbox .media-nav.next { right: max(6px, env(safe-area-inset-right)); }
 
     /* ===== Card Link Status & Last Checked Timestamp ===== */
     .coll-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; line-height: 1.4; margin-top: 4px; }
@@ -1932,6 +1938,7 @@
 
         <a id="vidOpenTab" href="#" target="_blank" rel="noopener">เปิดในแท็บใหม่ ↗</a>
         <button type="button" class="btn-ghost btn-sm" id="vidRetry">ลองเล่นใหม่</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidPreview">ใช้พรีวิว Google</button>
         <button type="button" class="btn-ghost btn-sm" id="vidReconnect">เชื่อมต่อ Google ใหม่</button>
 
       </div>
@@ -4250,6 +4257,14 @@
       // Drive permissions, quotas and browser codec support still apply.
 
       let streamWorkerReady = null;
+      document.getElementById('vidPreview').addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) {
+          const status = document.getElementById('vidErrorStatus');
+          status.textContent = 'พรีวิว Google ใช้การลงชื่อเข้าใช้ของ Google แยกจากเว็บนี้ และอาจติดข้อจำกัดการเล่น';
+          status.hidden = false;
+          fallbackIframe(vidCurrentId);
+        }
+      });
       document.getElementById('vidRetry').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) openVideo(vidCurrentId, vidTitle.textContent);
       });
@@ -4300,6 +4315,19 @@
         return streamWorkerReady;
       }
 
+      function showStreamFailure(message) {
+        cancelVideoAttempt();
+        vidPlayer.pause();
+        vidPlayer.removeAttribute('src');
+        vidPlayer.load();
+        vidPlayer.style.display = 'none';
+        vidLoading.classList.remove('show');
+        const status = document.getElementById('vidErrorStatus');
+        // Preserve a more specific permission/quota error reported by the worker.
+        if (status.hidden) status.textContent = message;
+        status.hidden = false;
+      }
+
       function tryStreamDirect(id) {
         if (!accessToken) { tryPublicStream(id); return; }
         const session = mediaSession;
@@ -4307,18 +4335,18 @@
         prepareStreamWorker().then(function (ready) {
           if (session !== mediaSession || token !== accessToken || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
           if (!ready || Date.now() >= tokenExpiry) {
-            showToast(Date.now() >= tokenExpiry ? 'เซสชัน Google หมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กำลังเปิดพรีวิว Google');
-            fallbackIframe(id);
+            showStreamFailure(Date.now() >= tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ หรือเลือกใช้พรีวิว Google');
             return;
           }
           revokeCurrentVideo();
           vidPlayer.style.display = 'block';
           const url = new URL('__drive_stream', location.href);
           url.searchParams.set('id', id);
-          tryVideoSrc(url.href, function () {
-            showToast('สตรีมด้วยบัญชีไม่สำเร็จ กำลังเปิดพรีวิว Google');
-            fallbackIframe(id);
-          });
+          tryVideoSrc(url.href, function (reason) {
+            showStreamFailure(reason === 'timeout'
+              ? 'วิดีโอใช้เวลาโหลดนานเกิน 1 นาที กดลองเล่นใหม่ ตรวจสอบเครือข่าย หรือเลือกใช้พรีวิว Google'
+              : 'สตรีมวิดีโอไม่สำเร็จ อาจเกิดจากเครือข่าย สิทธิ์ หรือรูปแบบวิดีโอ กดลองเล่นใหม่หรือเชื่อมต่อ Google ใหม่');
+          }, 60000);
         });
       }
 
@@ -4343,20 +4371,20 @@
 
 
 
-      function tryVideoSrc(url, onFail) {
+      function tryVideoSrc(url, onFail, timeoutMs = 12000) {
         cancelVideoAttempt();
         const session = mediaSession;
         const attempt = videoAttempt;
 
         let done = false;
 
-        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail(); } }, 12000);
+        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); onFail('timeout'); } }, timeoutMs);
 
         vidPlayer.onerror = function () {
 
           if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
-          done = true; cancelVideoAttempt(); onFail();
+          done = true; cancelVideoAttempt(); onFail('media');
 
         };
 

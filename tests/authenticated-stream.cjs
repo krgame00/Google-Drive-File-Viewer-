@@ -46,19 +46,21 @@ function playerSetup() {
   const html=fs.readFileSync('index.html','utf8');
   const start=html.indexOf('      function tryStreamDirect(');
   const end=html.indexOf('\n      }',start);
-  let ready;const sources=[],fallbacks=[];
+  let ready;const sources=[],fallbacks=[],errors=[];
   const ctx={accessToken:'test-token',tokenExpiry:Date.now()+60000,Date,URL,
     location:{href:'https://example.com/app/index.html#/f/folder'},mediaSession:1,vidCurrentId:'file1',
     videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{}},revokeCurrentVideo(){},showToast(){},
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
-    tryVideoSrc:(url,fail)=>sources.push({url,fail}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
+    showStreamFailure:message=>errors.push(message),
+    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
   vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
-  return {ctx,sources,fallbacks,ready:async(value)=>{ready(value);await Promise.resolve()}};
+  return {ctx,sources,fallbacks,errors,ready:async(value)=>{ready(value);await Promise.resolve()}};
 }
 test('logged-in playback uses scoped local URL without exposing token',async()=>{
-  const {ctx,sources,ready,fallbacks}=playerSetup();ctx.tryStreamDirect('file1');await ready(true);
+  const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(true);
   assert.equal(sources[0].url,'https://example.com/app/__drive_stream?id=file1');
-  sources[0].fail();assert.deepEqual(fallbacks,['file1']);
+  assert.equal(sources[0].timeout,60000);
+  sources[0].fail('timeout');assert.deepEqual(fallbacks,[]);assert.match(errors[0],/นาน/);
 });
 test('close, file switch and logout cancel asynchronous setup',async()=>{
   for(const change of [ctx=>ctx.mediaSession++,ctx=>ctx.vidCurrentId='file2',ctx=>ctx.accessToken=null]){
@@ -66,7 +68,7 @@ test('close, file switch and logout cancel asynchronous setup',async()=>{
     assert.equal(sources.length,0);assert.equal(fallbacks.length,0);
   }
 });
-test('unsupported browser falls back and signed-out user keeps public playback',async()=>{
-  const {ctx,sources,ready,fallbacks}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,['file1']);
+test('unsupported browser explains failure and signed-out user keeps public playback',async()=>{
+  const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
   ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');
 });

@@ -21,4 +21,29 @@ test('Drive fallback unloads native player before showing iframe',()=>{
   assert.equal(ctx.vidFrame.style.display,'block');
   assert.equal(ctx.vidFrame.src,'https://drive.google.com/file/d/old/preview');
 });
+test('authenticated startup timeout is configurable and reports timeout once',()=>{
+  const {ctx,timers}=setup();let delay,reason,calls=0;
+  const schedule=ctx.setTimeout;
+  ctx.setTimeout=(cb,ms)=>{delay=ms;return schedule(cb)};
+  ctx.tryVideoSrc('stream',value=>{reason=value;calls++},60000);
+  assert.equal(delay,60000);
+  const timeout=[...timers.values()][0];timeout();timeout();
+  assert.equal(reason,'timeout');assert.equal(calls,1);
+});
+test('stream failure unloads playback and preserves specific Google error',()=>{
+  for(const hidden of [true,false]) {
+    const {ctx}=setup();const steps=[];
+    const status={hidden,textContent:'Google quota error'};
+    ctx.document.getElementById=()=>status;
+    ctx.vidPlayer.pause=()=>steps.push('pause');
+    ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
+    ctx.vidPlayer.load=()=>steps.push('load');
+    vm.runInContext(fn('showStreamFailure'),ctx);
+    ctx.showStreamFailure('Startup timed out');
+    assert.deepEqual(steps,['pause','remove:src','load']);
+    assert.equal(ctx.vidPlayer.style.display,'none');
+    assert.equal(status.hidden,false);
+    assert.equal(status.textContent,hidden?'Startup timed out':'Google quota error');
+  }
+});
 process.exitCode=failures?1:0;
