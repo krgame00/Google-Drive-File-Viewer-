@@ -11,6 +11,7 @@ test('save position before clearing media source',()=>{const {ctx}=setup();let s
 test('Drive fallback unloads native player before showing iframe',()=>{
   const {ctx}=setup();const steps=[];
   ctx.window={matchMedia:()=>({matches:true})};
+  ctx.fitVideoPreview=()=>{};
   vm.runInContext(fn('configurePreviewFullscreen'),ctx);
   ctx.videoModal.classList.contains=()=>true;
   ctx.vidPlayer.pause=()=>steps.push('pause');
@@ -155,6 +156,12 @@ test('public sources clear account-stream CORS mode before setting src',()=>{
   ctx.tryPublicStream('file1');
   assert.equal(steps[0],'remove:crossorigin');
   assert.match(steps[1],/^source:https:/);
+});
+test('reset clears preview scaling mode before another video or document',()=>{
+  const {ctx}=setup();const removed=[];
+  ctx.vidFrame.removeAttribute=name=>removed.push(name);
+  ctx.resetMediaPlayback();
+  assert(removed.includes('data-video-preview'));
 });
 process.exitCode=failures?1:0;
 test('blob fallback plays the full file through the page fetch (Brave workaround)',async()=>{

@@ -29,3 +29,23 @@ test('fullscreen rejection is handled and offers external playback',async()=>{
   const {ctx,calls,box}=setup();box.requestFullscreen=async()=>{throw new Error('denied')};
   await ctx.togglePlayerFullscreen();assert.equal(calls.length,1);assert.match(calls[0],/แท็บใหม่/);
 });
+test('preview viewport fits portrait, landscape and narrow screens without cropping',()=>{
+  const ctx={};vm.createContext(ctx);vm.runInContext(fn('calculatePreviewLayout'),ctx);
+  for(const [width,height] of [[320,180],[390,730],[844,330],[960,540]]){
+    const layout=ctx.calculatePreviewLayout(width,height);
+    assert(layout.width>=800);
+    assert(Math.abs(layout.width*layout.scale-width)<0.01);
+    assert(Math.abs(layout.height*layout.scale-height)<0.01);
+    assert(layout.scale>0 && layout.scale<=1);
+  }
+});
+test('preview fitting applies only to video previews and ignores zero-sized layouts',()=>{
+  const props=new Map();let preview=false,width=390,height=219;
+  const ctx={vidFrame:{getAttribute:()=>preview?'true':null,parentElement:{getBoundingClientRect:()=>({width,height})},style:{setProperty:(k,v)=>props.set(k,v)}}};
+  vm.createContext(ctx);for(const name of ['calculatePreviewLayout','fitVideoPreview'])vm.runInContext(fn(name),ctx);
+  ctx.fitVideoPreview();assert.equal(props.size,0);
+  preview=true;ctx.fitVideoPreview();assert.equal(props.get('--preview-width'),'800px');
+  const oldScale=props.get('--preview-scale');width=844;height=330;ctx.fitVideoPreview();assert.equal(props.get('--preview-scale'),'1');
+  assert.notEqual(oldScale,props.get('--preview-scale'));
+  props.clear();width=0;ctx.fitVideoPreview();assert.equal(props.size,0);
+});

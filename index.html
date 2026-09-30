@@ -1653,6 +1653,11 @@
     .video-box { max-height: 94dvh; overflow-y: auto; }
     .video-box .ratio { min-height: 0; max-height: 65dvh; }
     .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
+    .video-box .ratio { overflow: hidden; }
+    .video-box .ratio > iframe[data-video-preview="true"] {
+      width: var(--preview-width, 100%); height: var(--preview-height, 100%);
+      transform: scale(var(--preview-scale, 1)); transform-origin: top left;
+    }
     .video-footer { flex-shrink: 0; }
     .video-help { width: 100%; }
     .video-help summary { min-height: 44px; padding: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
@@ -4365,6 +4370,7 @@
         vidPlayer.style.display = "none";
         vidFrame.src = "about:blank";
         vidFrame.style.display = "none";
+        vidFrame.removeAttribute('data-video-preview');
         vidLoading.classList.remove("show");
       }
       function openVideo(id, name) {
@@ -4433,6 +4439,23 @@
 
       let streamWorkerReady = null;
       let failedVideoAttempt = null;
+      function calculatePreviewLayout(width, height) {
+        const frameWidth = Math.max(800, width);
+        const scale = width / frameWidth;
+        return {width: frameWidth, height: height / scale, scale: scale};
+      }
+      function fitVideoPreview() {
+        if (vidFrame.getAttribute('data-video-preview') !== 'true') return;
+        const bounds = vidFrame.parentElement.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) return;
+        const layout = calculatePreviewLayout(bounds.width, bounds.height);
+        vidFrame.style.setProperty('--preview-width', layout.width + 'px');
+        vidFrame.style.setProperty('--preview-height', layout.height + 'px');
+        vidFrame.style.setProperty('--preview-scale', String(layout.scale));
+      }
+      if (window.ResizeObserver) new window.ResizeObserver(fitVideoPreview).observe(vidFrame.parentElement);
+      window.addEventListener('resize', fitVideoPreview, {passive: true});
+      vidFrame.addEventListener('load', fitVideoPreview);
       function configurePreviewFullscreen() {
         const mobile = window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
         // Use the app wrapper on mobile instead of the embedded player's fullscreen path.
@@ -4456,6 +4479,7 @@
         const button = document.getElementById('vidFullscreen');
         button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
         button.setAttribute('aria-pressed', String(active));
+        requestAnimationFrame(fitVideoPreview);
       });
       document.getElementById('vidPreview').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
@@ -5026,9 +5050,11 @@
         vidPlayer.style.display = "none";
 
         configurePreviewFullscreen();
+        vidFrame.setAttribute('data-video-preview', 'true');
         setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน');
 
         vidFrame.style.display = "block";
+        fitVideoPreview();
 
         vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
 
