@@ -1,8 +1,8 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
-function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['classifyApiError','cancelVideoAttempt','setVideoStatus','resetMediaPlayback'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
-let failures=0;function test(name,run){try{run();console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}
+function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetMediaPlayback'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
+let failures=0,pending=[];function test(name,run){try{const r=run();if(r&&r.then){pending.push(r.then(()=>console.log('PASS',name)).catch(e=>{failures++;console.error('FAIL',name,e.message)}))}else console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}
 test('closing restores page scrolling',()=>{let {ctx}=setup();ctx.closeVideo();assert.equal(ctx.document.body.style.overflow,'')});
 test('closed player cannot trigger delayed fallback',()=>{let {ctx,timers}=setup(),fallbacks=0;ctx.tryVideoSrc('old',()=>fallbacks++);ctx.closeVideo();for(const cb of [...timers.values()])cb();assert.equal(fallbacks,0)});
 test('new source cancels previous source fallback',()=>{let {ctx,timers}=setup(),oldFallbacks=0;ctx.tryVideoSrc('old',()=>oldFallbacks++);ctx.tryVideoSrc('new',()=>{});for(const cb of [...timers.values()])cb();assert.equal(oldFallbacks,0)});
@@ -12,7 +12,10 @@ test('Drive fallback unloads native player before showing iframe',()=>{
   const {ctx}=setup();const steps=[];
   ctx.window={matchMedia:()=>({matches:true})};
   ctx.fitVideoPreview=()=>{};
+  ctx.vidFrame.parentElement={style:{},getBoundingClientRect:()=>({width:345,height:194})};
+  ctx.authParams=()=>({mode:'none'});
   vm.runInContext(fn('configurePreviewFullscreen'),ctx);
+  vm.runInContext(fn('applyPreviewAspect'),ctx);
   ctx.videoModal.classList.contains=()=>true;
   ctx.vidPlayer.pause=()=>steps.push('pause');
   ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
@@ -163,7 +166,7 @@ test('reset clears preview scaling mode before another video or document',()=>{
   ctx.resetMediaPlayback();
   assert(removed.includes('data-video-preview'));
 });
-process.exitCode=failures?1:0;
+
 test('blob fallback plays the full file through the page fetch (Brave workaround)',async()=>{
   const {ctx,els}=setup();
   ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;ctx.accessToken='t';
@@ -180,4 +183,33 @@ test('blob fallback button exists in the video help actions',()=>{
   assert(html.includes('id="vidBlob"'),'vidBlob button present');
   assert(html.includes("getElementById('vidBlob').addEventListener"),'vidBlob is wired');
 });
-process.exitCode=failures?1:0;
+
+test('preview frame matches the video aspect ratio from Drive metadata',async()=>{
+  const {ctx,els}=setup();
+  ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;ctx.accessToken='t';
+  ctx.authParams=()=>({mode:'bearer'});
+  ctx.vidFrame.parentElement={style:{},getBoundingClientRect:()=>({width:345,height:194})};
+  ctx.vidFrame.getAttribute=()=> 'true';
+  ctx.vidFrame.parentElement.getBoundingClientRect=()=>({width:345,height:194});
+  ctx.fetch=async()=>({ok:true,json:async()=>({videoMediaMetadata:{width:1080,height:1920}})});
+  vm.runInContext(fn('clampPreviewAspect'),ctx);
+  vm.runInContext(fn('fitVideoPreview'),ctx);
+  vm.runInContext(fn('applyPreviewAspect'),ctx);
+  await ctx.applyPreviewAspect('fileA');
+  await new Promise(r=>setTimeout(r,10));
+  assert.equal(els.vidFrame.parentElement.style.aspectRatio,'0.5625','portrait video gets a portrait frame');
+});
+test('preview aspect ratio clamped to sane bounds',()=>{
+  const {ctx}=setup();
+  vm.runInContext(fn('clampPreviewAspect'),ctx);
+  assert.ok(Math.abs(ctx.clampPreviewAspect(1920,1080)-16/9)<1e-9,'landscape 16:9 unchanged');
+  assert.equal(ctx.clampPreviewAspect(100,1000),0.45,'สูงมากเกิน → จำกัด');
+  assert.equal(ctx.clampPreviewAspect(2000,500),2.2,'กว้างมากเกิน → จำกัด');
+  assert.ok(Math.abs(ctx.clampPreviewAspect(0,0)-16/9)<1e-9,'ไม่มีข้อมูล → 16:9');
+});
+test('preview aspect wired in fallbackIframe and reset with the session',()=>{
+  assert(/function fallbackIframe[\s\S]{0,700}applyPreviewAspect\(id\)/.test(html),'fallbackIframe applies preview aspect');
+  assert(/function resetMediaPlayback\(\)\s*\{[\s\S]{0,600}previewAspect = null/.test(html),'resetMediaPlayback clears preview aspect');
+});
+
+Promise.all(pending).then(function(){process.exitCode=failures?1:0;});

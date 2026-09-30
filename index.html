@@ -4371,6 +4371,8 @@
         vidFrame.src = "about:blank";
         vidFrame.style.display = "none";
         vidFrame.removeAttribute('data-video-preview');
+        previewAspect = null;
+        if (vidFrame.parentElement) vidFrame.parentElement.style.aspectRatio = '';
         vidLoading.classList.remove("show");
       }
       function openVideo(id, name) {
@@ -4456,6 +4458,35 @@
       if (window.ResizeObserver) new window.ResizeObserver(fitVideoPreview).observe(vidFrame.parentElement);
       window.addEventListener('resize', fitVideoPreview, {passive: true});
       vidFrame.addEventListener('load', fitVideoPreview);
+      let previewAspect = null;
+      function clampPreviewAspect(w, h) {
+        const ratio = Number(w) / Number(h);
+        if (!isFinite(ratio) || ratio <= 0) return 16 / 9;
+        return Math.min(2.2, Math.max(0.45, ratio));
+      }
+      function applyPreviewAspect(id) {
+        // ปรับกรอบพรีวิวให้ตรงสัดส่วนวิดีโอจริง ไม่ล็อก 16:9 (วิดีโอแนวตั้งจะได้กรอบสูง ไม่เป็นแถบเล็ก ๆ กลางจอ)
+        const ratioEl = vidFrame.parentElement;
+        if (!ratioEl) return;
+        if (previewAspect && previewAspect.id === id) { ratioEl.style.aspectRatio = String(previewAspect.value); fitVideoPreview(); return; }
+        ratioEl.style.aspectRatio = '';
+        const auth = authParams();
+        if (auth.mode === 'none') { fitVideoPreview(); return; }
+        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?fields=videoMediaMetadata(width,height)' + (auth.mode === 'key' ? '&key=' + apiKey : '');
+        const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
+        fetch(url, { headers: headers })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (meta) {
+            if (id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
+            const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
+            if (!w || !h) { fitVideoPreview(); return; }
+            previewAspect = { id: id, value: clampPreviewAspect(w, h) };
+            ratioEl.style.aspectRatio = String(previewAspect.value);
+            fitVideoPreview();
+          })
+          .catch(function () { fitVideoPreview(); });
+      }
       function configurePreviewFullscreen() {
         const mobile = window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
         // Use the app wrapper on mobile instead of the embedded player's fullscreen path.
@@ -4479,6 +4510,8 @@
         const button = document.getElementById('vidFullscreen');
         button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
         button.setAttribute('aria-pressed', String(active));
+        const ratioEl = vidFrame.parentElement;
+        if (ratioEl) ratioEl.style.aspectRatio = active || !previewAspect ? '' : String(previewAspect.value);
         requestAnimationFrame(fitVideoPreview);
       });
       document.getElementById('vidPreview').addEventListener('click', function () {
@@ -5055,6 +5088,7 @@
 
         vidFrame.style.display = "block";
         fitVideoPreview();
+        applyPreviewAspect(id);
 
         vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
 
