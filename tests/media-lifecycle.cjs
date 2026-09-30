@@ -8,4 +8,17 @@ test('closed player cannot trigger delayed fallback',()=>{let {ctx,timers}=setup
 test('new source cancels previous source fallback',()=>{let {ctx,timers}=setup(),oldFallbacks=0;ctx.tryVideoSrc('old',()=>oldFallbacks++);ctx.tryVideoSrc('new',()=>{});for(const cb of [...timers.values()])cb();assert.equal(oldFallbacks,0)});
 test('queued event from previous source cannot start playback',()=>{let {ctx}=setup(),plays=0;ctx.vidPlayer.play=()=>{plays++;return Promise.resolve()};ctx.tryVideoSrc('old',()=>{});const oldReady=ctx.vidPlayer.oncanplay;ctx.tryVideoSrc('new',()=>{});oldReady();assert.equal(plays,0)});
 test('save position before clearing media source',()=>{const {ctx}=setup();let saved=false;ctx.saveVideoPos=()=>{saved=true};ctx.vidPlayer.removeAttribute=()=>assert.equal(saved,true);ctx.resetMediaPlayback();assert.equal(saved,true)});
+test('Drive fallback unloads native player before showing iframe',()=>{
+  const {ctx}=setup();const steps=[];
+  ctx.videoModal.classList.contains=()=>true;
+  ctx.vidPlayer.pause=()=>steps.push('pause');
+  ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
+  ctx.vidPlayer.load=()=>steps.push('load');
+  vm.runInContext(fn('fallbackIframe'),ctx);
+  ctx.fallbackIframe('old');
+  assert.deepEqual(steps,['pause','remove:src','load']);
+  assert.equal(ctx.vidPlayer.style.display,'none');
+  assert.equal(ctx.vidFrame.style.display,'block');
+  assert.equal(ctx.vidFrame.src,'https://drive.google.com/file/d/old/preview');
+});
 process.exitCode=failures?1:0;

@@ -1613,6 +1613,23 @@
       #collectionsCard .coll-more summary { min-height: 44px; padding: 12px 4px; cursor: pointer; text-align: center; font-size: 12px; border: 1px solid var(--border); border-radius: 7px; }
       #collectionsCard .coll-more-links { display: grid; gap: 4px; margin-top: 4px; }
     }
+    /* Keep app controls outside the embedded player's own controls. */
+    .video-toolbar { display: flex; gap: 8px; padding: 8px; flex: 0 0 auto; background: #111; }
+    .video-toolbar .lb-close, .video-toolbar .media-nav { position: static; transform: none; width: 44px; height: 44px; flex: 0 0 44px; font-size: 26px; }
+    .video-toolbar .lb-close { order: 3; margin-left: auto; }
+    .video-box { max-height: 94dvh; overflow-y: auto; }
+    .video-box .ratio { min-height: 0; max-height: 65dvh; }
+    .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
+    .video-footer { flex-shrink: 0; }
+    @media (max-width: 680px) {
+      .video-modal { padding: 8px; }
+      .video-box { max-height: calc(100dvh - 16px); }
+      .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; height: min(58dvh, 480px); }
+      .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
+      .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }
+      .video-footer .video-title { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+      .video-footer button { min-width: 0; min-height: 44px; white-space: normal; font-size: 12px; padding: 8px; }
+    }
   </style>
 
 </head>
@@ -1882,11 +1899,13 @@
 
     <div class="video-box">
 
+      <div class="video-toolbar">
       <button type="button" class="lb-close" id="vidClose" aria-label="ปิด">&times;</button>
 
       <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า">&#8249;</button>
 
       <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
+      </div>
 
       <div class="ratio">
 
@@ -4731,7 +4750,8 @@
 
         vidPlayer.pause();
 
-        vidPlayer.src = "";
+        vidPlayer.removeAttribute("src");
+        vidPlayer.load();
 
         vidPlayer.style.display = "none";
 
