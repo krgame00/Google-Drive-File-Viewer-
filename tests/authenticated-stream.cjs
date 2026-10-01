@@ -78,6 +78,23 @@ test('close, file switch and logout cancel asynchronous setup',async()=>{
     assert.equal(sources.length,0);assert.equal(fallbacks.length,0);
   }
 });
+
+test('account media failure tries Google backup and ignores its callback after close or logout',async()=>{
+  for(const change of [ctx=>ctx.mediaSession++,ctx=>ctx.vidCurrentId='file2',ctx=>ctx.accessToken=null]){
+    const {ctx,sources,ready,fallbacks,errors}=playerSetup();
+    const status={textContent:''};let backup,probes=0;
+    ctx.MEDIA_STREAM_FAIL_MSG='Media failed';
+    ctx.document={getElementById:()=>status};
+    ctx.showStreamFailure=message=>{errors.push(message);status.textContent=message};
+    ctx.setVideoStatus=()=>{};
+    ctx.tryPublicStream=(id,fail,googleOnly)=>{backup={id,fail,googleOnly}};
+    ctx.probeStreamEndpoint=()=>{probes++;return Promise.resolve('works')};
+    ctx.tryStreamDirect('file1');await ready(true);sources[0].fail('media');
+    assert.equal(backup.id,'file1');assert.equal(backup.googleOnly,true);
+    assert.equal(errors.length,1);assert.deepEqual(fallbacks,[]);
+    change(ctx);backup.fail();assert.equal(errors.length,1);assert.equal(probes,0);
+  }
+});
 test('unsupported browser explains failure and signed-out user keeps public playback',async()=>{
   const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
   ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');

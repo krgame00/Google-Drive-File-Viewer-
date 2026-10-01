@@ -250,7 +250,7 @@ test('stream-block flag round-trips through sessionStorage',()=>{
   ctx.clearStreamBlocked();
   assert.equal(ctx.streamBlocked(),false);
 });
-test('probe classifies a blocked stream endpoint as a browser problem',async()=>{
+test('failed transport probe never disables playback for the session',async()=>{
   const {ctx}=setup();
   ctx.sessionStorage=makeStore();
   ctx.location={href:'https://x.test/app/'};
@@ -263,7 +263,7 @@ test('probe classifies a blocked stream endpoint as a browser problem',async()=>
   const verdict=await ctx.probeStreamEndpoint('fileA','probe');
   assert.equal(verdict,'browser');
   if (ctx.shouldRememberStreamBlock(verdict)) ctx.rememberStreamBlocked();
-  assert.equal(ctx.streamBlocked(),true);
+  assert.equal(ctx.streamBlocked(),false);
 });
 test('probe with a Google permission answer never blocks the session',async()=>{
   const {ctx}=setup();
@@ -281,10 +281,20 @@ test('probe with a Google permission answer never blocks the session',async()=>{
   if (ctx.shouldRememberStreamBlock(verdict)) ctx.rememberStreamBlocked();
   assert.equal(ctx.streamBlocked(),false);
 });
-test('a healthy endpoint whose data still fails to play is remembered too',()=>{
+test('successful HTTP headers do not disable other files after playback failure',()=>{
   const {ctx}=setup();
   vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
-  assert.equal(ctx.shouldRememberStreamBlock('works'),true,'device-level playback failure should fall back to preview for the session');
+  assert.equal(ctx.shouldRememberStreamBlock('works'),false,'HTTP success does not prove the cause of playback failure');
+});
+test('codec support summary formats a compact capability line',()=>{
+  const {ctx}=setup();
+  vm.runInContext(fn('describeCodecSupport'),ctx);
+  assert.equal(ctx.describeCodecSupport(null),'');
+  assert.equal(ctx.describeCodecSupport([]),'');
+  assert.equal(ctx.describeCodecSupport([{label:'H.264',ok:true},{label:'HEVC',ok:false}]),' เบราว์เซอร์ระบุว่ารองรับ: H.264 ✓ HEVC ✗');
+});
+test('codec capability check is wired into the works verdict message',()=>{
+  assert(/verdict === 'works'[\s\S]{0,300}describeCodecSupport\(deviceCodecSupport\(\)\)/.test(html),'works message carries device codec info');
 });
 test('probe refines the generic card without overriding specific errors',()=>{
   assert(/probeStreamEndpoint\(id, 'probe'\)/.test(html),'media failure triggers the probe');
@@ -300,19 +310,21 @@ test('probe treats a hanging stream endpoint as a browser block',async()=>{
   for(const cb of [...timers.values()])cb();
   assert.equal(await p,'browser');
 });
-test('remembered browser block sends the next video straight to preview',()=>{
-  const {ctx,els}=setup();
+test('an old session block is cleared and the next file gets a fresh attempt',()=>{
+  const {ctx}=setup();
   ctx.sessionStorage=makeStore();
   ctx.sessionStorage.setItem('gdfvStreamBlocked','1');
   ctx.accessToken='t';ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;
   const previews=[];
+  let prepared=0;
+  ctx.prepareStreamWorker=()=>{prepared++;return new Promise(()=>{})};
   ctx.fallbackIframe=id=>previews.push(id);
   vm.runInContext(fn('streamBlocked'),ctx);
   vm.runInContext(fn('tryStreamDirect'),ctx);
   ctx.tryStreamDirect('fileA');
-  assert.deepEqual(previews,['fileA'],'stream endpoint must be skipped');
-  assert.match(els.vidErrorStatus.textContent,/พรีวิว Google ให้แทน/);
-  assert.match(els.vidErrorStatus.textContent,/ลองเล่นใหม่/);
+  assert.equal(prepared,1);
+  assert.equal(ctx.streamBlocked(),false);
+  assert.deepEqual(previews,[]);
 });
 test('retry and reconnect clear the remembered block before reopening',()=>{
   assert(/vidRetry'\)\.addEventListener\('click', function \(\) \{\s*if \(videoModal\.classList\.contains\('show'\) && vidCurrentId\) \{ clearStreamBlocked\(\); openVideo/.test(html),'retry clears the flag');

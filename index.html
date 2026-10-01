@@ -4457,17 +4457,28 @@
         try { sessionStorage.removeItem('gdfvStreamBlocked'); } catch (_) {}
       }
       function streamBlockVerdict(status) {
-        // 200/206 = SW กับ Google คุยกันได้ปกติ (ไฟล์/โคแด็กมีปัญหาเอง)
+        // 200/206 confirms HTTP access only, not successful media decoding.
         // 401/403/404/429 = Google ตอบกลับเรื่องสิทธิ์/โควตา — ไม่ใช่เบราว์เซอร์บล็อก
-        // อื่น ๆ (502/การเชื่อมต่อล้ม) = เบราว์เซอร์ขวางการ fetch ของ SW เอง
+        // Other responses indicate transport failure; its cause is not proven.
         if (status === 200 || status === 206) return 'works';
         if (status === 401 || status === 403 || status === 404 || status === 429) return 'auth';
         return 'browser';
       }
       function shouldRememberStreamBlock(verdict) {
-        // คำตอบจาก Google เรื่องสิทธิ์/โควตา เป็นปัญหารายไฟล์ ไม่ควรลดโหมดทั้งเซสชัน —
-        // ท่อพังเอง (browser) หรือท่อปกติแต่เครื่องเล่นไม่สำเร็จ (works) ให้จำไว้
-        return verdict !== 'auth';
+        // Failure is per file or request; never disable playback for the session.
+        return false; // A file failure or transient response must not disable other files.
+      }
+      function deviceCodecSupport() {
+        // Browser-advertised support does not identify the codec of this file.
+        try {
+          const probe = document.createElement('video');
+          return [['H.264', 'video/mp4; codecs="avc1.42E01E"'], ['HEVC', 'video/mp4; codecs="hvc1.1.6.L93.B0"'], ['AV1', 'video/mp4; codecs="av01.0.05M.08"'], ['VP9', 'video/webm; codecs="vp9"']]
+            .map(function (pair) { return { label: pair[0], ok: !!probe.canPlayType(pair[1]) }; });
+        } catch (_) { return null; }
+      }
+      function describeCodecSupport(support) {
+        if (!support || !support.length) return '';
+        return ' เบราว์เซอร์ระบุว่ารองรับ: ' + support.map(function (s) { return s.label + (s.ok ? ' ✓' : ' ✗'); }).join(' ');
       }
       function probeStreamEndpoint(id, attempt) {
         // ยิงคำขอจิ๋ว (1 ไบต์) จากหน้าเว็บผ่าน SW เพื่อชี้ว่าสตรีมล้มเพราะอะไร
@@ -4627,12 +4638,7 @@
 
       function tryStreamDirect(id) {
         if (!accessToken) { tryPublicStream(id); return; }
-        if (streamBlocked()) {
-          // พิสูจน์แล้วในเซสชันนี้ว่าเบราว์เซอร์ขวางการสตรีมผ่าน SW — เข้าพรีวิวให้เลย
-          fallbackIframe(id);
-          setVideoStatus('preview', 'เบราว์เซอร์นี้สตรีมผ่านบัญชีไม่สำเร็จมาก่อน เปิดพรีวิว Google ให้แทน (มือถือกดเต็มจอด้านบน) — กดลองเล่นใหม่เพื่อลองสตรีมอีกครั้ง');
-          return;
-        }
+        clearStreamBlocked();
         const session = mediaSession;
         const token = accessToken;
         prepareStreamWorker().then(function (ready) {
@@ -4654,40 +4660,53 @@
               : MEDIA_STREAM_FAIL_MSG, diagnostic);
             // พิสูจน์หลังล้มด้วยโพรบ (attempt ปลอม ไม่ให้ error ของโพรบทับการ์ด)
             // แล้วเปลี่ยนข้อความการ์ดเป็นสาเหตุจริง ถ้าการ์ดยังโชว์ข้อความทั่วไปอยู่
-            if (reason === 'media') probeStreamEndpoint(id, 'probe').then(function (verdict) {
-              if (shouldRememberStreamBlock(verdict)) rememberStreamBlocked();
-              if (!videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
-              const status = document.getElementById('vidErrorStatus');
-              if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
-              setVideoStatus('error', verdict === 'auth'
-                ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
-                : verdict === 'works'
-                  ? 'ท่อสตรีมใช้ได้แต่เครื่องเล่นไม่สำเร็จ — ใช้พรีวิว Google หรือโหลดทั้งไฟล์แทน'
-                  : 'ท่อสตรีมผ่าน service worker ใช้ไม่ได้ในเบราว์เซอร์นี้ — ใช้พรีวิว Google หรือโหลดทั้งไฟล์แทน');
-            });
+            if (reason === 'media') {
+              const originalStatus = document.getElementById('vidErrorStatus').textContent;
+              setVideoStatus('loading', 'กำลังลองแหล่งสำรองของ Google…');
+              tryPublicStream(id, function () {
+                if (session !== mediaSession || token !== accessToken || !videoModal.classList.contains('show') || id !== vidCurrentId) return;
+                showStreamFailure(originalStatus);
+                const failedAttempt = videoAttempt;
+                probeStreamEndpoint(id, 'probe').then(function (verdict) {
+                  if (session !== mediaSession || failedAttempt !== videoAttempt || !videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
+                  const status = document.getElementById('vidErrorStatus');
+                  if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
+                  setVideoStatus('error', verdict === 'auth'
+                    ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
+                    : verdict === 'works'
+                      ? 'เข้าถึงสตรีมทดสอบได้ แต่เครื่องเล่นและแหล่งสำรองยังเล่นไฟล์นี้ไม่ได้ — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
+                      : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
+                });
+              }, true);
+            }
           }, 60000);
         });
       }
 
-      function tryPublicStream(id) {
+      function tryPublicStream(id, onFail, googleOnly = false) {
         revokeCurrentVideo();
         // Public download sources may not expose CORS headers.
         vidPlayer.removeAttribute('crossorigin');
         vidPlayer.style.display = "block";
         // Public proxy only; no account credentials are sent to Cloudflare.
-        const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;
-        tryVideoSrc(workerProxy, function () {
+        const fail = onFail || function () { showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google'); };
+        function tryGoogleSources() {
           // 2. ถ้า Worker มีปัญหา ให้ fallback ไปลิงก์ตรง drive.usercontent
           const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
           tryVideoSrc(first, function () {
-            if (authParams().mode === "key") {
+            if (apiKey) {
               tryVideoSrc("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey,
-                function () { fallbackIframe(id); });
+                fail);
             } else {
-              fallbackIframe(id);
+              fail();
             }
           });
-        });
+        }
+        if (googleOnly) tryGoogleSources();
+        else {
+          const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;
+          tryVideoSrc(workerProxy, tryGoogleSources);
+        }
       }
 
 
