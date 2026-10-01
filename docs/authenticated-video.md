@@ -22,10 +22,24 @@ GitHub Pages HTTPS is supported; opening index.html with file:// cannot use
 service workers. Unsupported browsers or failed streams show an error card
 with cause-matched actions: retry, reconnect the account, or explicitly open
 the Google preview (the preview signs in with Google's own session, separate
-from the account connected here). Streams never auto-switch to the preview.
+from the account connected here). Entering the error state auto-expands the
+help panel so those actions are visible. Streams otherwise never auto-switch
+to the preview, with one exception: after a media-level failure of the account
+stream the page sends a one-byte range probe through the service worker and
+classifies the answer. Google permission/quota answers (401/403/404/429) are
+per-file problems: they never set the memory and the card is refined to say
+so. Everything else — a blocked or hanging endpoint (502, network error,
+timeout) and an endpoint that serves data the player still rejects (200/206) —
+is remembered in sessionStorage for the tab session, and later signed-in opens
+go straight to the preview with a message explaining why; the retry and
+reconnect buttons clear that memory and attempt the stream again. The probe
+refines the generic failure message with its verdict only while that generic
+message is still showing, so worker error reports never get overwritten by it.
 Stream errors are bound to the file id and playback attempt, so a stale
-failure cannot override a newer retry. Google download permissions,
-quotas, token expiration and browser codec support remain applicable.
+failure cannot override a newer retry. Message listeners accept reports from
+any same-script service worker version, covering in-flight requests handled
+by a stale worker after an update. Google download permissions, quotas, token
+expiration and browser codec support remain applicable.
 
 On startup failure the UI includes numeric browser diagnostics (`M` for
 MediaError.code, `N` for networkState, `R` for readyState), captured before

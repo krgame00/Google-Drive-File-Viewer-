@@ -1980,7 +1980,7 @@
         <div class="video-title" id="vidTitle">วิดีโอ</div>
 
         <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแท็บใหม่ ↗</a>
-        <details class="video-help">
+        <details class="video-help" id="vidHelp">
           <summary>เล่นไม่ได้? ลองใหม่ / เชื่อมต่อ Google</summary>
           <div class="video-help-actions">
         <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
@@ -4327,11 +4327,13 @@
       let videoStatus = 'closed';
       let videoSlowTimer = null;
       function setVideoStatus(state, message) {
+        const prev = videoStatus;
         videoStatus = state;
         const status = document.getElementById ? document.getElementById('vidErrorStatus') : null;
         const loadingText = document.getElementById ? document.getElementById('vidLoadingText') : null;
-        if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
-        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } }
+        const help = document.getElementById ? document.getElementById('vidHelp') : null;
+        if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
+        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } if (state === 'error' && prev !== 'error' && help) help.open = true; }
         else if (state === 'closed') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
         else { vidLoading.classList.add('show'); if (status) status.hidden = true; if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…'); }
         return videoStatus;
@@ -4342,6 +4344,7 @@
         const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
         if (data.reason === 'streamFetchFailed') {
+          rememberStreamBlocked();
           setVideoStatus('error', 'เชื่อมต่อแหล่งสตรีมไม่ได้ [FETCH] อาจเกิดจากเครือข่ายหรือการบล็อกคำขอ หากใช้ Brave ลองปิด Shields เฉพาะเว็บนี้ชั่วคราวแล้วรีเฟรชเพื่อทดสอบ');
           return true;
         }
@@ -4441,6 +4444,47 @@
 
       let streamWorkerReady = null;
       let failedVideoAttempt = null;
+      const MEDIA_STREAM_FAIL_MSG = 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google';
+      // Brave บล็อก fetch ข้ามโดเมนจาก service worker (ข้อจำกัด upstream ยังไม่แก้) —
+      // จำไว้ในเซสชันเพื่อเปิดพรีวิวให้ทันทีในไฟล์ถัดไป แทนการโชว์การ์ด error ทุกครั้ง
+      function streamBlocked() {
+        try { return sessionStorage.getItem('gdfvStreamBlocked') === '1'; } catch (_) { return false; }
+      }
+      function rememberStreamBlocked() {
+        try { sessionStorage.setItem('gdfvStreamBlocked', '1'); } catch (_) {}
+      }
+      function clearStreamBlocked() {
+        try { sessionStorage.removeItem('gdfvStreamBlocked'); } catch (_) {}
+      }
+      function streamBlockVerdict(status) {
+        // 200/206 = SW กับ Google คุยกันได้ปกติ (ไฟล์/โคแด็กมีปัญหาเอง)
+        // 401/403/404/429 = Google ตอบกลับเรื่องสิทธิ์/โควตา — ไม่ใช่เบราว์เซอร์บล็อก
+        // อื่น ๆ (502/การเชื่อมต่อล้ม) = เบราว์เซอร์ขวางการ fetch ของ SW เอง
+        if (status === 200 || status === 206) return 'works';
+        if (status === 401 || status === 403 || status === 404 || status === 429) return 'auth';
+        return 'browser';
+      }
+      function shouldRememberStreamBlock(verdict) {
+        // คำตอบจาก Google เรื่องสิทธิ์/โควตา เป็นปัญหารายไฟล์ ไม่ควรลดโหมดทั้งเซสชัน —
+        // ท่อพังเอง (browser) หรือท่อปกติแต่เครื่องเล่นไม่สำเร็จ (works) ให้จำไว้
+        return verdict !== 'auth';
+      }
+      function probeStreamEndpoint(id, attempt) {
+        // ยิงคำขอจิ๋ว (1 ไบต์) จากหน้าเว็บผ่าน SW เพื่อชี้ว่าสตรีมล้มเพราะอะไร
+        return new Promise(function (resolve) {
+          let settled = false, timer = null;
+          const done = function (verdict) { if (!settled) { settled = true; if (timer !== null) clearTimeout(timer); resolve(verdict); } };
+          timer = setTimeout(function () { done('browser'); }, 8000);
+          try {
+            const url = new URL('__drive_stream', location.href);
+            url.searchParams.set('id', id);
+            url.searchParams.set('attempt', String(attempt));
+            fetch(url.href, { headers: { Range: 'bytes=0-1' } })
+              .then(function (res) { done(streamBlockVerdict(res.status)); })
+              .catch(function () { done('browser'); });
+          } catch (_) { done('browser'); }
+        });
+      }
       function calculatePreviewLayout(width, height) {
         const frameWidth = Math.max(800, width);
         const scale = width / frameWidth;
@@ -4518,20 +4562,23 @@
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
       document.getElementById('vidRetry').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) openVideo(vidCurrentId, vidTitle.textContent);
+        if (videoModal.classList.contains('show') && vidCurrentId) { clearStreamBlocked(); openVideo(vidCurrentId, vidTitle.textContent); }
       });
       document.getElementById('vidReconnect').addEventListener('click', function () {
         const id=vidCurrentId, session=mediaSession, name=vidTitle.textContent;
         ensureToken(true).then(function(token){
-          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) openVideo(id,name);
+          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) { clearStreamBlocked(); openVideo(id,name); }
         });
       });
       document.getElementById('vidBlob').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) loadVideoAsBlob(vidCurrentId);
       });
       if ('serviceWorker' in navigator) {
+        const streamSwScript = new URL('drive-stream-sw.js', location.href).href;
         navigator.serviceWorker.addEventListener('message', function (event) {
-          if (event.source !== navigator.serviceWorker.controller) return;
+          // ยอมรับรายงานจาก SW เวอร์ชันเก่าที่ค้างจัดการคำขอหลังอัปเดตด้วย —
+          // เช็คว่ามาจากสคริปต์ของเรา ไม่ใช่เช็ค controller ตรง ๆ
+          if (!event.source || event.source.scriptURL !== streamSwScript) return;
           if (event.data && event.data.type === 'drive-stream-error') {
             handleDriveStreamError(event.data);
             return;
@@ -4580,6 +4627,12 @@
 
       function tryStreamDirect(id) {
         if (!accessToken) { tryPublicStream(id); return; }
+        if (streamBlocked()) {
+          // พิสูจน์แล้วในเซสชันนี้ว่าเบราว์เซอร์ขวางการสตรีมผ่าน SW — เข้าพรีวิวให้เลย
+          fallbackIframe(id);
+          setVideoStatus('preview', 'เบราว์เซอร์นี้สตรีมผ่านบัญชีไม่สำเร็จมาก่อน เปิดพรีวิว Google ให้แทน (มือถือกดเต็มจอด้านบน) — กดลองเล่นใหม่เพื่อลองสตรีมอีกครั้ง');
+          return;
+        }
         const session = mediaSession;
         const token = accessToken;
         prepareStreamWorker().then(function (ready) {
@@ -4598,7 +4651,20 @@
           tryVideoSrc(url, function (reason, diagnostic) {
             showStreamFailure(reason === 'timeout'
               ? 'วิดีโอใช้เวลาโหลดนานเกิน 1 นาที กดลองเล่นใหม่ ตรวจสอบเครือข่าย หรือเลือกใช้พรีวิว Google'
-              : 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google', diagnostic);
+              : MEDIA_STREAM_FAIL_MSG, diagnostic);
+            // พิสูจน์หลังล้มด้วยโพรบ (attempt ปลอม ไม่ให้ error ของโพรบทับการ์ด)
+            // แล้วเปลี่ยนข้อความการ์ดเป็นสาเหตุจริง ถ้าการ์ดยังโชว์ข้อความทั่วไปอยู่
+            if (reason === 'media') probeStreamEndpoint(id, 'probe').then(function (verdict) {
+              if (shouldRememberStreamBlock(verdict)) rememberStreamBlocked();
+              if (!videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
+              const status = document.getElementById('vidErrorStatus');
+              if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
+              setVideoStatus('error', verdict === 'auth'
+                ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
+                : verdict === 'works'
+                  ? 'ท่อสตรีมใช้ได้แต่เครื่องเล่นไม่สำเร็จ — ใช้พรีวิว Google หรือโหลดทั้งไฟล์แทน'
+                  : 'ท่อสตรีมผ่าน service worker ใช้ไม่ได้ในเบราว์เซอร์นี้ — ใช้พรีวิว Google หรือโหลดทั้งไฟล์แทน');
+            });
           }, 60000);
         });
       }

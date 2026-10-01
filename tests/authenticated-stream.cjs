@@ -58,6 +58,7 @@ function playerSetup() {
     location:{href:'https://example.com/app/index.html#/f/folder'},mediaSession:1,vidCurrentId:'file1',
     videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{},setAttribute(name,value){this[name]=value}},revokeCurrentVideo(){},showToast(){},
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
+    streamBlocked:()=>false,rememberStreamBlocked(){},clearStreamBlocked(){},
     showStreamFailure:message=>errors.push(message),
     tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
   vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);

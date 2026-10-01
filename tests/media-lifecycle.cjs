@@ -1,7 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
-function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetMediaPlayback'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
+function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,videoStatus:'closed',setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetMediaPlayback','streamBlocked','rememberStreamBlocked','clearStreamBlocked'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
 let failures=0,pending=[];function test(name,run){try{const r=run();if(r&&r.then){pending.push(r.then(()=>console.log('PASS',name)).catch(e=>{failures++;console.error('FAIL',name,e.message)}))}else console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}
 test('closing restores page scrolling',()=>{let {ctx}=setup();ctx.closeVideo();assert.equal(ctx.document.body.style.overflow,'')});
 test('closed player cannot trigger delayed fallback',()=>{let {ctx,timers}=setup(),fallbacks=0;ctx.tryVideoSrc('old',()=>fallbacks++);ctx.closeVideo();for(const cb of [...timers.values()])cb();assert.equal(fallbacks,0)});
@@ -121,10 +121,11 @@ test('stream request carries the attempt token for worker error matching',()=>{
   assert.equal(url.searchParams.get('attempt'),String(ctx.videoAttempt));
 });
 test('media error message stays hedged and never claims quota',()=>{
-  const m=html.match(/showStreamFailure\(reason === 'timeout'\s*\?\s*'([^']*)'\s*:\s*'([^']*)'/);
-  assert(m,'media failure message found');
-  assert(!/โควตา|quota/i.test(m[2]),'media error must not claim quota');
-  assert(/อาจ|หรือ/.test(m[2]),'media error stays hedged');
+  const m=html.match(/const MEDIA_STREAM_FAIL_MSG = '([^']*)'/);
+  assert(m,'media failure message constant found');
+  assert(!/โควตา|quota/i.test(m[1]),'media error must not claim quota');
+  assert(/อาจ|หรือ/.test(m[1]),'media error stays hedged');
+  assert(/showStreamFailure\(reason === 'timeout'[\s\S]{0,200}: MEDIA_STREAM_FAIL_MSG, diagnostic\)/.test(html),'media failure uses the shared message');
 });
 test('media failure captures numeric diagnostics before unloading video',()=>{
   const {ctx}=setup();let diagnostic;
@@ -210,6 +211,112 @@ test('preview aspect ratio clamped to sane bounds',()=>{
 test('preview aspect wired in fallbackIframe and reset with the session',()=>{
   assert(/function fallbackIframe[\s\S]{0,700}applyPreviewAspect\(id\)/.test(html),'fallbackIframe applies preview aspect');
   assert(/function resetMediaPlayback\(\)\s*\{[\s\S]{0,600}previewAspect = null/.test(html),'resetMediaPlayback clears preview aspect');
+});
+
+function makeStore(){const map={};return {getItem(k){return k in map?map[k]:null},setItem(k,v){map[k]=String(v)},removeItem(k){delete map[k]}};}
+
+test('error status auto-expands the help panel and playing collapses it',()=>{
+  const {ctx,els}=setup();
+  ctx.setVideoStatus('error','เล่นไม่สำเร็จ');
+  assert.equal(els.vidHelp.open,true,'error must open the help panel');
+  ctx.setVideoStatus('playing');
+  assert.equal(els.vidHelp.open,false,'playback must collapse the help panel');
+  ctx.setVideoStatus('error','ล้มอีกครั้ง');
+  assert.equal(els.vidHelp.open,true,'a fresh error re-opens the panel');
+  ctx.setVideoStatus('error','ซ้ำ');
+  assert.equal(els.vidHelp.open,true,'repeated error keeps the user toggle untouched');
+});
+test('stream block verdict distinguishes a browser block from Google responses',()=>{
+  const {ctx}=setup();
+  vm.runInContext(fn('streamBlockVerdict'),ctx);
+  assert.equal(ctx.streamBlockVerdict(206),'works');
+  assert.equal(ctx.streamBlockVerdict(200),'works');
+  assert.equal(ctx.streamBlockVerdict(401),'auth');
+  assert.equal(ctx.streamBlockVerdict(403),'auth');
+  assert.equal(ctx.streamBlockVerdict(404),'auth');
+  assert.equal(ctx.streamBlockVerdict(429),'auth');
+  assert.equal(ctx.streamBlockVerdict(502),'browser');
+  assert.equal(ctx.streamBlockVerdict(500),'browser');
+});
+test('stream-block flag round-trips through sessionStorage',()=>{
+  const {ctx}=setup();
+  ctx.sessionStorage=makeStore();
+  vm.runInContext(fn('streamBlocked'),ctx);
+  vm.runInContext(fn('rememberStreamBlocked'),ctx);
+  vm.runInContext(fn('clearStreamBlocked'),ctx);
+  assert.equal(ctx.streamBlocked(),false);
+  ctx.rememberStreamBlocked();
+  assert.equal(ctx.streamBlocked(),true);
+  ctx.clearStreamBlocked();
+  assert.equal(ctx.streamBlocked(),false);
+});
+test('probe classifies a blocked stream endpoint as a browser problem',async()=>{
+  const {ctx}=setup();
+  ctx.sessionStorage=makeStore();
+  ctx.location={href:'https://x.test/app/'};
+  ctx.fetch=async()=>({status:502});
+  vm.runInContext(fn('streamBlockVerdict'),ctx);
+  vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
+  vm.runInContext(fn('rememberStreamBlocked'),ctx);
+  vm.runInContext(fn('streamBlocked'),ctx);
+  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  const verdict=await ctx.probeStreamEndpoint('fileA','probe');
+  assert.equal(verdict,'browser');
+  if (ctx.shouldRememberStreamBlock(verdict)) ctx.rememberStreamBlocked();
+  assert.equal(ctx.streamBlocked(),true);
+});
+test('probe with a Google permission answer never blocks the session',async()=>{
+  const {ctx}=setup();
+  ctx.sessionStorage=makeStore();
+  ctx.location={href:'https://x.test/app/'};
+  ctx.fetch=async()=>({status:403});
+  vm.runInContext(fn('streamBlockVerdict'),ctx);
+  vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
+  vm.runInContext(fn('rememberStreamBlocked'),ctx);
+  vm.runInContext(fn('streamBlocked'),ctx);
+  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  const verdict=await ctx.probeStreamEndpoint('fileA','probe');
+  assert.equal(verdict,'auth');
+  assert.equal(ctx.shouldRememberStreamBlock('auth'),false,'permission answers are per-file, not browser-wide');
+  if (ctx.shouldRememberStreamBlock(verdict)) ctx.rememberStreamBlocked();
+  assert.equal(ctx.streamBlocked(),false);
+});
+test('a healthy endpoint whose data still fails to play is remembered too',()=>{
+  const {ctx}=setup();
+  vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
+  assert.equal(ctx.shouldRememberStreamBlock('works'),true,'device-level playback failure should fall back to preview for the session');
+});
+test('probe refines the generic card without overriding specific errors',()=>{
+  assert(/probeStreamEndpoint\(id, 'probe'\)/.test(html),'media failure triggers the probe');
+  assert(/status\.textContent\.indexOf\(MEDIA_STREAM_FAIL_MSG\) !== 0/.test(html),'probe refines only the generic message');
+});
+test('probe treats a hanging stream endpoint as a browser block',async()=>{
+  const {ctx,timers}=setup();
+  ctx.location={href:'https://x.test/app/'};
+  ctx.fetch=()=>new Promise(()=>{});
+  vm.runInContext(fn('streamBlockVerdict'),ctx);
+  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  const p=ctx.probeStreamEndpoint('fileA','probe');
+  for(const cb of [...timers.values()])cb();
+  assert.equal(await p,'browser');
+});
+test('remembered browser block sends the next video straight to preview',()=>{
+  const {ctx,els}=setup();
+  ctx.sessionStorage=makeStore();
+  ctx.sessionStorage.setItem('gdfvStreamBlocked','1');
+  ctx.accessToken='t';ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;
+  const previews=[];
+  ctx.fallbackIframe=id=>previews.push(id);
+  vm.runInContext(fn('streamBlocked'),ctx);
+  vm.runInContext(fn('tryStreamDirect'),ctx);
+  ctx.tryStreamDirect('fileA');
+  assert.deepEqual(previews,['fileA'],'stream endpoint must be skipped');
+  assert.match(els.vidErrorStatus.textContent,/พรีวิว Google ให้แทน/);
+  assert.match(els.vidErrorStatus.textContent,/ลองเล่นใหม่/);
+});
+test('retry and reconnect clear the remembered block before reopening',()=>{
+  assert(/vidRetry'\)\.addEventListener\('click', function \(\) \{\s*if \(videoModal\.classList\.contains\('show'\) && vidCurrentId\) \{ clearStreamBlocked\(\); openVideo/.test(html),'retry clears the flag');
+  assert(/vidReconnect'\)\.addEventListener\('click',[\s\S]{0,400}clearStreamBlocked\(\); openVideo/.test(html),'reconnect clears the flag');
 });
 
 Promise.all(pending).then(function(){process.exitCode=failures?1:0;});
