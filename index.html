@@ -1659,6 +1659,9 @@
       transform: scale(var(--preview-scale, 1)); transform-origin: top left;
     }
     .video-footer { flex-shrink: 0; }
+    .video-info { display: none; }
+    #vidCancelBlob { min-height: 44px; padding: 8px 16px; }
+    #vidCancelBlob[hidden] { display: none; }
     .video-help { width: 100%; }
     .video-help summary { min-height: 44px; padding: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
     .video-help-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
@@ -1669,7 +1672,14 @@
       .video-box:fullscreen .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
       .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }
-      .video-footer .video-title { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+      .video-footer .video-title { white-space: nowrap; display: block; }
+      .video-info { display: block; grid-column: 1 / -1; min-width: 0; }
+      .video-info summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 12px; color: var(--muted); }
+      .video-info p { margin: 0 0 8px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+      .video-footer #vidErrorStatus[data-preview-note="true"] { display: none; }
+      .video-footer #vidOpenTab { grid-column: 1; }
+      .video-footer .video-info { grid-column: 2; }
+      .video-info[open] { grid-column: 1 / -1; }
       .video-footer button { min-width: 0; min-height: 44px; white-space: normal; font-size: 12px; padding: 8px; }
       .video-footer #vidOpenTab { display: flex; align-items: center; min-height: 44px; font-size: 13px; }
       .video-footer .video-help { grid-column: 1 / -1; }
@@ -1969,6 +1979,7 @@
           <div class="vid-progress"><div class="vid-progress-bar" id="vidProgressBar"></div></div>
 
           <div class="vid-loading-text" id="vidLoadingText">กำลังโหลดวิดีโอ…</div>
+          <button type="button" class="btn-ghost btn-sm" id="vidCancelBlob" hidden>ยกเลิกการโหลด</button>
 
         </div>
 
@@ -1980,6 +1991,11 @@
         <div class="video-title" id="vidTitle">วิดีโอ</div>
 
         <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแท็บใหม่ ↗</a>
+        <details class="video-info" id="vidInfo">
+          <summary>ชื่อไฟล์และข้อมูล</summary>
+          <p id="vidFullTitle"></p>
+          <p id="vidPreviewNote" hidden></p>
+        </details>
         <details class="video-help" id="vidHelp">
           <summary>เล่นไม่ได้? ลองใหม่ / เชื่อมต่อ Google</summary>
           <div class="video-help-actions">
@@ -4326,12 +4342,21 @@
       let mediaPreviousOverflow = "";
       let videoStatus = 'closed';
       let videoSlowTimer = null;
+      let videoBlobTransfer = null;
       function setVideoStatus(state, message) {
         const prev = videoStatus;
         videoStatus = state;
         const status = document.getElementById ? document.getElementById('vidErrorStatus') : null;
         const loadingText = document.getElementById ? document.getElementById('vidLoadingText') : null;
         const help = document.getElementById ? document.getElementById('vidHelp') : null;
+        const title = document.getElementById('vidTitle');
+        const fullTitle = document.getElementById('vidFullTitle');
+        const note = document.getElementById('vidPreviewNote');
+        const info = document.getElementById('vidInfo');
+        if (fullTitle && title) fullTitle.textContent = title.textContent;
+        if (note) { note.hidden = state !== 'preview'; if (state === 'preview') note.textContent = message || ''; }
+        if (info && (state === 'closed' || state === 'connecting')) info.open = false;
+        if (status) status.setAttribute('data-preview-note', state === 'preview' ? 'true' : 'false');
         if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
         else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } if (state === 'error' && prev !== 'error' && help) help.open = true; }
         else if (state === 'closed') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
@@ -4362,11 +4387,15 @@
         videoSlowTimer = null;
         vidPlayer.onerror = null;
         vidPlayer.oncanplay = null;
+        vidPlayer.onloadedmetadata = null;
       }
       function resetMediaPlayback() {
         saveVideoPos();
+        cancelVideoBlobTransfer();
         ++mediaSession;
         cancelVideoAttempt();
+        releasePlayerOrientation();
+        vidPlayer.playerAspect = null;
         vidPlayer.pause();
         vidPlayer.removeAttribute("src");
         vidPlayer.load();
@@ -4553,8 +4582,9 @@
         // ปรับกรอบพรีวิวให้ตรงสัดส่วนวิดีโอจริง ไม่ล็อก 16:9 (วิดีโอแนวตั้งจะได้กรอบสูง ไม่เป็นแถบเล็ก ๆ กลางจอ)
         const ratioEl = vidFrame.parentElement;
         if (!ratioEl) return;
-        if (previewAspect && previewAspect.id === id) { ratioEl.style.aspectRatio = String(previewAspect.value); fitVideoPreview(); return; }
+        if (previewAspect && previewAspect.id === id) { applyVideoAspect(); return; }
         ratioEl.style.aspectRatio = '';
+        const session = mediaSession;
         const auth = authParams();
         if (auth.mode === 'none') { fitVideoPreview(); return; }
         const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?fields=videoMediaMetadata(width,height)' + (auth.mode === 'key' ? '&key=' + apiKey : '');
@@ -4562,13 +4592,12 @@
         fetch(url, { headers: headers })
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (meta) {
-            if (id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
             if (!w || !h) { fitVideoPreview(); return; }
             previewAspect = { id: id, value: clampPreviewAspect(w, h) };
-            ratioEl.style.aspectRatio = String(previewAspect.value);
-            fitVideoPreview();
+            applyVideoAspect();
           })
           .catch(function () { fitVideoPreview(); });
       }
@@ -4581,16 +4610,52 @@
       }
       function lockHorizontalPlayerOrientation(box) {
         const orientation = window.screen && window.screen.orientation;
-        const aspect = vidFrame.getAttribute('data-video-preview') === 'true'
-          ? previewAspect && previewAspect.value
-          : vidPlayer.videoWidth / vidPlayer.videoHeight;
-        if (document.fullscreenElement !== box || !(aspect > 1) || !orientation || !orientation.lock) return Promise.resolve();
+        const aspect = getPlayerAspect();
+        if (document.fullscreenElement !== box || !(aspect > 1)) { releasePlayerOrientation(); return Promise.resolve(); }
+        if (!orientation || !orientation.lock || box.playerOrientationLocked || box.playerOrientationPending) return Promise.resolve();
+        const request = box.playerOrientationRequest = (box.playerOrientationRequest || 0) + 1;
+        box.playerOrientationPending = true;
         try {
           return Promise.resolve(orientation.lock('landscape')).then(function () {
-            if (document.fullscreenElement === box) box.playerOrientationLocked = true;
-            else if (orientation.unlock) orientation.unlock();
-          }).catch(function () {});
-        } catch (_) { return Promise.resolve(); }
+            if (request === box.playerOrientationRequest && document.fullscreenElement === box && getPlayerAspect() > 1) {
+              box.playerOrientationPending = false;
+              box.playerOrientationLocked = true;
+            } else {
+              if (request === box.playerOrientationRequest) box.playerOrientationPending = false;
+              if (!box.playerOrientationLocked && !box.playerOrientationPending && orientation.unlock) orientation.unlock();
+            }
+          }).catch(function () { if (request === box.playerOrientationRequest) box.playerOrientationPending = false; });
+        } catch (_) { box.playerOrientationPending = false; return Promise.resolve(); }
+      }
+      function getPlayerAspect() {
+        return vidFrame.getAttribute('data-video-preview') === 'true'
+          ? previewAspect && previewAspect.value
+          : vidPlayer.playerAspect;
+      }
+      function releasePlayerOrientation() {
+        const box = videoModal.querySelector && videoModal.querySelector('.video-box');
+        if (!box) return;
+        box.playerOrientationRequest = (box.playerOrientationRequest || 0) + 1;
+        const held = box.playerOrientationLocked || box.playerOrientationPending;
+        box.playerOrientationLocked = false;
+        box.playerOrientationPending = false;
+        try { if (held && window.screen && window.screen.orientation && window.screen.orientation.unlock) window.screen.orientation.unlock(); } catch (_) {}
+      }
+      function applyVideoAspect() {
+        const ratioEl = vidFrame.parentElement;
+        if (!ratioEl) return;
+        const box = videoModal.querySelector && videoModal.querySelector('.video-box');
+        const aspect = getPlayerAspect();
+        ratioEl.style.aspectRatio = box && document.fullscreenElement === box ? '' : aspect ? String(aspect) : '';
+        fitVideoPreview();
+        if (box && videoModal.classList.contains('show')) lockHorizontalPlayerOrientation(box);
+      }
+      function applyNativeVideoAspect() {
+        if (!videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') === 'true' || vidPlayer.style.display === 'none') return;
+        const aspect = Number(vidPlayer.videoWidth) / Number(vidPlayer.videoHeight);
+        if (!Number.isFinite(aspect) || aspect <= 0) return;
+        vidPlayer.playerAspect = aspect;
+        applyVideoAspect();
       }
       function togglePlayerFullscreen() {
         if (!videoModal.classList.contains('show')) return Promise.resolve();
@@ -4608,15 +4673,11 @@
       document.addEventListener('fullscreenchange', function () {
         const box = videoModal.querySelector('.video-box');
         const active = document.fullscreenElement === box;
-        if (!active && box.playerOrientationLocked) {
-          box.playerOrientationLocked = false;
-          try { if (window.screen && window.screen.orientation && window.screen.orientation.unlock) window.screen.orientation.unlock(); } catch (_) {}
-        }
+        if (!active) releasePlayerOrientation();
         const button = document.getElementById('vidFullscreen');
         button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
         button.setAttribute('aria-pressed', String(active));
-        const ratioEl = vidFrame.parentElement;
-        if (ratioEl) ratioEl.style.aspectRatio = active || !previewAspect ? '' : String(previewAspect.value);
+        applyVideoAspect();
         requestAnimationFrame(fitVideoPreview);
       });
       document.getElementById('vidPreview').addEventListener('click', function () {
@@ -4633,6 +4694,9 @@
       });
       document.getElementById('vidBlob').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) loadVideoAsBlob(vidCurrentId);
+      });
+      document.getElementById('vidCancelBlob').addEventListener('click', function () {
+        cancelVideoBlobTransfer(true);
       });
       if ('serviceWorker' in navigator) {
         const streamSwScript = new URL('drive-stream-sw.js', location.href).href;
@@ -4810,41 +4874,122 @@
 
 
 
-      function loadVideoAsBlob(id) {
+      function readVideoBlobResponse(res, signal, onProgress) {
+        return (async function () {
+          const aborted = function () { if (signal.aborted) { const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; } };
+          aborted();
+          const length = Number(res.headers && res.headers.get('content-length'));
+          const total = Number.isFinite(length) && length > 0 ? length : 0;
+          onProgress(0, total);
+          if (!res.body || !res.body.getReader) {
+            const blob = await res.blob(); aborted(); onProgress(Number(blob.size) || 0, total); return blob;
+          }
+          const reader = res.body.getReader(), chunks = [];
+          const cancel = function () { Promise.resolve(reader.cancel()).catch(function () {}); };
+          signal.addEventListener('abort', cancel, {once: true});
+          let loaded = 0;
+          try {
+            while (true) {
+              aborted();
+              const part = await reader.read(); aborted();
+              if (part.done) break;
+              chunks.push(part.value); loaded += part.value.byteLength; onProgress(loaded, total);
+            }
+            return new Blob(chunks, {type: res.headers.get('content-type') || 'application/octet-stream'});
+          } finally {
+            signal.removeEventListener('abort', cancel);
+            if (reader.releaseLock) reader.releaseLock();
+          }
+        })();
+      }
+      function renderVideoBlobProgress(loaded, total) {
+        const percent = total > 0 ? Math.min(100, Math.floor(loaded / total * 100)) : null;
+        const text = 'กำลังโหลดทั้งไฟล์: ' + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)');
+        const label = document.getElementById('vidLoadingText');
+        const bar = document.getElementById('vidProgressBar');
+        if (label) label.textContent = text;
+        if (bar) bar.style.width = percent === null ? '0%' : percent + '%';
+      }
+      function cancelVideoBlobTransfer(showMessage) {
+        const transfer = videoBlobTransfer;
+        if (!transfer) return;
+        videoBlobTransfer = null;
+        transfer.controller.abort();
+        const cancel = document.getElementById('vidCancelBlob');
+        const button = document.getElementById('vidBlob');
+        if (cancel) cancel.hidden = true;
+        if (button) button.disabled = false;
+        if (showMessage) setVideoStatus('error', 'ยกเลิกการโหลดแล้ว เลือกลองใหม่หรือใช้พรีวิว Google');
+      }
+      function loadVideoAsBlob(id, onGiveUp, priorNotes) {
         // ทางแก้เมื่อเบราว์เซอร์ (เช่น Brave) บล็อก fetch ข้ามโดเมนจาก service worker:
         // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง แล้วเล่นจากไฟล์ในเครื่อง (ไม่มี seek ก่อนโหลดครบ)
+        // onGiveUp = เรียกเมื่อขั้นโหลดทั้งไฟล์ล้มทุกทาง เพื่อให้ผู้เรียกวินิจฉัยต่อได้
+        // priorNotes = บันทึกการลองแหล่งก่อนหน้า แนบไปกับข้อความล้มเพื่อให้เห็นภาพรวม
+        const prior = priorNotes && priorNotes.length ? ' การลองสำรองก่อนหน้า: ' + priorNotes.join(' · ') : '';
         if (!id || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
         const auth = authParams();
-        if (auth.mode === 'none') { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้'); return; }
+        if (auth.mode === 'none') { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้' + prior); if (onGiveUp) onGiveUp(); return; }
+        cancelVideoBlobTransfer();
+        cancelVideoAttempt();
+        const transfer = videoBlobTransfer = {id: id, session: mediaSession, controller: new AbortController()};
+        const active = function () { return videoBlobTransfer === transfer && transfer.session === mediaSession && id === vidCurrentId && videoModal.classList.contains('show'); };
         const btn = document.getElementById('vidBlob');
+        const cancel = document.getElementById('vidCancelBlob');
         if (btn) btn.disabled = true;
+        if (cancel) cancel.hidden = false;
+        vidPlayer.pause(); vidPlayer.removeAttribute('src'); vidPlayer.load(); vidPlayer.style.display = 'none';
+        vidFrame.src = 'about:blank'; vidFrame.style.display = 'none'; vidFrame.removeAttribute('data-video-preview');
+        previewAspect = null; vidPlayer.playerAspect = null; applyVideoAspect();
         setVideoStatus('loading', 'กำลังโหลดทั้งไฟล์แทนการสตรีม (ใช้เน็ตตามขนาดไฟล์)…');
+        renderVideoBlobProgress(0, 0);
         const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
-        fetch(url, { headers: headers })
-          .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.blob(); })
+        return fetch(url, { headers: headers, signal: transfer.controller.signal })
+          .then(function (res) {
+            if (!active()) { transfer.controller.abort(); const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; }
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return readVideoBlobResponse(res, transfer.controller.signal, function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); });
+          })
           .then(function (blob) {
-            if (id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            if (!active()) return;
+            const nextUrl = URL.createObjectURL(blob);
+            videoBlobTransfer = null;
+            if (cancel) cancel.hidden = true;
+            if (btn) btn.disabled = false;
             revokeCurrentVideo();
-            currentVideoUrl = URL.createObjectURL(blob);
+            currentVideoUrl = nextUrl;
             vidPlayer.removeAttribute('crossorigin');
-            tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ'); }, 120000);
+            vidPlayer.style.display = 'block';
+            tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ' + describeCodecSupport(deviceCodecSupport()) + prior); if (onGiveUp) onGiveUp(); }, 120000);
             setVideoStatus('loading', 'กำลังโหลดทั้งไฟล์แทนการสตรีม (ใช้เน็ตตามขนาดไฟล์)…');
           })
           .catch(function (err) {
-            if (id === vidCurrentId && videoModal.classList.contains('show')) setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')');
+            if (!active()) return;
+            videoBlobTransfer = null;
+            if (cancel) cancel.hidden = true;
+            if (err && err.name === 'AbortError') { if (btn) btn.disabled = false; return; }
+            setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')' + prior);
             if (btn) btn.disabled = false;
+            if (onGiveUp) onGiveUp();
           });
       }
 
       function tryVideoSrc(url, onFail, timeoutMs = 12000) {
+        cancelVideoBlobTransfer();
         cancelVideoAttempt();
+        vidPlayer.playerAspect = null;
+        applyVideoAspect();
         const session = mediaSession;
         const attempt = videoAttempt;
 
         if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
 
         let done = false;
+        vidPlayer.onloadedmetadata = function () {
+          if (done || session !== mediaSession || attempt !== videoAttempt) return;
+          applyNativeVideoAspect();
+        };
 
         const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('timeout'); } }, timeoutMs);
 
@@ -4865,6 +5010,7 @@
 
           if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
+          applyNativeVideoAspect();
           done = true;
 
           cancelVideoAttempt();
@@ -5253,6 +5399,7 @@
 
       function fallbackIframe(id) {
         if (!videoModal.classList.contains("show") || vidCurrentId !== id) return;
+        cancelVideoBlobTransfer();
         cancelVideoAttempt();
 
         vidPlayer.oncanplay = null;

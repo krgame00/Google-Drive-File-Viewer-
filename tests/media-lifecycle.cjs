@@ -1,12 +1,33 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
-function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,videoStatus:'closed',setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetMediaPlayback','streamBlocked','rememberStreamBlocked','clearStreamBlocked'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
+function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={AbortController,Blob,videoBlobTransfer:null,document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,videoStatus:'closed',setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,fitVideoPreview:()=>{},mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['formatSize','readVideoBlobResponse','renderVideoBlobProgress','cancelVideoBlobTransfer','getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation','applyVideoAspect','applyNativeVideoAspect','classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetMediaPlayback','streamBlocked','rememberStreamBlocked','clearStreamBlocked','deviceCodecSupport','describeCodecSupport'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
 let failures=0,pending=[];function test(name,run){try{const r=run();if(r&&r.then){pending.push(r.then(()=>console.log('PASS',name)).catch(e=>{failures++;console.error('FAIL',name,e.message)}))}else console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}
 test('closing restores page scrolling',()=>{let {ctx}=setup();ctx.closeVideo();assert.equal(ctx.document.body.style.overflow,'')});
 test('closed player cannot trigger delayed fallback',()=>{let {ctx,timers}=setup(),fallbacks=0;ctx.tryVideoSrc('old',()=>fallbacks++);ctx.closeVideo();for(const cb of [...timers.values()])cb();assert.equal(fallbacks,0)});
 test('new source cancels previous source fallback',()=>{let {ctx,timers}=setup(),oldFallbacks=0;ctx.tryVideoSrc('old',()=>oldFallbacks++);ctx.tryVideoSrc('new',()=>{});for(const cb of [...timers.values()])cb();assert.equal(oldFallbacks,0)});
 test('queued event from previous source cannot start playback',()=>{let {ctx}=setup(),plays=0;ctx.vidPlayer.play=()=>{plays++;return Promise.resolve()};ctx.tryVideoSrc('old',()=>{});const oldReady=ctx.vidPlayer.oncanplay;ctx.tryVideoSrc('new',()=>{});oldReady();assert.equal(plays,0)});
+test('native metadata changes aspect and stale metadata cannot change the next source',()=>{
+  const {ctx}=setup();ctx.videoModal.classList.contains=()=>true;
+  ctx.vidFrame.parentElement={style:{}};ctx.vidPlayer.style.display='block';
+  ctx.tryVideoSrc('old',()=>{});const oldMetadata=ctx.vidPlayer.onloadedmetadata;
+  ctx.tryVideoSrc('new',()=>{});ctx.vidPlayer.videoWidth=1080;ctx.vidPlayer.videoHeight=1920;
+  oldMetadata();assert.equal(ctx.vidFrame.parentElement.style.aspectRatio,'');
+  ctx.vidPlayer.onloadedmetadata();assert.equal(ctx.vidFrame.parentElement.style.aspectRatio,'0.5625');
+  ctx.closeVideo();assert.equal(ctx.vidPlayer.playerAspect,null);assert.equal(ctx.vidPlayer.onloadedmetadata,null);
+});
+test('canplay sizes native video even if loadedmetadata was missed',()=>{
+  const {ctx}=setup();ctx.videoModal.classList.contains=()=>true;ctx.vidFrame.parentElement={style:{}};ctx.vidPlayer.style.display='block';
+  ctx.tryVideoSrc('new',()=>{});ctx.vidPlayer.videoWidth=1920;ctx.vidPlayer.videoHeight=1080;
+  ctx.vidPlayer.oncanplay();assert.equal(Number(ctx.vidFrame.parentElement.style.aspectRatio),16/9);
+});
+test('resetting media releases an owned orientation lock while keeping fullscreen open',()=>{
+  const {ctx}=setup();const box={playerOrientationLocked:true};let unlocks=0;
+  ctx.videoModal.querySelector=()=>box;ctx.document.fullscreenElement=box;
+  ctx.window={screen:{orientation:{unlock:()=>unlocks++}}};ctx.vidPlayer.playerAspect=16/9;
+  ctx.resetMediaPlayback();assert.equal(unlocks,1);assert.equal(box.playerOrientationLocked,false);
+  assert.equal(ctx.document.fullscreenElement,box);assert.equal(ctx.vidPlayer.playerAspect,null);
+});
 test('save position before clearing media source',()=>{const {ctx}=setup();let saved=false;ctx.saveVideoPos=()=>{saved=true};ctx.vidPlayer.removeAttribute=()=>assert.equal(saved,true);ctx.resetMediaPlayback();assert.equal(saved,true)});
 test('Drive fallback unloads native player before showing iframe',()=>{
   const {ctx}=setup();const steps=[];
@@ -47,8 +68,9 @@ test('authenticated startup timeout is configurable and reports timeout once',()
 test('stream failure unloads playback and preserves specific Google error',()=>{
   for(const hidden of [true,false]) {
     const {ctx}=setup();const steps=[];
-    const status={hidden,textContent:'Google quota error'};
-    ctx.document.getElementById=()=>status;
+    const status={hidden,textContent:'Google quota error',setAttribute(){}};
+    const getElement=ctx.document.getElementById;
+    ctx.document.getElementById=id=>id==='vidErrorStatus'?status:getElement(id);
     ctx.vidPlayer.pause=()=>steps.push('pause');
     ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
     ctx.vidPlayer.load=()=>steps.push('load');
@@ -184,6 +206,20 @@ test('blob fallback button exists in the video help actions',()=>{
   assert(html.includes('id="vidBlob"'),'vidBlob button present');
   assert(html.includes("getElementById('vidBlob').addEventListener"),'vidBlob is wired');
 });
+test('closing cancels a whole-file download and ignores its late completion',async()=>{
+  const {ctx,els}=setup();let finish,plays=0;ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;
+  ctx.authParams=()=>({mode:'bearer'});ctx.fetch=()=>new Promise(resolve=>finish=resolve);
+  ctx.URL={createObjectURL(){plays++;return 'blob:late'},revokeObjectURL(){}};
+  vm.runInContext(fn('loadVideoAsBlob'),ctx);const load=ctx.loadVideoAsBlob('fileA');
+  const transfer=ctx.videoBlobTransfer;ctx.closeVideo();assert.equal(transfer.controller.signal.aborted,true);
+  finish({ok:true,blob:async()=>new Blob(['video'])});await load;assert.equal(plays,0);assert.equal(els.vidCancelBlob.hidden,true);
+});
+test('compact mobile details retain the full title and preview note without hiding real errors',()=>{
+  const {ctx,els}=setup();ctx.document.getElementById('vidTitle').textContent='ชื่อวิดีโอยาว.mp4';
+  ctx.setVideoStatus('preview','ข้อมูลบัญชี Google');assert.equal(els.vidFullTitle.textContent,'ชื่อวิดีโอยาว.mp4');
+  assert.equal(els.vidPreviewNote.hidden,false);assert.equal(els.vidPreviewNote.textContent,'ข้อมูลบัญชี Google');
+  ctx.setVideoStatus('error','โหลดไม่ได้');assert.equal(els.vidErrorStatus.hidden,false);assert.equal(els.vidPreviewNote.hidden,true);
+});
 
 test('preview frame matches the video aspect ratio from Drive metadata',async()=>{
   const {ctx,els}=setup();
@@ -297,6 +333,19 @@ test('a works verdict requires real MP4 bytes in the probe answer',async()=>{
   assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'invalid','an HTML answer must not count as works');
   ctx.fetch=async()=>({status:206});
   assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'unknown','HTTP-only success cannot confirm media bytes');
+});
+test('blob failure message carries the earlier fallback notes',async()=>{
+  const {ctx,els}=setup();
+  ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;ctx.accessToken='t';
+  ctx.authParams=()=>({mode:'bearer'});
+  ctx.fetch=async()=>({ok:true,blob:async()=>'BLOB'});
+  ctx.URL={createObjectURL:()=>'blob:loaded',revokeObjectURL(){}};
+  vm.runInContext(fn('loadVideoAsBlob'),ctx);
+  await ctx.loadVideoAsBlob('fileA',null,['ลิงก์ตรง: M4/N3/R0','API key: M4/N3/R0']);
+  await new Promise(r=>setTimeout(r,20));
+  ctx.vidPlayer.onerror();
+  assert.match(els.vidErrorStatus.textContent,/โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้/);
+  assert.match(els.vidErrorStatus.textContent,/การลองสำรองก่อนหน้า: ลิงก์ตรง: M4\/N3\/R0 · API key: M4\/N3\/R0/);
 });
 test('codec support summary formats a compact capability line',()=>{
   const {ctx}=setup();

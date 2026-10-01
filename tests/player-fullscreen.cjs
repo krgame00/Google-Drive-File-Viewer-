@@ -59,22 +59,22 @@ test('horizontal preview keeps controls larger on phones while portrait fitting 
 });
 test('leaving fullscreen while the orientation request is pending releases the lock',async()=>{
   let resolveLock,unlocks=0;const box={};
-  const ctx={previewAspect:{value:16/9},vidPlayer:{},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation:{lock:()=>new Promise(resolve=>resolveLock=resolve),unlock:()=>unlocks++}}},document:{fullscreenElement:box}};
-  vm.createContext(ctx);vm.runInContext(fn('lockHorizontalPlayerOrientation'),ctx);
+  const ctx={previewAspect:{value:16/9},vidPlayer:{},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation:{lock:()=>new Promise(resolve=>resolveLock=resolve),unlock:()=>unlocks++}}},videoModal:{querySelector:()=>box},document:{fullscreenElement:box}};
+  vm.createContext(ctx);for(const name of ['getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation'])vm.runInContext(fn(name),ctx);
   const pending=ctx.lockHorizontalPlayerOrientation(box);ctx.document.fullscreenElement=null;resolveLock();await pending;
   assert.equal(unlocks,1);assert.equal(box.playerOrientationLocked,undefined);
 });
 test('horizontal fullscreen requests landscape, portrait fullscreen leaves orientation unchanged',async()=>{
   for(const aspect of [16/9,9/16]){
     const calls=[],box={};const orientation={lock:async value=>calls.push(value),unlock:()=>calls.push('unlock')};
-    const ctx={previewAspect:{value:aspect},vidPlayer:{videoWidth:0,videoHeight:0},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation}},document:{fullscreenElement:box}};
-    vm.createContext(ctx);vm.runInContext(fn('lockHorizontalPlayerOrientation'),ctx);
+    const ctx={previewAspect:{value:aspect},vidPlayer:{videoWidth:0,videoHeight:0},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation}},videoModal:{querySelector:()=>box},document:{fullscreenElement:box}};
+    vm.createContext(ctx);for(const name of ['getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation'])vm.runInContext(fn(name),ctx);
     await ctx.lockHorizontalPlayerOrientation(box);
     assert.deepEqual(calls,aspect>1?['landscape']:[]);
   }
 });
 test('unsupported orientation lock does not fail fullscreen playback',async()=>{
-  const box={};const ctx={previewAspect:{value:16/9},vidPlayer:{},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation:{lock:async()=>{throw new Error('unsupported')}}}},document:{fullscreenElement:box}};
-  vm.createContext(ctx);vm.runInContext(fn('lockHorizontalPlayerOrientation'),ctx);
+  const box={};const ctx={previewAspect:{value:16/9},vidPlayer:{},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation:{lock:async()=>{throw new Error('unsupported')}}}},videoModal:{querySelector:()=>box},document:{fullscreenElement:box}};
+  vm.createContext(ctx);for(const name of ['getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation'])vm.runInContext(fn(name),ctx);
   await ctx.lockHorizontalPlayerOrientation(box);assert.equal(box.playerOrientationLocked,undefined);
 });
