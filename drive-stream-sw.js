@@ -17,23 +17,32 @@ function failure(status) {
 
 function requestToken(clients, id) {
   return new Promise(resolve => {
-    let settled = false;
+    let settled = false, pending = clients.length;
+    const ports = [];
     const finish = token => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(typeof token === 'string' ? token : null);
+      for (const port of ports) port.close();
+      resolve(typeof token === 'string' && token.length ? token : null);
     };
     const timer = setTimeout(() => finish(null), 3000);
-    // Each client gets its own MessageChannel port; the page answering for the
-    // file that is currently playing supplies the first valid token.
-    let sent = 0;
+    // A non-playing tab answers null; wait for the playing tab's valid token.
     for (const client of clients) {
       const channel = new MessageChannel();
-      channel.port1.onmessage = event => finish(event.data && event.data.token);
-      try { client.postMessage({type: 'drive-stream-token', id}, [channel.port2]); sent++; } catch (_) {}
+      ports.push(channel.port1);
+      let answered = false;
+      const reply = token => {
+        if (answered || settled) return;
+        answered = true;
+        if (typeof token === 'string' && token.length) finish(token);
+        else if (--pending === 0) finish(null);
+      };
+      channel.port1.onmessage = event => reply(event.data && event.data.token);
+      try { client.postMessage({type: 'drive-stream-token', id}, [channel.port2]); }
+      catch (_) { channel.port2.close(); reply(null); }
     }
-    if (!sent) { settled = true; clearTimeout(timer); resolve(null); }
+    if (!clients.length) finish(null);
   });
 }
 

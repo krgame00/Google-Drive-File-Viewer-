@@ -286,6 +286,18 @@ test('successful HTTP headers do not disable other files after playback failure'
   vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
   assert.equal(ctx.shouldRememberStreamBlock('works'),false,'HTTP success does not prove the cause of playback failure');
 });
+test('a works verdict requires real MP4 bytes in the probe answer',async()=>{
+  const {ctx}=setup();
+  ctx.location={href:'https://x.test/app/'};
+  vm.runInContext(fn('streamBlockVerdict'),ctx);
+  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  ctx.fetch=async()=>({status:206,body:new ReadableStream({start(c){c.enqueue(new Uint8Array([0,0,0,32,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d]));c.close()}})});
+  assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'works','a real MP4 signature counts as works');
+  ctx.fetch=async()=>({status:206,body:new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('<html>download warning</html>'));c.close()}})});
+  assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'invalid','an HTML answer must not count as works');
+  ctx.fetch=async()=>({status:206});
+  assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'unknown','HTTP-only success cannot confirm media bytes');
+});
 test('codec support summary formats a compact capability line',()=>{
   const {ctx}=setup();
   vm.runInContext(fn('describeCodecSupport'),ctx);

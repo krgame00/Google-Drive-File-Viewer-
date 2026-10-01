@@ -4481,18 +4481,45 @@
         return ' เบราว์เซอร์ระบุว่ารองรับ: ' + support.map(function (s) { return s.label + (s.ok ? ' ✓' : ' ✗'); }).join(' ');
       }
       function probeStreamEndpoint(id, attempt) {
-        // ยิงคำขอจิ๋ว (1 ไบต์) จากหน้าเว็บผ่าน SW เพื่อชี้ว่าสตรีมล้มเพราะอะไร
+        // Inspect a bounded prefix; a container signature does not prove decoding.
         return new Promise(function (resolve) {
-          let settled = false, timer = null;
-          const done = function (verdict) { if (!settled) { settled = true; if (timer !== null) clearTimeout(timer); resolve(verdict); } };
+          let settled = false, timer = null, reader = null;
+          const controller = typeof AbortController === 'function' ? new AbortController() : null;
+          const done = function (verdict) {
+            if (settled) return;
+            settled = true;
+            if (timer !== null) clearTimeout(timer);
+            if (reader) { const active = reader; reader = null; Promise.resolve(active.cancel()).catch(function () {}).then(function () { if (active.releaseLock) active.releaseLock(); }); }
+            if (controller) controller.abort();
+            resolve(verdict);
+          };
           timer = setTimeout(function () { done('browser'); }, 8000);
           try {
             const url = new URL('__drive_stream', location.href);
             url.searchParams.set('id', id);
             url.searchParams.set('attempt', String(attempt));
-            fetch(url.href, { headers: { Range: 'bytes=0-1' } })
-              .then(function (res) { done(streamBlockVerdict(res.status)); })
-              .catch(function () { done('browser'); });
+            fetch(url.href, { headers: { Range: 'bytes=0-63' }, signal: controller ? controller.signal : undefined })
+              .then(async function (res) {
+                if (settled) { if (res.body) await res.body.cancel(); return; }
+                const verdict = streamBlockVerdict(res.status);
+                if (verdict !== 'works') { if (res.body) await res.body.cancel(); done(verdict); return; }
+                if (!res.body || typeof res.body.getReader !== 'function') { done('unknown'); return; }
+                reader = res.body.getReader();
+                const bytes = new Uint8Array(12);
+                let length = 0;
+                while (!settled && length < bytes.length) {
+                  const chunk = await reader.read();
+                  if (settled) return;
+                  if (chunk.done) break;
+                  const part = chunk.value.subarray(0, bytes.length - length);
+                  bytes.set(part, length); length += part.length;
+                }
+                const mp4 = length >= 12 && bytes[4] === 102 && bytes[5] === 116 && bytes[6] === 121 && bytes[7] === 112;
+                const webm = length >= 4 && bytes[0] === 26 && bytes[1] === 69 && bytes[2] === 223 && bytes[3] === 163;
+                const text = Array.from(bytes.subarray(0, length)).map(function (x) { return String.fromCharCode(x); }).join('').trim();
+                done(mp4 || webm ? 'works' : /^[<{\[]/.test(text) ? 'invalid' : 'unknown');
+              })
+              .catch(function () { done(reader ? 'unknown' : 'browser'); });
           } catch (_) { done('browser'); }
         });
       }
@@ -4674,12 +4701,54 @@
                   setVideoStatus('error', verdict === 'auth'
                     ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
                     : verdict === 'works'
-                      ? 'เข้าถึงสตรีมทดสอบได้ แต่เครื่องเล่นและแหล่งสำรองยังเล่นไฟล์นี้ไม่ได้ — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
-                      : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
+                      ? 'ตรวจพบข้อมูลวิดีโอต้นฉบับ แต่เครื่องเล่นยังเล่นไม่ได้ ยังไม่ยืนยันว่าสาเหตุมาจากรูปแบบไฟล์หรือการรับส่งข้อมูล — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
+                      : verdict === 'invalid'
+                        ? 'แหล่งสตรีมส่งหน้าเว็บหรือข้อความแทนวิดีโอ — ลองใหม่หรือเปิดใน Drive'
+                        : verdict === 'unknown'
+                          ? 'ยังตรวจสอบข้อมูลวิดีโอไม่สำเร็จ ไม่สามารถยืนยันรูปแบบไฟล์ได้ — ลองใหม่หรือเปิดใน Drive'
+                          : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
                 });
               }, true);
             }
           }, 60000);
+        });
+      }
+
+      function probePublicStreamError(id) {
+        if (!apiKey) return Promise.resolve(null);
+        return new Promise(function (resolve) {
+          const controller = new AbortController();
+          let settled = false, reader = null;
+          const done = function (message) {
+            if (settled) return;
+            settled = true; clearTimeout(timer);
+            if (reader) { const active = reader; reader = null; Promise.resolve(active.cancel()).catch(function () {}); }
+            controller.abort(); resolve(message);
+          };
+          const timer = setTimeout(function () { done(null); }, 8000);
+          const url = new URL('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id));
+          url.searchParams.set('alt', 'media'); url.searchParams.set('key', apiKey);
+          fetch(url.href, { headers: { Range: 'bytes=0-1' }, signal: controller.signal })
+            .then(async function (res) {
+              if (settled || res.ok || !/application\/json/i.test(res.headers.get('Content-Type') || '')) {
+                if (res.body) await res.body.cancel(); done(null); return;
+              }
+              reader = res.body.getReader();
+              const bytes = new Uint8Array(8192); let length = 0;
+              while (!settled && length < bytes.length) {
+                const chunk = await reader.read();
+                if (settled) return;
+                if (chunk.done) break;
+                const part = chunk.value.subarray(0, bytes.length - length);
+                bytes.set(part, length); length += part.length;
+              }
+              const text = Array.from(bytes.subarray(0, length)).map(function (x) { return String.fromCharCode(x); }).join('');
+              let reason = '';
+              try { const data = JSON.parse(text); reason = data.error && data.error.errors && data.error.errors[0] && data.error.errors[0].reason || ''; } catch (_) {}
+              done(reason === 'downloadQuotaExceeded'
+                ? 'Google จำกัดการดาวน์โหลดไฟล์นี้ (downloadQuotaExceeded) จึงเริ่มสตรีมไม่ได้ในขณะนี้ — ลองใหม่ภายหลัง'
+                : null);
+            }).catch(function () { done(null); });
         });
       }
 
@@ -4689,7 +4758,14 @@
         vidPlayer.removeAttribute('crossorigin');
         vidPlayer.style.display = "block";
         // Public proxy only; no account credentials are sent to Cloudflare.
-        const fail = onFail || function () { showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google'); };
+        const fail = onFail || function () {
+          showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google');
+          const session = mediaSession, attempt = videoAttempt;
+          probePublicStreamError(id).then(function (message) {
+            if (!message || session !== mediaSession || attempt !== videoAttempt || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            setVideoStatus('error', message);
+          });
+        };
         function tryGoogleSources() {
           // 2. ถ้า Worker มีปัญหา ให้ fallback ไปลิงก์ตรง drive.usercontent
           const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
