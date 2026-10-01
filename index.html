@@ -4523,8 +4523,11 @@
           } catch (_) { done('browser'); }
         });
       }
-      function calculatePreviewLayout(width, height) {
-        const frameWidth = Math.max(800, width);
+      function calculatePreviewLayout(width, height, aspect) {
+        // Landscape clips need a smaller virtual viewport so phone controls remain usable.
+        // Keep the existing tall viewport for portrait clips.
+        const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
+        const frameWidth = Math.max(horizontal ? 480 : 800, width);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
       }
@@ -4532,7 +4535,7 @@
         if (vidFrame.getAttribute('data-video-preview') !== 'true') return;
         const bounds = vidFrame.parentElement.getBoundingClientRect();
         if (bounds.width <= 0 || bounds.height <= 0) return;
-        const layout = calculatePreviewLayout(bounds.width, bounds.height);
+        const layout = calculatePreviewLayout(bounds.width, bounds.height, previewAspect && previewAspect.value);
         vidFrame.style.setProperty('--preview-width', layout.width + 'px');
         vidFrame.style.setProperty('--preview-height', layout.height + 'px');
         vidFrame.style.setProperty('--preview-scale', String(layout.scale));
@@ -4576,6 +4579,19 @@
         if (mobile) vidFrame.removeAttribute('allowfullscreen');
         else vidFrame.setAttribute('allowfullscreen', '');
       }
+      function lockHorizontalPlayerOrientation(box) {
+        const orientation = window.screen && window.screen.orientation;
+        const aspect = vidFrame.getAttribute('data-video-preview') === 'true'
+          ? previewAspect && previewAspect.value
+          : vidPlayer.videoWidth / vidPlayer.videoHeight;
+        if (document.fullscreenElement !== box || !(aspect > 1) || !orientation || !orientation.lock) return Promise.resolve();
+        try {
+          return Promise.resolve(orientation.lock('landscape')).then(function () {
+            if (document.fullscreenElement === box) box.playerOrientationLocked = true;
+            else if (orientation.unlock) orientation.unlock();
+          }).catch(function () {});
+        } catch (_) { return Promise.resolve(); }
+      }
       function togglePlayerFullscreen() {
         if (!videoModal.classList.contains('show')) return Promise.resolve();
         const box = videoModal.querySelector('.video-box');
@@ -4583,12 +4599,19 @@
         try {
           if (document.fullscreenElement === box) return Promise.resolve(document.exitFullscreen()).catch(failed);
           if (!box.requestFullscreen || document.fullscreenElement) { failed(); return Promise.resolve(); }
-          return Promise.resolve(box.requestFullscreen()).catch(failed);
+          return Promise.resolve(box.requestFullscreen()).then(function () {
+            return lockHorizontalPlayerOrientation(box);
+          }).catch(failed);
         } catch (_) { failed(); return Promise.resolve(); }
       }
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
       document.addEventListener('fullscreenchange', function () {
-        const active = document.fullscreenElement === videoModal.querySelector('.video-box');
+        const box = videoModal.querySelector('.video-box');
+        const active = document.fullscreenElement === box;
+        if (!active && box.playerOrientationLocked) {
+          box.playerOrientationLocked = false;
+          try { if (window.screen && window.screen.orientation && window.screen.orientation.unlock) window.screen.orientation.unlock(); } catch (_) {}
+        }
         const button = document.getElementById('vidFullscreen');
         button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
         button.setAttribute('aria-pressed', String(active));
