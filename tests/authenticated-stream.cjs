@@ -15,7 +15,7 @@ function setup({token='test-token',status=206,type='video/mp4',client=true,fetch
     events.fetch({clientId,request:new Request('https://example.com/app/'+path,{method,headers:{Range:range}}),respondWith(p){result=p}});
     return result;
   };
-  return {request,calls,errors};
+  return {request,calls,errors,ctx};
 }
 test('streams ranges with bearer header, without token in URL or cache',async()=>{
   const {request,calls}=setup();const res=await request();
@@ -36,6 +36,13 @@ test('account seeking keeps the requested offset and cancels wrong intervals',as
  const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=12345678-');assert.equal(res.status,206);assert.equal(calls[0].options.headers.get('Range'),'bytes=12345678-20734285');
  for(const options of [{status:200},{contentRange:'bytes 5-8/100'}]){
   const bad=setup(options);assert.equal((await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-')).status,502);assert.equal(bad.errors[0].reason,'streamRangeUnsupported');
+ }
+});
+test('account open ranges retry download quota with smaller intervals but never retry permission errors',async()=>{
+ for(const reason of ['downloadQuotaExceeded','insufficientFilePermissions']){
+  const {request,ctx}=setup();const ranges=[];ctx.fetch=async(url,opts)=>{ranges.push(opts.headers.get('Range'));return ranges.length<3?new Response(JSON.stringify({error:{errors:[{reason}]}}),{status:403,headers:{'Content-Type':'application/json'}}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100'}})};
+  const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');assert.equal(res.status,reason==='downloadQuotaExceeded'?206:403);
+  assert.deepEqual(ranges,reason==='downloadQuotaExceeded'?['bytes=0-8388607','bytes=0-2097151','bytes=0-1048575']:['bytes=0-8388607']);
  }
 });
 test('missing login or client never fetches a private file',async()=>{

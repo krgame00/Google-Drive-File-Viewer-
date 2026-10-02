@@ -26,3 +26,5 @@ not yet been deployed to Cloudflare. It cannot remove Google's
 download or playback limits. No account credentials are sent to this Worker.
 
 The 2026-10-02 revision caps single open-ended media requests at 8 MiB, while preserving explicit/suffix intervals and actual Content-Range. It refuses full-file or mismatched responses to those capped requests. This addresses the observed difference between a quota-rejected `bytes=0-` and successful bounded intervals for the reference clip; it does not disable Google quotas. See [the range investigation](test-report-2026-10-02-stream-ranges.md) for evidence and validation limits.
+
+The adaptive-range revision retries only an open-ended interval rejected with a confirmed download quota response: 8 MiB, then 2 MiB, then 1 MiB, at the same byte offset. At most two size retries are allowed; explicit and suffix ranges, permission errors, and aborted requests do not enter this retry path. Persistent quota still returns an error. This revision needs a separate Cloudflare deployment.

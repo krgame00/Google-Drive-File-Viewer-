@@ -32,4 +32,12 @@ HTTP permits a self-descriptive 206 response to satisfy a subset of the requeste
 - The signed-in service worker is covered with mocks; this run had no connected phone or live OAuth session.
 - The real reference clip was sampled, not decoded in a live browser; this does not confirm its codec compatibility or sustained throughput.
 - Google quotas remain applicable. No parallel whole-file download or media/token cache was introduced.
-- The revised Cloudflare source has not been deployed. GitHub Pages changes and Cloudflare deployment are separate. Phone Chrome/Brave playback and seeking remain the final acceptance check after deployment.
+- The user deployed the revised Cloudflare source separately from GitHub Pages. Phone Chrome/Brave playback and seeking remain the final acceptance check.
+
+## Adaptive follow-up
+
+After deployment of the fixed 8 MiB version, a new bounded test at the same middle offset returned 206 for 8 MiB, 403 downloadQuotaExceeded for 2 MiB, and 206 for 1 MiB and 64 KiB. These time-dependent results do not prove smaller intervals always succeed or increase bandwidth. The revised sources now allow only two reductions (8 → 2 → 1 MiB) for confirmed download-quota failures of open-ended requests, preserving the offset and real Content-Range. Requests that still fail stop with an error.
+
+A separate player lifecycle regression was fixed: canplay no longer leaves later playback errors without a handler. Runtime failures capture the current position before source teardown, retain specific upstream errors, and cannot act on a newer attempt or a closed modal. Retry and backup sources use the captured resume position. Google iframe playback positions remain inaccessible.
+
+Validation: 84 Node test entries passed, including retry limits, unchanged explicit/suffix intervals, permission errors, cancellation, runtime resume, and stale handlers. After the user deployed the adaptive revision, live open-ended requests at the start and middle of the reference clip returned 206 video/mp4 with valid 2 MiB Content-Range intervals. Only 4 KiB samples were read before cancellation; a 64-byte metadata request also returned 206. This confirms partial responses, not sustained playback or a bandwidth improvement. The revision has not been tested on a connected phone.

@@ -10,11 +10,11 @@ const cors = {
 const jsonError = (status, reason) => new Response(JSON.stringify({error: reason}), {
   status, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'},
 });
-export function boundedMediaRange(range) {
+export function boundedMediaRange(range, chunkBytes = 8388608) {
   const open = range && range.match(/^bytes=(\d{1,20})-$/i);
   if (!open) return range;
   const start = BigInt(open[1]);
-  return 'bytes=' + start + '-' + (start + 8388607n); // Up to 8 MiB per open-ended media request.
+  return 'bytes=' + start + '-' + (start + BigInt(chunkBytes) - 1n);
 }
 const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w-]+)\s*=\s*["']([^"']*)["']/g)]
   .map(m => [m[1].toLowerCase(), m[2].replace(/&amp;/g, '&')]));
@@ -53,7 +53,7 @@ export function createDriveWorker(fetchImpl = fetch) {
     const id = new URL(request.url).searchParams.get('id');
     if (!id || !/^[\w-]{1,200}$/.test(id)) return jsonError(400, 'invalidFileId');
     const headers = new Headers(), range = request.headers.get('Range');
-    const boundedRange = boundedMediaRange(range);
+    let boundedRange = boundedMediaRange(range), rangeRetries = 0;
     if (boundedRange) headers.set('Range', boundedRange);
     const abort = new AbortController();
     const cancel = () => abort.abort();
@@ -70,7 +70,17 @@ export function createDriveWorker(fetchImpl = fetch) {
         const type = res.headers.get('Content-Type') || '';
         if (!res.ok || /text\/html/i.test(type)) {
           const warning = await readWarning(res.body);
-          if (/downloadQuotaExceeded|too many users|quota exceeded/i.test(warning)) return jsonError(403, 'downloadQuotaExceeded');
+          if (/downloadQuotaExceeded|too many users|quota exceeded/i.test(warning)) {
+            if (boundedRange !== range && rangeRetries < 2 && !abort.signal.aborted) {
+              boundedRange = boundedMediaRange(range, rangeRetries++ === 0 ? 2097152 : 1048576);
+              headers.set('Range', boundedRange);
+              // Each smaller interval gets its own bounded confirmation sequence.
+              seen.clear(); step = -1;
+              url = 'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t';
+              continue;
+            }
+            return jsonError(403, 'downloadQuotaExceeded');
+          }
           if (!res.ok) return jsonError(res.status, 'upstreamRejected');
           const next = confirmationUrl(warning, id);
           if (!next) return jsonError(502, 'upstreamReturnedHtml');

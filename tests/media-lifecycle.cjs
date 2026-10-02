@@ -422,4 +422,18 @@ test('a confirmed worker quota error advances immediately without waiting for ti
  assert.equal(failures,1);assert.equal(ctx.videoAttemptTimer,null);
 });
 
+test('failure after playback saves the exact resume position before trying another source',()=>{
+ const {ctx}=setup();ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;ctx.vidPlayer.style.display='block';let fallback=0,saved=0;
+ ctx.saveVideoPos=()=>saved++;ctx.tryVideoSrc('first',()=>fallback++);ctx.vidPlayer.oncanplay();ctx.vidPlayer.currentTime=42.75;ctx.vidPlayer.error={code:2};
+ assert.equal(typeof ctx.vidPlayer.onerror,'function','errors must remain handled after startup');ctx.vidPlayer.onerror();
+ assert.equal(fallback,1);assert.equal(saved,1);assert.equal(ctx.videoResumePos,42.75);
+ ctx.tryVideoSrc('backup',()=>{});ctx.vidPlayer.currentTime=0;ctx.vidPlayer.oncanplay();assert.equal(ctx.vidPlayer.currentTime,42.75);
+});
+test('a stale playback failure cannot change the next video or reopen a closed modal',()=>{
+ const {ctx}=setup();ctx.videoModal.classList.contains=()=>true;ctx.vidPlayer.style.display='block';let fallback=0;
+ ctx.tryVideoSrc('first',()=>fallback++);ctx.vidPlayer.oncanplay();const oldError=ctx.vidPlayer.onerror;
+ ctx.tryVideoSrc('second',()=>{});if(oldError)oldError();assert.equal(fallback,0);
+ ctx.vidPlayer.oncanplay();const latest=ctx.vidPlayer.onerror;ctx.closeVideo();if(latest)latest();assert.equal(fallback,0);
+});
+
 Promise.all(pending).then(function(){process.exitCode=failures?1:0;});

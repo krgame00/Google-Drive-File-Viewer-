@@ -20,7 +20,23 @@ test('open-ended start and seek requests are bounded while explicit and suffix r
 test('chunking never changes quota errors into video or advertises a fake full response',async()=>{
  const {createDriveWorker}=await worker;let actual;
  const res=await createDriveWorker(async(url,opts)=>{actual=opts.headers.get('Range');return new Response('downloadQuotaExceeded',{status:403,headers:{'Content-Type':'text/plain'}})}).fetch(request());
- assert.equal(actual,'bytes=0-8388607');assert.equal(res.status,403);assert.equal(res.headers.get('Content-Range'),null);assert.match(res.headers.get('Content-Type'),/json/);
+ assert.equal(actual,'bytes=0-1048575');assert.equal(res.status,403);assert.equal(res.headers.get('Content-Range'),null);assert.match(res.headers.get('Content-Type'),/json/);
+});
+test('quota on open ranges tries 8, 2 and 1 MiB at the same offset and stops after success',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[];
+ const app=createDriveWorker(async(url,opts)=>{ranges.push(opts.headers.get('Range'));return ranges.length<3?new Response('downloadQuotaExceeded',{status:403}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 100-103/99999999'}})});
+ const res=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=100-'}}));assert.equal(res.status,206);assert.deepEqual(ranges,['bytes=100-8388707','bytes=100-2097251','bytes=100-1048675']);
+});
+test('persistent quota stops at three requests and explicit intervals never trigger size retries',async()=>{
+ const {createDriveWorker}=await worker;
+ for(const [range,count] of [['bytes=0-',3],['bytes=0-63',1],['bytes=-64',1]]){let calls=0;
+  const res=await createDriveWorker(async()=>{calls++;return new Response('downloadQuotaExceeded',{status:403})}).fetch(new Request('https://worker.test/?id=file1',{headers:{Range:range}}));assert.equal(res.status,403);assert.equal(calls,count);
+ }
+});
+test('cancellation prevents a smaller-range retry after a quota response',async()=>{
+ const {createDriveWorker}=await worker;const controller=new AbortController();let calls=0;
+ const res=await createDriveWorker(async()=>{calls++;controller.abort();return new Response('downloadQuotaExceeded',{status:403})}).fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=0-'},signal:controller.signal}));
+ assert.equal(calls,1);assert.equal(res.status,403);
 });
 test('ignored and mismatched bounded ranges are cancelled rather than played as a full download',async()=>{
  const {createDriveWorker}=await worker;

@@ -4392,6 +4392,11 @@
         if (data.id !== vidCurrentId || !videoModal.classList.contains('show')) return false;
         const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
+        if (data.reason === 'streamRangeUnsupported') {
+          setVideoStatus('error', 'แหล่งสตรีมส่งข้อมูลไม่ตรงช่วงที่ร้องขอ จึงหยุดเล่นเพื่อป้องกันข้อมูลผิด กดลองใหม่หรือใช้พรีวิว Google');
+          if (vidPlayer.onerror) vidPlayer.onerror();
+          return true;
+        }
         if (data.reason === 'streamFetchFailed') {
           rememberStreamBlocked();
           setVideoStatus('error', 'เชื่อมต่อแหล่งสตรีมไม่ได้ [FETCH] อาจเกิดจากเครือข่ายหรือการบล็อกคำขอ หากใช้ Brave ลองปิด Shields เฉพาะเว็บนี้ชั่วคราวแล้วรีเฟรชเพื่อทดสอบ');
@@ -5048,6 +5053,7 @@
         applyVideoAspect();
         const session = mediaSession;
         const attempt = videoAttempt;
+        const playbackId = vidCurrentId;
 
         if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
         vidPlayer.playbackRoute = route ? {id: vidCurrentId, session: session, mode: accessToken ? 'signedin' : 'public', route: route, url: new URL(String(url), location.href).href} : null;
@@ -5081,6 +5087,22 @@
           done = true;
 
           cancelVideoAttempt();
+
+          // Startup succeeded; retain a separate handler for failures while watching.
+          const runningAttempt = videoAttempt;
+          vidPlayer.onerror = function () {
+            if (session !== mediaSession || runningAttempt !== videoAttempt || playbackId !== vidCurrentId || !videoModal.classList.contains('show') || vidPlayer.style.display === 'none') return;
+            const time = Number(vidPlayer.currentTime);
+            if (Number.isFinite(time) && time > 2 && !vidPlayer.ended) { videoResumePos = time; saveVideoPos(); }
+            const code = Number(vidPlayer.error && vidPlayer.error.code) || 0;
+            const diagnostic = 'M' + code + '/N' + (Number(vidPlayer.networkState) || 0) + '/R' + (Number(vidPlayer.readyState) || 0);
+            if (videoStatus !== 'error') setVideoStatus('error', code === 2
+              ? 'รับข้อมูลวิดีโอระหว่างเล่นไม่สำเร็จ กดลองใหม่เพื่อดูต่อจากตำแหน่งเดิม'
+              : code === 3 ? 'เบราว์เซอร์ถอดรหัสข้อมูลวิดีโอระหว่างเล่นไม่สำเร็จ กดลองใหม่หรือใช้พรีวิว Google'
+              : 'เครื่องเล่นหยุดระหว่างดู กดลองใหม่เพื่อดูต่อ หรือใช้พรีวิว Google');
+            cancelVideoAttempt(); failedVideoAttempt = runningAttempt;
+            onFail('media', diagnostic);
+          };
 
           setVideoStatus('playing');
 

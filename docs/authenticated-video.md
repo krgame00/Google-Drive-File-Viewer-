@@ -49,3 +49,5 @@ and asynchronous player cancellation. Run the existing tests/*.cjs as well.
 Live acceptance still requires the user's Google login on a deployed HTTPS
 site: play a permitted MP4, seek, close, switch files, and sign out; repeat on
 Brave Android. Mock tests do not establish actual device playback compatibility.
+
+The adaptive-range revision retries only an open-ended interval rejected with a confirmed download quota response: 8 MiB, then 2 MiB, then 1 MiB, at the same byte offset. At most two size retries are allowed; explicit and suffix ranges, permission errors, and aborted requests do not enter this retry path. Persistent quota still returns an error. This revision needs a separate Cloudflare deployment.

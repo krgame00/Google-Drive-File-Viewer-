@@ -15,11 +15,11 @@ function failure(status) {
   }});
 }
 
-function boundedMediaRange(range) {
+function boundedMediaRange(range, chunkBytes = 8388608) {
   const open = range && range.match(/^bytes=(\d{1,20})-$/i);
   if (!open) return range;
   const start = BigInt(open[1]);
-  return 'bytes=' + start + '-' + (start + 8388607n);
+  return 'bytes=' + start + '-' + (start + BigInt(chunkBytes) - 1n);
 }
 
 function requestToken(clients, id) {
@@ -77,21 +77,29 @@ async function streamFile(event, id, attempt) {
     }
     const headers = new Headers({Authorization: 'Bearer ' + token});
     const range = request.headers.get('Range');
-    const boundedRange = boundedMediaRange(range);
+    let boundedRange = boundedMediaRange(range);
     if (boundedRange) headers.set('Range', boundedRange);
     let upstream;
-    try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
-      method: request.method, headers, credentials: 'omit', cache: 'no-store',
-      redirect: 'error', signal: request.signal
-    }); } catch (_) {
-      if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
-      return failure(502);
-    }
-    if (!upstream.ok) {
-      let reason='';
-      try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
-      reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
-      return failure(upstream.status);
+    for (let retry = 0; retry < 3; retry++) {
+      try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+        method: request.method, headers, credentials: 'omit', cache: 'no-store',
+        redirect: 'error', signal: request.signal
+      }); } catch (_) {
+        if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
+        return failure(502);
+      }
+      if (!upstream.ok) {
+        let reason='';
+        try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
+        if (upstream.status === 403 && reason === 'downloadQuotaExceeded' && boundedRange !== range && retry < 2 && !request.signal.aborted) {
+          boundedRange = boundedMediaRange(range, retry === 0 ? 2097152 : 1048576);
+          headers.set('Range', boundedRange);
+          continue;
+        }
+        reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
+        return failure(upstream.status);
+      }
+      break;
     }
     const type = upstream.headers.get('Content-Type') || '';
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
