@@ -4986,16 +4986,30 @@
           const start = index * CHUNK;
           const end = Math.min(start + CHUNK, size) - 1;
           return fetch(url, {headers: Object.assign({}, headers, {Range: 'bytes=' + start + '-' + end}), signal: signal}).then(function (res) {
-            const actual = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
-            // ต้องได้ช่วงตรงตามที่ขอและขนาดรวมตรงข้อมูลเมตาเท่านั้น ไม่เช่นนั้นข้อมูลจะประกอบผิด
-            if (res.status === 206 && actual && Number(actual[1]) === start && Number(actual[2]) === end && Number(actual[3]) === size) {
-              if (!type) type = res.headers.get('Content-Type') || '';
-              return readVideoBlobResponse(res, signal, function (n) { loaded[index] = n; progress(); });
+            if (res.status !== 206) {
+              if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
+              const error = new Error('upstream ignored range');
+              error.permanent = true;
+              throw error;
             }
-            if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
-            const error = new Error('upstream ignored range');
-            error.permanent = true;
-            throw error;
+            const actual = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+            // คำขอ same-origin (ผ่าน service worker) อ่าน Content-Range ได้ — ตรวจช่วงและขนาดรวมเต็มรูปแบบ
+            // ส่วนคำขอข้าม origin ถูก CORS กรอง header นี้ทิ้ง จึงตรวจด้วยความยาวเนื้อหาจริงแทน (ช่วงสุดท้ายยืนยันขนาดไฟล์)
+            if (actual && (Number(actual[1]) !== start || Number(actual[2]) !== end || Number(actual[3]) !== size)) {
+              if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
+              const error = new Error('upstream sent a wrong interval');
+              error.permanent = true;
+              throw error;
+            }
+            if (!type) type = res.headers.get('Content-Type') || '';
+            return readVideoBlobResponse(res, signal, function (n) { loaded[index] = n; progress(); }).then(function (blob) {
+              if (blob.size !== end - start + 1) {
+                const error = new Error('chunk length mismatch');
+                error.permanent = true;
+                throw error;
+              }
+              return blob;
+            });
           }).catch(function (err) {
             if ((err && err.name === 'AbortError') || signal.aborted || err.permanent || attempt >= RETRIES) throw err;
             return fetchChunk(index, attempt + 1);
