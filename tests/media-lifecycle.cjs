@@ -302,7 +302,7 @@ test('failed transport probe never disables playback for the session',async()=>{
   vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
   vm.runInContext(fn('rememberStreamBlocked'),ctx);
   vm.runInContext(fn('streamBlocked'),ctx);
-  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  vm.runInContext(fn('readMp4CodecInfo'),ctx);vm.runInContext(fn('probeStreamEndpoint'),ctx);
   const verdict=await ctx.probeStreamEndpoint('fileA','probe');
   assert.equal(verdict,'browser');
   if (ctx.shouldRememberStreamBlock(verdict)) ctx.rememberStreamBlocked();
@@ -317,7 +317,7 @@ test('probe with a Google permission answer never blocks the session',async()=>{
   vm.runInContext(fn('shouldRememberStreamBlock'),ctx);
   vm.runInContext(fn('rememberStreamBlocked'),ctx);
   vm.runInContext(fn('streamBlocked'),ctx);
-  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  vm.runInContext(fn('readMp4CodecInfo'),ctx);vm.runInContext(fn('probeStreamEndpoint'),ctx);
   const verdict=await ctx.probeStreamEndpoint('fileA','probe');
   assert.equal(verdict,'auth');
   assert.equal(ctx.shouldRememberStreamBlock('auth'),false,'permission answers are per-file, not browser-wide');
@@ -333,7 +333,7 @@ test('a works verdict requires real MP4 bytes in the probe answer',async()=>{
   const {ctx}=setup();
   ctx.location={href:'https://x.test/app/'};
   vm.runInContext(fn('streamBlockVerdict'),ctx);
-  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  vm.runInContext(fn('readMp4CodecInfo'),ctx);vm.runInContext(fn('probeStreamEndpoint'),ctx);
   ctx.fetch=async()=>({status:206,body:new ReadableStream({start(c){c.enqueue(new Uint8Array([0,0,0,32,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d]));c.close()}})});
   assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'works','a real MP4 signature counts as works');
   ctx.fetch=async()=>({status:206,body:new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('<html>download warning</html>'));c.close()}})});
@@ -396,7 +396,7 @@ test('probe treats a hanging stream endpoint as a browser block',async()=>{
   ctx.location={href:'https://x.test/app/'};
   ctx.fetch=()=>new Promise(()=>{});
   vm.runInContext(fn('streamBlockVerdict'),ctx);
-  vm.runInContext(fn('probeStreamEndpoint'),ctx);
+  vm.runInContext(fn('readMp4CodecInfo'),ctx);vm.runInContext(fn('probeStreamEndpoint'),ctx);
   const p=ctx.probeStreamEndpoint('fileA','probe');
   for(const cb of [...timers.values()])cb();
   assert.equal(await p,'browser');

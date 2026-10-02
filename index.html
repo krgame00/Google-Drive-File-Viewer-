@@ -4546,8 +4546,57 @@
         if (!support || !support.length) return '';
         return ' เบราว์เซอร์ระบุว่ารองรับ: ' + support.map(function (s) { return s.label + (s.ok ? ' ✓' : ' ✗'); }).join(' ');
       }
+      function readMp4CodecInfo(bytes) {
+        // Best-effort read of the first video sample entry in a bounded MP4
+        // prefix. Returns null while the needed boxes are incomplete, else
+        // {playable, label} for the first recognized codec entry.
+        if (!bytes || bytes.length < 16) return null;
+        const u32 = off => ((bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3]) >>> 0;
+        const typeAt = off => String.fromCharCode(bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]);
+        const containers = ['moov', 'trak', 'mdia', 'minf', 'stbl'];
+        const stsdBoxes = [];
+        (function collect(start, end, depth) {
+          let off = start;
+          while (off + 8 <= end) {
+            const size = u32(off);
+            if (size < 8 || off + size > end) return;
+            const type = typeAt(off);
+            if (type === 'stsd') { stsdBoxes.push([off + 8, off + size]); }
+            else if (depth > 0 && containers.indexOf(type) !== -1) { collect(off + 8, off + size, depth - 1); }
+            off += size;
+          }
+        })(0, bytes.length, 6);
+        if (!stsdBoxes.length) return null;
+        const profiles = {66: 'Baseline', 77: 'Main', 88: 'Extended', 100: 'High', 110: 'High 10 (Hi10P)', 122: 'High 4:2:2', 244: 'High 4:4:4'};
+        let fallback = null;
+        for (const [stsdBody, stsdEnd] of stsdBoxes) {
+          if (stsdBody + 16 > stsdEnd || !u32(stsdBody + 4)) return null;
+          const entry = stsdBody + 8, entryEnd = entry + u32(entry);
+          if (entryEnd > bytes.length) return null;
+          const format = typeAt(entry);
+          if (format === 'avc1' || format === 'avc3' || format === 'encv') {
+            // 8-byte header + 6 reserved + 2 data refs + 70 visual fields = +86
+            if (entryEnd < entry + 94) return null;
+            let avcC = null;
+            let off = entry + 86;
+            while (off + 8 <= entryEnd) {
+              const size = u32(off);
+              if (size < 8 || off + size > entryEnd) break;
+              if (typeAt(off) === 'avcC') { avcC = [off + 8, off + size]; break; }
+              off += size;
+            }
+            if (!avcC || avcC[0] + 4 > avcC[1]) return null;
+            const profile = bytes[avcC[0] + 1];
+            return {playable: [66, 77, 88, 100].indexOf(profile) !== -1, label: 'H.264 โปรไฟล์ ' + (profiles[profile] || ('รหัส ' + profile))};
+          }
+          if (!fallback) fallback = {playable: true, label: format === 'hvc1' || format === 'hev1' ? 'HEVC' : format === 'vp09' ? 'VP9' : format === 'av01' ? 'AV1' : 'รูปแบบ ' + format};
+        }
+        return fallback;
+      }
       function probeStreamEndpoint(id, attempt) {
         // Inspect a bounded prefix; a container signature does not prove decoding.
+        // The read walks far enough into moov to identify the codec profile and
+        // then cancels the rest, so the probe never buffers a whole video.
         return new Promise(function (resolve) {
           let settled = false, timer = null, reader = null;
           const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -4564,25 +4613,30 @@
             const url = new URL('__drive_stream', location.href);
             url.searchParams.set('id', id);
             url.searchParams.set('attempt', String(attempt));
-            fetch(url.href, { headers: { Range: 'bytes=0-63' }, signal: controller ? controller.signal : undefined })
+            fetch(url.href, { headers: { Range: 'bytes=0-1048575' }, signal: controller ? controller.signal : undefined })
               .then(async function (res) {
                 if (settled) { if (res.body) await res.body.cancel(); return; }
                 const verdict = streamBlockVerdict(res.status);
                 if (verdict !== 'works') { if (res.body) await res.body.cancel(); done(verdict); return; }
                 if (!res.body || typeof res.body.getReader !== 'function') { done('unknown'); return; }
                 reader = res.body.getReader();
-                const bytes = new Uint8Array(12);
-                let length = 0;
-                while (!settled && length < bytes.length) {
+                const cap = 1048576;
+                let head = new Uint8Array(0), length = 0, mp4 = false;
+                while (!settled && length < cap) {
                   const chunk = await reader.read();
                   if (settled) return;
                   if (chunk.done) break;
-                  const part = chunk.value.subarray(0, bytes.length - length);
-                  bytes.set(part, length); length += part.length;
+                  const grown = new Uint8Array(length + chunk.value.byteLength);
+                  grown.set(head); grown.set(chunk.value, length);
+                  head = grown; length = head.length;
+                  if (!mp4 && length >= 12) mp4 = head[4] === 102 && head[5] === 116 && head[6] === 121 && head[7] === 112;
+                  if (mp4) {
+                    const info = readMp4CodecInfo(head);
+                    if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
+                  }
                 }
-                const mp4 = length >= 12 && bytes[4] === 102 && bytes[5] === 116 && bytes[6] === 121 && bytes[7] === 112;
-                const webm = length >= 4 && bytes[0] === 26 && bytes[1] === 69 && bytes[2] === 223 && bytes[3] === 163;
-                const text = Array.from(bytes.subarray(0, length)).map(function (x) { return String.fromCharCode(x); }).join('').trim();
+                const webm = length >= 4 && head[0] === 26 && head[1] === 69 && head[2] === 223 && head[3] === 163;
+                const text = Array.from(head.subarray(0, Math.min(length, 16))).map(function (x) { return String.fromCharCode(x); }).join('').trim();
                 done(mp4 || webm ? 'works' : /^[<{\[]/.test(text) ? 'invalid' : 'unknown');
               })
               .catch(function () { done(reader ? 'unknown' : 'browser'); });
@@ -4830,7 +4884,9 @@
                     if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
                     setVideoStatus('error', verdict === 'auth'
                       ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
-                      : verdict === 'works'
+                      : String(verdict).indexOf('codec:') === 0
+                        ? 'ไฟล์นี้ใช้การเข้ารหัส ' + String(verdict).slice(6) + ' ซึ่งเบราว์เซอร์นี้ถอดรหัสไม่ได้ — ใช้พรีวิว Google ดูคลิปนี้แทน'
+                        : verdict === 'works'
                         ? 'ตรวจพบข้อมูลวิดีโอต้นฉบับ แต่เครื่องเล่นยังเล่นไม่ได้ ยังไม่ยืนยันว่าสาเหตุมาจากรูปแบบไฟล์หรือการรับส่งข้อมูล — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
                         : verdict === 'invalid'
                           ? 'แหล่งสตรีมส่งหน้าเว็บหรือข้อความแทนวิดีโอ — ลองใหม่หรือเปิดใน Drive'
