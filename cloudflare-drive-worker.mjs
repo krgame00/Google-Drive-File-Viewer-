@@ -59,7 +59,8 @@ export function createDriveWorker(fetchImpl = fetch) {
     const cancel = () => abort.abort();
     request.signal.addEventListener('abort', cancel, {once: true});
     if (request.signal.aborted) cancel();
-    const timeout = setTimeout(cancel, 20000);
+    // 60s ต่อคำขอ: ช่วง 8 MiB ต้องการเพียง ~1.1 Mbps ต่อการเชื่อมต่อจึงจะทันบนเน็ตมือถือช้า ๆ
+    const timeout = setTimeout(cancel, 60000);
     const seen = new Set();
     let url = 'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t';
     try {

@@ -133,6 +133,25 @@ test('worker fallback failure still reports the whole-file error card',async()=>
   let giveups=0;await ctx.loadVideoAsBlob('fileA',()=>giveups++);
   assert.deepEqual(played,[]);assert.equal(giveups,1);assert.match(el('vidLoadingText').textContent,/โหลดทั้งไฟล์ไม่สำเร็จ/);
 });
+test('the worker source loads with 4 MiB chunks across six connections',async()=>{
+  const {ctx,played}=setup();ctx.fileMetaOf=()=>({size:20*1048576});const ranges=[];
+  ctx.fetch=async(url,opts)=>{if(String(url).includes('googleapis'))return {ok:false,status:403,headers:{get:()=>null},body:{cancel:async()=>{}}};const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);ranges.push(opts.headers.Range);return rangeResponse(Number(m[1]),Number(m[2]),20*1048576)};
+  await ctx.loadVideoAsBlob('fileA');
+  assert.deepEqual(played,['blob:video']);
+  assert.deepEqual(ranges.slice().sort(),['bytes=0-4194303','bytes=12582912-16777215','bytes=16777216-20971519','bytes=4194304-8388607','bytes=8388608-12582911']);
+});
+test('custom chunk options change the requested intervals',async()=>{
+  const {ctx}=setup();const size=20971520,ranges=[];
+  ctx.fetch=async(url,opts)=>{const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);ranges.push(opts.headers.Range);return rangeResponse(Number(m[1]),Number(m[2]),size)};
+  const blob=await ctx.readVideoBlobRanges('u',{},size,new AbortController().signal,()=>{},null,{chunk:4194304});
+  assert.equal(blob.size,size);assert.deepEqual(ranges.slice().sort(),['bytes=0-4194303','bytes=12582912-16777215','bytes=16777216-20971519','bytes=4194304-8388607','bytes=8388608-12582911']);
+});
+test('quota 403 on a chunk retries with backoff instead of giving up',async()=>{
+  const {ctx}=setup();const size=20*1048576+123;let quotaHits=0;
+  ctx.fetch=async(url,opts)=>{const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);if(m[1]==='8388608'&&quotaHits<2){quotaHits++;return {ok:false,status:403,headers:{get:()=>null},body:{cancel:async()=>{}}}}return rangeResponse(Number(m[1]),Number(m[2]),size)};
+  const blob=await ctx.readVideoBlobRanges('u',{},size,new AbortController().signal,()=>{});
+  assert.equal(blob.size,size);assert.equal(quotaHits,2);
+});
 test('browsers without OPFS keep assembling the video in memory',async()=>{
   const {ctx,played}=setup();const size=20*1048576+123;ctx.fileMetaOf=()=>({size});
   ctx.fetch=async(url,opts)=>{const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);return rangeResponse(Number(m[1]),Number(m[2]),size)};

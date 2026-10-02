@@ -4967,12 +4967,13 @@
           }
         })();
       }
-      function readVideoBlobRanges(url, headers, size, signal, onProgress, onChunk) {
-        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (สูงสุด 4 คำขอ × 8 MiB)
+      function readVideoBlobRanges(url, headers, size, signal, onProgress, onChunk, opts) {
+        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (ค่าเริ่ม: 4 คำขอ × 8 MiB; ปรับได้ผ่าน opts {chunk, limit, retries})
         // ไม่ส่ง onChunk: ประกอบเป็น Blob ในแรมตามลำดับเดิม  |  ส่ง onChunk(index, start, blob):
         // ส่งต่อทุกช่วงให้ผู้เรียก (เช่น เขียนลงดิสก์) แล้วคืนค่า content-type แทน Blob
         // โยน AbortError เมื่อผู้ใช้ยกเลิก ส่วนความล้มเหลวอื่นให้ผู้เรียกตกกลับไปโหลดเชื่อมต่อเดียว
-        const CHUNK = 8388608, LIMIT = 4, RETRIES = 2;
+        const cfg = opts || {};
+        const CHUNK = cfg.chunk || 8388608, LIMIT = cfg.limit || 4, RETRIES = cfg.retries || 2;
         const chunks = Math.ceil(size / CHUNK);
         const parts = onChunk ? null : new Array(chunks);
         const loaded = new Array(chunks).fill(0);
@@ -4982,14 +4983,22 @@
           for (let i = 0; i < chunks; i++) sum += loaded[i];
           onProgress(Math.min(sum, size), size);
         };
+        // หน่วงก่อนรีไทร (สคริปต์ทดสอบไม่มี setTimeout จึงเดินต่อทันที)
+        const pause = function (ms) {
+          return new Promise(function (resolve) {
+            if (typeof setTimeout === 'function') setTimeout(resolve, ms); else resolve();
+          });
+        };
         const fetchChunk = function (index, attempt) {
           const start = index * CHUNK;
           const end = Math.min(start + CHUNK, size) - 1;
           return fetch(url, {headers: Object.assign({}, headers, {Range: 'bytes=' + start + '-' + end}), signal: signal}).then(function (res) {
             if (res.status !== 206) {
               if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
-              const error = new Error('upstream ignored range');
-              error.permanent = true;
+              const error = new Error('range-status-' + res.status);
+              // 403 คือโควตาดาวน์โหลดของ Google ที่แกว่งเองได้ — ลองซ้ำพร้อมหน่วง ไม่ใช่ความล้มถาวร
+              if (res.status !== 403) error.permanent = true;
+              error.quota = res.status === 403;
               throw error;
             }
             const actual = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
@@ -5012,7 +5021,7 @@
             });
           }).catch(function (err) {
             if ((err && err.name === 'AbortError') || signal.aborted || err.permanent || attempt >= RETRIES) throw err;
-            return fetchChunk(index, attempt + 1);
+            return pause(err.quota ? 1200 * (attempt + 1) : 0).then(function () { return fetchChunk(index, attempt + 1); });
           });
         };
         let next = 0;
@@ -5105,9 +5114,10 @@
         const directHeaders = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
         // แหล่งโหลดทั้งไฟล์เรียงตามลำดับ: Google API ตรงก่อน แล้ว Worker สาธารณะซึ่งใช้ช่องทาง usercontent
         // (โควตาแยกต่างหาก จึงรอดเมื่อ Google ตัดโควตาดาวน์โหลดตรง) — ส่งเฉพาะ file ID ไม่มีโทเคนหรือ key แนบไป
+        // Worker ใช้ช่วง 4 MiB × 6 ช่อง ให้ทันภายใน timeout ต่อคำขอของ Worker แม้เน็ตช้าลง
         const sources = [
           {note: '', url: directUrl, headers: directHeaders},
-          {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id), headers: {}}
+          {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id), headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}}
         ];
         const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
         const loadSingle = function () {
@@ -5124,7 +5134,7 @@
           // ลดแรมสูงสุด ไม่เช่นนั้นไฟล์ใหญ่จะทำให้แท็บถูกฆ่า (Aw, Snap) ตอนประกอบ Blob เต็ม
           return openVideoTempWriter().then(function (temp) {
             const assembled = readVideoBlobRanges(source.url, source.headers, size, transfer.controller.signal, progressBlob,
-              temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null);
+              temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null, source.rangeOpts);
             return temp
               ? assembled.then(function () { return temp.done(); })
                 .catch(function (err) { return Promise.resolve(temp.stop()).catch(function () {}).then(function () { throw err; }); })
