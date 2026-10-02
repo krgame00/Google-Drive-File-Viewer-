@@ -31,6 +31,16 @@ vm.runInContext('showDead=false;activeDate="2.5.69";',ctx);
 assert.equal(matches(item),false,'date filter applies');
 vm.runInContext('activeDate="all";',ctx);
 
+// ตัวกรอง Solo Special
+const soloItem=Object.assign({},item,{solo_squirt:true});
+const nonSoloItem=Object.assign({},item,{solo_squirt:false});
+assert.equal(matches(soloItem),true,'solo item matches default');
+assert.equal(matches(nonSoloItem),true,'non-solo item matches default');
+vm.runInContext('showSoloSquirt=true;',ctx);
+assert.equal(matches(soloItem),true,'solo item matches when filter active');
+assert.equal(matches(nonSoloItem),false,'non-solo item rejected when filter active');
+vm.runInContext('showSoloSquirt=false;',ctx);
+
 // ป้ายวันตรวจสถานะต้องมาจากตัวแปรเดียว ไม่มี hardcode ซ้ำ
 assert(html.includes('const COLL_CHECKED_AT = '),'COLL_CHECKED_AT declared');
 const hard=(html.match(/14 ก\.ย\. 69/g)||[]).length;
