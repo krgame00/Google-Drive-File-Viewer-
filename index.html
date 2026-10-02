@@ -4343,6 +4343,30 @@
       let videoStatus = 'closed';
       let videoSlowTimer = null;
       let videoBlobTransfer = null;
+      function playbackRouteRecords() {
+        try {
+          const records = JSON.parse(lsGet('gdv_playback_routes') || '[]');
+          if (!Array.isArray(records)) return [];
+          return records.filter(function (r) { return r && typeof r.id === 'string' && r.id.length <= 200 && ['signedin', 'public'].includes(r.mode) && ['bearer', 'worker', 'usercontent', 'key'].includes(r.route) && Number.isFinite(r.at) && r.at <= Date.now() && Date.now() - r.at < 7 * 86400000; }).slice(-50);
+        } catch (_) { return []; }
+      }
+      function rememberPlaybackRoute(id, route) {
+        if (!['bearer', 'worker', 'usercontent', 'key'].includes(route)) return;
+        const mode = accessToken ? 'signedin' : 'public';
+        const records = playbackRouteRecords().filter(function (r) { return r.id !== id || r.mode !== mode; });
+        records.push({id: id, mode: mode, route: route, at: Date.now()});
+        lsSet('gdv_playback_routes', JSON.stringify(records.slice(-50)));
+      }
+      function preferredPlaybackRoute(id) {
+        const mode = accessToken ? 'signedin' : 'public';
+        const record = playbackRouteRecords().find(function (r) { return r.id === id && r.mode === mode; });
+        return record ? record.route : null;
+      }
+      function recordActivePlaybackRoute() {
+        const source = vidPlayer.playbackRoute;
+        if (!source || source.session !== mediaSession || source.id !== vidCurrentId || source.mode !== (accessToken ? 'signedin' : 'public') || !videoModal.classList.contains('show') || vidPlayer.paused || vidPlayer.style.display === 'none' || String(vidPlayer.src) !== source.url) return;
+        rememberPlaybackRoute(source.id, source.route);
+      }
       function setVideoStatus(state, message) {
         const prev = videoStatus;
         videoStatus = state;
@@ -4371,11 +4395,14 @@
         if (data.reason === 'streamFetchFailed') {
           rememberStreamBlocked();
           setVideoStatus('error', 'เชื่อมต่อแหล่งสตรีมไม่ได้ [FETCH] อาจเกิดจากเครือข่ายหรือการบล็อกคำขอ หากใช้ Brave ลองปิด Shields เฉพาะเว็บนี้ชั่วคราวแล้วรีเฟรชเพื่อทดสอบ');
+          if (vidPlayer.onerror) vidPlayer.onerror();
           return true;
         }
         const category = classifyApiError(data.status, data.reason, !!accessToken);
         const messages = {session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
         setVideoStatus('error', messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่');
+        // The response already confirms this route cannot play; do not wait for the media timeout.
+        if (['session', 'signedout', 'permission', 'quota', 'notfound'].includes(category) && vidPlayer.onerror) vidPlayer.onerror();
         return true;
       }
       function cancelVideoAttempt() {
@@ -4396,6 +4423,7 @@
         cancelVideoAttempt();
         releasePlayerOrientation();
         vidPlayer.playerAspect = null;
+        vidPlayer.playbackRoute = null;
         vidPlayer.pause();
         vidPlayer.removeAttribute("src");
         vidPlayer.load();
@@ -4693,7 +4721,7 @@
         });
       });
       document.getElementById('vidBlob').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) loadVideoAsBlob(vidCurrentId);
+        requestVideoBlob(vidCurrentId);
       });
       document.getElementById('vidCancelBlob').addEventListener('click', function () {
         cancelVideoBlobTransfer(true);
@@ -4750,8 +4778,13 @@
         setVideoStatus('error', (status && !status.hidden && status.textContent ? status.textContent : message) + detail);
       }
 
-      function tryStreamDirect(id) {
+      function tryStreamDirect(id, usePreferred = true, skipPublic = false) {
         if (!accessToken) { tryPublicStream(id); return; }
+        const preferred = usePreferred ? preferredPlaybackRoute(id) : null;
+        if (['usercontent', 'key'].includes(preferred) && (preferred !== 'key' || apiKey)) {
+          tryPublicStream(id, function () { tryStreamDirect(id, false, true); }, true);
+          return;
+        }
         clearStreamBlocked();
         const session = mediaSession;
         const token = accessToken;
@@ -4777,27 +4810,29 @@
             if (reason === 'media') {
               const originalStatus = document.getElementById('vidErrorStatus').textContent;
               setVideoStatus('loading', 'กำลังลองแหล่งสำรองของ Google…');
-              tryPublicStream(id, function () {
+              const finishFailure = function () {
                 if (session !== mediaSession || token !== accessToken || !videoModal.classList.contains('show') || id !== vidCurrentId) return;
-                showStreamFailure(originalStatus);
-                const failedAttempt = videoAttempt;
-                probeStreamEndpoint(id, 'probe').then(function (verdict) {
-                  if (session !== mediaSession || failedAttempt !== videoAttempt || !videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
-                  const status = document.getElementById('vidErrorStatus');
-                  if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
-                  setVideoStatus('error', verdict === 'auth'
-                    ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
-                    : verdict === 'works'
-                      ? 'ตรวจพบข้อมูลวิดีโอต้นฉบับ แต่เครื่องเล่นยังเล่นไม่ได้ ยังไม่ยืนยันว่าสาเหตุมาจากรูปแบบไฟล์หรือการรับส่งข้อมูล — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
-                      : verdict === 'invalid'
-                        ? 'แหล่งสตรีมส่งหน้าเว็บหรือข้อความแทนวิดีโอ — ลองใหม่หรือเปิดใน Drive'
-                        : verdict === 'unknown'
-                          ? 'ยังตรวจสอบข้อมูลวิดีโอไม่สำเร็จ ไม่สามารถยืนยันรูปแบบไฟล์ได้ — ลองใหม่หรือเปิดใน Drive'
-                          : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
-                });
-              }, true);
+                  showStreamFailure(originalStatus);
+                  const failedAttempt = videoAttempt;
+                  probeStreamEndpoint(id, 'probe').then(function (verdict) {
+                    if (session !== mediaSession || failedAttempt !== videoAttempt || !videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
+                    const status = document.getElementById('vidErrorStatus');
+                    if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
+                    setVideoStatus('error', verdict === 'auth'
+                      ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
+                      : verdict === 'works'
+                        ? 'ตรวจพบข้อมูลวิดีโอต้นฉบับ แต่เครื่องเล่นยังเล่นไม่ได้ ยังไม่ยืนยันว่าสาเหตุมาจากรูปแบบไฟล์หรือการรับส่งข้อมูล — ลองโหลดทั้งไฟล์หรือเปิดใน Drive' + describeCodecSupport(deviceCodecSupport())
+                        : verdict === 'invalid'
+                          ? 'แหล่งสตรีมส่งหน้าเว็บหรือข้อความแทนวิดีโอ — ลองใหม่หรือเปิดใน Drive'
+                          : verdict === 'unknown'
+                            ? 'ยังตรวจสอบข้อมูลวิดีโอไม่สำเร็จ ไม่สามารถยืนยันรูปแบบไฟล์ได้ — ลองใหม่หรือเปิดใน Drive'
+                            : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
+                  });
+              };
+              if (skipPublic) finishFailure();
+              else tryPublicStream(id, finishFailure, true);
             }
-          }, 60000);
+          }, 60000, 'bearer');
         });
       }
 
@@ -4844,32 +4879,50 @@
         // Public download sources may not expose CORS headers.
         vidPlayer.removeAttribute('crossorigin');
         vidPlayer.style.display = "block";
+        const session = mediaSession;
+        const active = function () { return session === mediaSession && id === vidCurrentId && videoModal.classList.contains('show'); };
         // Public proxy only; no account credentials are sent to Cloudflare.
-        const fail = onFail || function () {
+        const notes = [];
+        let publicError = null;
+        const note = function (label, reason, diagnostic) {
+          notes.push(label + ': ' + (reason === 'timeout' ? 'หมดเวลา' : diagnostic || reason));
+        };
+        const fail = function () {
+          if (onFail) { onFail(notes); return; }
           showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google');
+          if (publicError) { setVideoStatus('error', publicError); return; }
           const session = mediaSession, attempt = videoAttempt;
           probePublicStreamError(id).then(function (message) {
             if (!message || session !== mediaSession || attempt !== videoAttempt || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
             setVideoStatus('error', message);
           });
         };
-        function tryGoogleSources() {
-          // 2. ถ้า Worker มีปัญหา ให้ fallback ไปลิงก์ตรง drive.usercontent
-          const first = "https://drive.usercontent.google.com/download?id=" + id + "&export=download&confirm=t";
-          tryVideoSrc(first, function () {
-            if (apiKey) {
-              tryVideoSrc("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media&key=" + apiKey,
-                fail);
-            } else {
-              fail();
-            }
+        const sources = [];
+        if (!googleOnly) sources.push({route:'worker', label:'worker', url:'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id)});
+        sources.push({route:'usercontent', label:'ลิงก์ตรง', url:'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t'});
+        if (apiKey) sources.push({route:'key', label:'API key', url:'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + apiKey});
+        else notes.push('API key: ไม่ได้ตั้งค่า');
+        const preferred = preferredPlaybackRoute(id);
+        const first = sources.findIndex(function (source) { return source.route === preferred; });
+        if (first > 0) sources.unshift(sources.splice(first, 1)[0]);
+        function next() {
+          if (!active()) return;
+          const source = sources.shift();
+          if (!source) { fail(); return; }
+          const play = function () {
+            if (!active()) return;
+            tryVideoSrc(source.url, function (reason, diagnostic) { note(source.label, reason, diagnostic); next(); }, 12000, source.route);
+          };
+          if (source.route !== 'key') { play(); return; }
+          // Bounded API probe skips confirmed permission/quota failures before creating a player request.
+          const probeAttempt = videoAttempt;
+          probePublicStreamError(id).then(function (message) {
+            if (!active() || probeAttempt !== videoAttempt) return;
+            if (message) { publicError = message; note(source.label, 'upstream', message); next(); }
+            else play();
           });
         }
-        if (googleOnly) tryGoogleSources();
-        else {
-          const workerProxy = "https://google-drive-file-viewer.missnlpp9.workers.dev/?id=" + id;
-          tryVideoSrc(workerProxy, tryGoogleSources);
-        }
+        next();
       }
 
 
@@ -4904,7 +4957,11 @@
       }
       function renderVideoBlobProgress(loaded, total) {
         const percent = total > 0 ? Math.min(100, Math.floor(loaded / total * 100)) : null;
-        const text = 'กำลังโหลดทั้งไฟล์: ' + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)');
+        const elapsed = videoBlobTransfer ? (Date.now() - videoBlobTransfer.startedAt) / 1000 : 0;
+        const speed = elapsed >= 1 && loaded > 0 ? loaded / elapsed : 0;
+        const remaining = speed > 0 && total > loaded ? Math.ceil((total - loaded) / speed) : 0;
+        const eta = remaining > 0 ? ' · เหลือประมาณ ' + (remaining < 60 ? remaining + ' วินาที' : Math.ceil(remaining / 60) + ' นาที') : '';
+        const text = 'กำลังโหลดทั้งไฟล์: ' + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + formatSize(speed) + '/s' : '') + eta;
         const label = document.getElementById('vidLoadingText');
         const bar = document.getElementById('vidProgressBar');
         if (label) label.textContent = text;
@@ -4921,6 +4978,15 @@
         if (button) button.disabled = false;
         if (showMessage) setVideoStatus('error', 'ยกเลิกการโหลดแล้ว เลือกลองใหม่หรือใช้พรีวิว Google');
       }
+      function requestVideoBlob(id) {
+        if (!id || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+        const size = Number(fileMetaOf(id).size);
+        if (!(size > 0) || size >= 256 * 1024 * 1024) {
+          const detail = size > 0 ? 'ขนาด ' + formatSize(size) : 'ไม่ทราบขนาดไฟล์';
+          if (!window.confirm('โหลดวิดีโอทั้งไฟล์ (' + detail + ') เพื่อเล่นในเว็บ? ต้องรอโหลดครบ ใช้เน็ตตามขนาดไฟล์และหน่วยความจำมากบนมือถือ สามารถยกเลิกระหว่างโหลดได้')) return;
+        }
+        return loadVideoAsBlob(id);
+      }
       function loadVideoAsBlob(id, onGiveUp, priorNotes) {
         // ทางแก้เมื่อเบราว์เซอร์ (เช่น Brave) บล็อก fetch ข้ามโดเมนจาก service worker:
         // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง แล้วเล่นจากไฟล์ในเครื่อง (ไม่มี seek ก่อนโหลดครบ)
@@ -4932,7 +4998,7 @@
         if (auth.mode === 'none') { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้' + prior); if (onGiveUp) onGiveUp(); return; }
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
-        const transfer = videoBlobTransfer = {id: id, session: mediaSession, controller: new AbortController()};
+        const transfer = videoBlobTransfer = {id: id, session: mediaSession, startedAt: Date.now(), controller: new AbortController()};
         const active = function () { return videoBlobTransfer === transfer && transfer.session === mediaSession && id === vidCurrentId && videoModal.classList.contains('show'); };
         const btn = document.getElementById('vidBlob');
         const cancel = document.getElementById('vidCancelBlob');
@@ -4962,7 +5028,7 @@
             vidPlayer.removeAttribute('crossorigin');
             vidPlayer.style.display = 'block';
             tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ' + describeCodecSupport(deviceCodecSupport()) + prior); if (onGiveUp) onGiveUp(); }, 120000);
-            setVideoStatus('loading', 'กำลังโหลดทั้งไฟล์แทนการสตรีม (ใช้เน็ตตามขนาดไฟล์)…');
+            setVideoStatus('loading', 'โหลดทั้งไฟล์ครบแล้ว กำลังเตรียมเครื่องเล่น…');
           })
           .catch(function (err) {
             if (!active()) return;
@@ -4975,7 +5041,7 @@
           });
       }
 
-      function tryVideoSrc(url, onFail, timeoutMs = 12000) {
+      function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
         vidPlayer.playerAspect = null;
@@ -4984,6 +5050,7 @@
         const attempt = videoAttempt;
 
         if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
+        vidPlayer.playbackRoute = route ? {id: vidCurrentId, session: session, mode: accessToken ? 'signedin' : 'public', route: route, url: new URL(String(url), location.href).href} : null;
 
         let done = false;
         vidPlayer.onloadedmetadata = function () {
@@ -5358,7 +5425,7 @@
               if (videoModal.classList.contains("show") && videoStatus === 'connecting') setVideoStatus('loading');
             });
             vidPlayer.addEventListener("playing", function () {
-              if (videoModal.classList.contains("show")) setVideoStatus('playing');
+              if (videoModal.classList.contains("show")) { recordActivePlaybackRoute(); setVideoStatus('playing'); }
             });
             vidPlayer.addEventListener("waiting", function () {
               if (videoModal.classList.contains("show") && videoStatus !== 'error') setVideoStatus('buffering');

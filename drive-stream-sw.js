@@ -15,6 +15,13 @@ function failure(status) {
   }});
 }
 
+function boundedMediaRange(range) {
+  const open = range && range.match(/^bytes=(\d{1,20})-$/i);
+  if (!open) return range;
+  const start = BigInt(open[1]);
+  return 'bytes=' + start + '-' + (start + 8388607n);
+}
+
 function requestToken(clients, id) {
   return new Promise(resolve => {
     let settled = false, pending = clients.length;
@@ -70,7 +77,8 @@ async function streamFile(event, id, attempt) {
     }
     const headers = new Headers({Authorization: 'Bearer ' + token});
     const range = request.headers.get('Range');
-    if (range) headers.set('Range', range);
+    const boundedRange = boundedMediaRange(range);
+    if (boundedRange) headers.set('Range', boundedRange);
     let upstream;
     try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
       method: request.method, headers, credentials: 'omit', cache: 'no-store',
@@ -89,6 +97,17 @@ async function streamFile(event, id, attempt) {
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
       if (upstream.body) await upstream.body.cancel();
       return failure(502);
+    }
+    if (boundedRange !== range) {
+      const actual = (upstream.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+      const requested = boundedRange.match(/^bytes=(\d+)-(\d+)$/);
+      if (upstream.status !== 206 || !actual || BigInt(actual[1]) !== BigInt(requested[1])
+          || BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2])
+          || BigInt(actual[3]) <= BigInt(actual[2])) {
+        if (upstream.body) await upstream.body.cancel();
+        reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamRangeUnsupported',attempt});
+        return failure(502);
+      }
     }
     const responseHeaders = new Headers({'Cache-Control': 'no-store', 'Content-Type': type});
     for (const name of ['Content-Length', 'Content-Range', 'Accept-Ranges']) {

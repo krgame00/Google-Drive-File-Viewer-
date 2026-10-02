@@ -2,17 +2,17 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const {MessageChannel}=require('node:worker_threads');
-function setup({token='test-token',status=206,type='video/mp4',client=true,fetchFails=false}={}) {
+function setup({token='test-token',status=206,type='video/mp4',client=true,fetchFails=false,contentRange='bytes 0-3/100'}={}) {
   const events={},calls=[],errors=[];
   const theClient={url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else{errors.push(data)}}};
   const ctx={URL,Headers,Response,MessageChannel,setTimeout,clearTimeout,
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
       clients:{get:async(id)=>client?theClient:null,matchAll:async()=>client?[theClient]:[]}},
-    fetch:async(url,options)=>{calls.push({url,options});if(fetchFails)throw new Error('private diagnostic test-token');return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':'bytes 0-3/100'}})}};
+    fetch:async(url,options)=>{calls.push({url,options});if(fetchFails)throw new Error('private diagnostic test-token');return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':contentRange}})}};
   vm.runInNewContext(fs.readFileSync('drive-stream-sw.js','utf8'),ctx);
-  const request=(path='__drive_stream?id=file1',method='GET',clientId='tab-1')=>{
+  const request=(path='__drive_stream?id=file1',method='GET',clientId='tab-1',range='bytes=0-3')=>{
     let result;
-    events.fetch({clientId,request:new Request('https://example.com/app/'+path,{method,headers:{Range:'bytes=0-3'}}),respondWith(p){result=p}});
+    events.fetch({clientId,request:new Request('https://example.com/app/'+path,{method,headers:{Range:range}}),respondWith(p){result=p}});
     return result;
   };
   return {request,calls,errors};
@@ -25,6 +25,18 @@ test('streams ranges with bearer header, without token in URL or cache',async()=
   assert.equal(calls[0].options.headers.get('Authorization'),'Bearer test-token');
   assert.equal(calls[0].options.headers.get('Range'),'bytes=0-3');
   assert(!calls[0].url.includes('test-token'));
+});
+test('account streaming bounds open-ended ranges and preserves explicit ranges',async()=>{
+ const {request,calls}=setup();const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(calls[0].options.headers.get('Range'),'bytes=0-8388607');assert.equal(res.status,206);assert.equal(res.headers.get('Content-Range'),'bytes 0-3/100');
+ const next=setup();await next.request('__drive_stream?id=file1','GET','tab-1','bytes=4-7');assert.equal(next.calls[0].options.headers.get('Range'),'bytes=4-7');
+});
+test('account seeking keeps the requested offset and cancels wrong intervals',async()=>{
+ const {request,calls}=setup({contentRange:'bytes 12345678-12345681/99999999'});
+ const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=12345678-');assert.equal(res.status,206);assert.equal(calls[0].options.headers.get('Range'),'bytes=12345678-20734285');
+ for(const options of [{status:200},{contentRange:'bytes 5-8/100'}]){
+  const bad=setup(options);assert.equal((await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-')).status,502);assert.equal(bad.errors[0].reason,'streamRangeUnsupported');
+ }
 });
 test('missing login or client never fetches a private file',async()=>{
   for(const options of [{token:null},{client:false}]){const {request,calls}=setup(options);assert.equal((await request()).status,401);assert.equal(calls.length,0)}
@@ -54,7 +66,7 @@ function playerSetup() {
   const start=html.indexOf('      function tryStreamDirect(');
   const end=html.indexOf('\n      }',start);
   let ready;const sources=[],fallbacks=[],errors=[];
-  const ctx={accessToken:'test-token',tokenExpiry:Date.now()+60000,Date,URL,
+  const ctx={preferredPlaybackRoute:()=>null,apiKey:'test-key',accessToken:'test-token',tokenExpiry:Date.now()+60000,Date,URL,
     location:{href:'https://example.com/app/index.html#/f/folder'},mediaSession:1,vidCurrentId:'file1',
     videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{},setAttribute(name,value){this[name]=value}},revokeCurrentVideo(){},showToast(){},
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
@@ -98,6 +110,15 @@ test('account media failure tries Google backup and ignores its callback after c
 test('unsupported browser explains failure and signed-out user keeps public playback',async()=>{
   const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
   ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');
+});
+test('remembered signed-in public route is tried before bearer without repeating public routes',async()=>{
+ const {ctx,sources,ready}=playerSetup();ctx.preferredPlaybackRoute=()=> 'usercontent';let backup;
+ ctx.tryPublicStream=(id,fail,googleOnly)=>{backup={id,fail,googleOnly}};
+ ctx.tryStreamDirect('file1');assert.equal(sources.length,0);assert.equal(backup.googleOnly,true);
+ backup.fail();await ready(true);assert.match(String(sources[0].url),/__drive_stream/);
+ const status={textContent:'',hidden:false};ctx.document={getElementById:()=>status};ctx.MEDIA_STREAM_FAIL_MSG='failed';ctx.videoAttempt=1;
+ ctx.showStreamFailure=text=>{status.textContent=text};ctx.setVideoStatus=(state)=>{ctx.videoStatus=state};ctx.probeStreamEndpoint=async()=> 'unknown';
+ ctx.tryPublicStream=()=>assert.fail('public routes must not repeat');sources[0].fail('media');await Promise.resolve();
 });
 test('error reports echo the attempt token from the request',async()=>{
   const {request,errors}=setup({token:null});
