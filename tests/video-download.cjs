@@ -118,6 +118,21 @@ test('a failing OPFS write falls back to the single-connection download',async()
   assert.deepEqual(played,['blob:video']);assert.equal(giveups,0);assert.ok(ranges.includes(null),'fell back to a request without Range');
   assert.ok(ops.includes('abort'),'abandoned writable is aborted');assert.equal(ops.includes('close'),false);
 });
+test('whole-file loading retries through the public worker when the direct source is quota-blocked',async()=>{
+  const {ctx,played}=setup();ctx.fileMetaOf=()=>({size:20*1048576});const urls=[];
+  ctx.fetch=async(url,opts)=>{urls.push(String(url));if(String(url).includes('googleapis'))return {ok:false,status:403,headers:{get:()=>null},body:{cancel:async()=>{}}};const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);return rangeResponse(Number(m[1]),Number(m[2]),20*1048576)};
+  let giveups=0;await ctx.loadVideoAsBlob('fileA',()=>giveups++);
+  assert.deepEqual(played,['blob:video']);assert.equal(giveups,0);
+  assert.ok(urls.some(u=>u.includes('googleapis')),'direct source tried first');
+  assert.ok(urls.some(u=>u.includes('workers.dev')),('worker source tried after direct'));
+  assert.ok(urls.filter(u=>u.includes('workers.dev')).every(u=>!u.includes('key=')),'no key leaks to the worker');
+});
+test('worker fallback failure still reports the whole-file error card',async()=>{
+  const {ctx,el,played}=setup();ctx.fileMetaOf=()=>({size:20*1048576});
+  ctx.fetch=async()=>({ok:false,status:403,headers:{get:()=>null},body:{cancel:async()=>{}}});
+  let giveups=0;await ctx.loadVideoAsBlob('fileA',()=>giveups++);
+  assert.deepEqual(played,[]);assert.equal(giveups,1);assert.match(el('vidLoadingText').textContent,/โหลดทั้งไฟล์ไม่สำเร็จ/);
+});
 test('browsers without OPFS keep assembling the video in memory',async()=>{
   const {ctx,played}=setup();const size=20*1048576+123;ctx.fileMetaOf=()=>({size});
   ctx.fetch=async(url,opts)=>{const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);return rangeResponse(Number(m[1]),Number(m[2]),size)};
