@@ -1,5 +1,11 @@
-# Watch rclone 7.69 MAIN — auto shutdown when done (2 min countdown, cancellable with shutdown /a)
-$log = "C:/Users/PC/rclone_7_69_main.log"
+﻿# Watch rclone 7.69 MAIN — auto shutdown when done (2 min countdown, cancellable with shutdown /a)
+$taskPreviousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "../shared/settings.ps1")
+$Settings = Get-ProjectSettings
+$log = Join-Path $Settings.logRoot "rclone_7_69_main.log"
+if (-not (Test-Path -LiteralPath $Settings.logRoot -PathType Container)) { throw "logRoot does not exist. Check scripts/config.local.json." }
+$ErrorActionPreference = $taskPreviousErrorAction
 Write-Host "Watching $log for 'Done 7.69 MAIN' -> shutdown /s /t 120" -ForegroundColor Cyan
 while ($true) {
   if (Test-Path $log) {

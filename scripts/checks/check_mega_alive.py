@@ -1,7 +1,8 @@
 import pathlib, re, json, time, urllib.request, urllib.error
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 import concurrent.futures
 
-IDX = pathlib.Path(r"C:/Users/PC/ZCodeProject/index.html")
+IDX = (ROOT / "index.html")
 m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", IDX.read_text(encoding="utf-8"), flags=re.DOTALL)
 coll = json.loads(m.group(1))
 targets = [(c["id"], c.get("mega_url"), c.get("date","ไม่ระบุ"), c.get("title","")) for c in coll if c.get("mega_url")]
@@ -64,7 +65,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as ex:
             print(f"  {done}/{len(targets)} alive {ok} dead {done-ok}")
         time.sleep(0.08)
 
-out = pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/mega_alive_report.json")
+out = (ROOT / "reports/mega_alive_report.json")
 out.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
 alive=sum(1 for v in results.values() if v.get("ok"))
 dead=len(results)-alive
@@ -84,5 +85,5 @@ for d in sorted(per.keys(), key=lambda x: 999999 if x in ["?","ไม่ระ�
     print(f" {d:10s} alive:{per[d][0]:2d} dead:{per[d][1]:2d}")
 # map mega_url -> status for patch
 import json as js
-detail_path = pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/mega_alive_detail.json")
+detail_path = (ROOT / "reports/mega_alive_detail.json")
 detail_path.write_text(js.dumps({did: {"mega_url": next(c["mega_url"] for c in coll if c["id"]==did), "ok": v.get("ok"), "code": v.get("code"), "children": v.get("children")} for did,v in results.items()}, ensure_ascii=False, indent=2), encoding="utf-8")

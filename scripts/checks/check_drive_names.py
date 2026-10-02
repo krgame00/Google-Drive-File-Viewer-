@@ -11,7 +11,8 @@ except ImportError:
     print("ต้องลง requests: pip install requests")
     sys.exit(1)
 
-COLLECTIONS = pathlib.Path(__file__).with_name("collections_merged.json")
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+COLLECTIONS = ROOT / "collections_merged.json"
 
 def load_ids():
     data = json.loads(COLLECTIONS.read_text(encoding="utf-8"))
@@ -41,7 +42,7 @@ def main():
     ap.add_argument("--api-key", default=None, help="Google Drive API key (AIza...)")
     ap.add_argument("--limit", type=int, default=0, help="ตรวจแค่ N ตัวแรก (0=ทั้งหมด)")
     ap.add_argument("--delay", type=float, default=0.12, help="ดีเลย์ระหว่างรีเควส")
-    ap.add_argument("--out", default="drive_names_report.json")
+    ap.add_argument("--out", default=str(ROOT / "reports" / "drive_names_report.json"))
     args = ap.parse_args()
 
     api_key = args.api_key or pathlib.os.environ.get("GDRIVE_API_KEY") or pathlib.os.environ.get("GOOGLE_DRIVE_API_KEY")

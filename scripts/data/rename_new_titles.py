@@ -1,7 +1,8 @@
 import pathlib, re, json
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 from collections import Counter
 
-cj = pathlib.Path(r'C:/Users/PC/ZCodeProject/collections_merged.json')
+cj = (ROOT / "collections_merged.json")
 d = json.loads(cj.read_text(encoding='utf-8'))
 
 olds = [x for x in d if x.get('source') == 'XBep 40โพสต์']
@@ -28,7 +29,7 @@ for x in news:
 
 cj.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding='utf-8')
 
-p = pathlib.Path(r'C:/Users/PC/ZCodeProject/index.html')
+p = (ROOT / "index.html")
 s = p.read_text(encoding='utf-8')
 m = re.search(r'(const XBEP_COLLECTION = )\[.*?\];', s, flags=re.DOTALL)
 assert m, 'XBEP const not found'

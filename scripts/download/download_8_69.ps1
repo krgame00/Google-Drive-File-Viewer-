@@ -1,10 +1,16 @@
-# Download 8.69 — 38 folders
+﻿# Download 8.69 — 38 folders
 # Total folders all: 219
 # Requires: pip install gdown  (or use rclone)
 # Usage: powershell -ExecutionPolicy Bypass -File download_8_69.ps1
 
-$outRoot = "F:\XBep\8.69"  # แก้ path ตามต้องการ
-New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
+$taskPreviousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "../shared/settings.ps1")
+$Settings = Get-ProjectSettings
+Assert-ProjectDownload -Settings $Settings
+$ErrorActionPreference = $taskPreviousErrorAction
+$outRoot = Join-Path $Settings.downloadRoot "8.69"
+New-Item -ItemType Directory -Force -Path $outRoot -ErrorAction Stop | Out-Null
 
 Write-Host "⬇ 1.8.69 1CYA9Q_lEqLAR_UODp1gy-zoXnQXiQP6z — โพสต์ #48 — 1.8.69"
 gdown --folder "https://drive.google.com/drive/folders/1CYA9Q_lEqLAR_UODp1gy-zoXnQXiQP6z" --output "$outRoot/1CYA9Q_lEqLAR_UODp1gy-zoXnQXiQP6z_1-8-69"  2>&1 | Write-Host

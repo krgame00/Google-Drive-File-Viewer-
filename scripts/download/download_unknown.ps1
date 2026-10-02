@@ -1,10 +1,16 @@
-# Download ไม่ระบุ — 5 folders
+﻿# Download ไม่ระบุ — 5 folders
 # Total folders all: 219
 # Requires: pip install gdown  (or use rclone)
 # Usage: powershell -ExecutionPolicy Bypass -File download_unknown.ps1
 
-$outRoot = "F:\XBep\ไม่ระบุ"  # แก้ path ตามต้องการ
-New-Item -ItemType Directory -Force -Path $outRoot | Out-Null
+$taskPreviousErrorAction = $ErrorActionPreference
+$ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "../shared/settings.ps1")
+$Settings = Get-ProjectSettings
+Assert-ProjectDownload -Settings $Settings
+$ErrorActionPreference = $taskPreviousErrorAction
+$outRoot = Join-Path $Settings.downloadRoot "ไม่ระบุ"
+New-Item -ItemType Directory -Force -Path $outRoot -ErrorAction Stop | Out-Null
 
 Write-Host "⬇ ไม่ระบุ 17NcXdOBdf_Zf6ujlzpwnAWv1mvlaEBWH — โพสต์ #11"
 gdown --folder "https://drive.google.com/drive/folders/17NcXdOBdf_Zf6ujlzpwnAWv1mvlaEBWH" --output "$outRoot/17NcXdOBdf_Zf6ujlzpwnAWv1mvlaEBWH_ไม่ระบุ"  2>&1 | Write-Host

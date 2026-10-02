@@ -1,4 +1,9 @@
 import pathlib, re, json
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0, str(ROOT / "scripts" / "shared"))
+from project_paths import get_settings
+LINK_SOURCE_ROOT = get_settings()["linkSourceRoot"]
 from collections import Counter
 
 TH = {'มกราคม':1,'กุมภาพันธ์':2,'มีนาคม':3,'เมษายน':4,'พฤษภาคม':5,'มิถุนายน':6,
@@ -28,8 +33,8 @@ def parse_file(path, tag):
         recs.append(dict(post=f"{tag}p{num}", body=body, date=date, gd=gd, mega=mega, od=od, mf=mf, wu=wu))
     return recs
 
-recs = parse_file(r'C:/Users/PC/Downloads/XBep_Links_Clean_2026-09-14.txt', 'clean14') + \
-       parse_file(r'C:/Users/PC/Downloads/XBep_Posts_41_to_80.txt', 'p41_80')
+recs = parse_file(LINK_SOURCE_ROOT / "XBep_Links_Clean_2026-09-14.txt", 'clean14') + \
+       parse_file(LINK_SOURCE_ROOT / "XBep_Posts_41_to_80.txt", 'p41_80')
 
 # per-drive aggregation (first-seen wins for date/body, collect all mega/od)
 drive_info = {}
@@ -44,10 +49,10 @@ for r in recs:
         e['posts'].append(r['post']); e['dates'].append(r['date']); e['bodies'].append(r['body'])
         e['megas'] += r['mega']; e['ods'] += r['od']
 
-old = json.loads(pathlib.Path(r'C:/Users/PC/ZCodeProject/collections_merged.json').read_text(encoding='utf-8'))
+old = json.loads((ROOT / "collections_merged.json").read_text(encoding='utf-8'))
 oldids = set(x['id'] for x in old)
 oldmap = {x['id']: x for x in old}
-megamap = json.loads(pathlib.Path(r'C:/Users/PC/ZCodeProject/reports/drive_mega_map.json').read_text(encoding='utf-8'))
+megamap = json.loads((ROOT / "reports/drive_mega_map.json").read_text(encoding='utf-8'))
 
 fresh, overlap = [], []
 for did, e in drive_info.items():
@@ -98,11 +103,11 @@ for ent in new_entries:
     if ent.get('mega_url'):
         megamap[ent['id']] = ent['mega_url']
 
-pathlib.Path(r'C:/Users/PC/ZCodeProject/collections_merged.json').write_text(json.dumps(old, ensure_ascii=False, indent=1), encoding='utf-8')
-pathlib.Path(r'C:/Users/PC/ZCodeProject/reports/drive_mega_map.json').write_text(json.dumps(megamap, ensure_ascii=False, indent=1), encoding='utf-8')
+(ROOT / "collections_merged.json").write_text(json.dumps(old, ensure_ascii=False, indent=1), encoding='utf-8')
+(ROOT / "reports/drive_mega_map.json").write_text(json.dumps(megamap, ensure_ascii=False, indent=1), encoding='utf-8')
 
 # patch index.html XBEP_COLLECTION: replace old array with new
-p = pathlib.Path(r'C:/Users/PC/ZCodeProject/index.html')
+p = (ROOT / "index.html")
 s = p.read_text(encoding='utf-8')
 m = re.search(r'(const XBEP_COLLECTION = )\[.*?\];', s, flags=re.DOTALL)
 assert m, 'XBEP const not found'

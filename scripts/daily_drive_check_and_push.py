@@ -1,10 +1,10 @@
 import pathlib, re, json, sys, subprocess
 
-ROOT = pathlib.Path(r"C:/Users/PC/ZCodeProject")
+ROOT = pathlib.Path(__file__).resolve().parents[1]
 IDX = ROOT / "index.html"
 REPORT = ROOT / "reports" / "drive_alive_report.json"
-CHECK = ROOT / "scripts" / "check_drive_alive.py"
-PATCH = ROOT / "scripts" / "patch_alive_from_report.py"
+CHECK = ROOT / "scripts" / "checks" / "check_drive_alive.py"
+PATCH = ROOT / "scripts" / "data" / "patch_alive_from_report.py"
 
 print("=== Daily Drive check start ===")
 # 1. check

@@ -7,4 +7,13 @@ DriveViewer-Portable/
 
 # รายงาน/ผลลัพธ์ที่สคริปต์ generate ใหม่เสมอ
 # (ไฟล์ที่ track ไว้แล้วใน reports/ เช่น drive_alive_report.json ยัง commit ตามปกติ)
-reports/
+reports/*
+!reports/README.md
+
+# Machine-specific script paths and Python bytecode
+scripts/config.local.json
+__pycache__/
+
+# Local media and experimental player snapshots
+/test-media/*
+!/test-media/README.md

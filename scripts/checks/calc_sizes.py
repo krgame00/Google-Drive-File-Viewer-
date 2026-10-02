@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import json, pathlib, urllib.request, urllib.parse, time
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 from collections import defaultdict
 
 key = "AIzaSyBytkL4FtZuSfo_XMnZYujrcgrud6NqF9g"
-merged = json.loads(pathlib.Path(r"C:/Users/PC/ZCodeProject/collections_merged.json").read_text(encoding="utf-8"))
+merged = json.loads((ROOT / "collections_merged.json").read_text(encoding="utf-8"))
 alive = [x for x in merged if not x.get("dead")]
 
 def month_key(d):
@@ -71,7 +72,7 @@ for mkey in sorted(groups, key=lambda x: (99,99) if x=="ไม่ระบุ" e
         time.sleep(0.18)
         # progress save every 10
         if i%10==0:
-            pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/sizes_progress.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            (ROOT / "reports/sizes_progress.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     out_txt.append(f"รวม {mkey}: {m_cnt} ไฟล์  {m_total/1024/1024/1024:.2f} GB  ({m_total} bytes)  err {m_err}")
     print(out_txt[-1], flush=True)
 
@@ -82,8 +83,8 @@ out_txt.append(f"\n=== รวมทั้งหมด {len(alive)} โฟลเ�
 out_txt.append(f"{grand_cnt} ไฟล์  {grand_total/1024/1024/1024:.2f} GB")
 for line in out_txt: print(line)
 
-pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/sizes_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/sizes_report.txt").write_text("\n".join(out_txt), encoding="utf-8")
+(ROOT / "reports/sizes_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+(ROOT / "reports/sizes_report.txt").write_text("\n".join(out_txt), encoding="utf-8")
 # also per month files
 import json as js
 month_summary={}
@@ -91,5 +92,5 @@ for mkey,items in groups.items():
     s=sum(report.get(it["id"],{}).get("size",0) for it in items)
     c=sum(report.get(it["id"],{}).get("count",0) for it in items)
     month_summary[mkey]={"folders":len(items),"files":c,"bytes":s,"gb":round(s/1024/1024/1024,2)}
-pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/sizes_by_month.json").write_text(js.dumps(month_summary, ensure_ascii=False, indent=2), encoding="utf-8")
+(ROOT / "reports/sizes_by_month.json").write_text(js.dumps(month_summary, ensure_ascii=False, indent=2), encoding="utf-8")
 print("\nSaved sizes_report.json / txt / by_month")

@@ -1,9 +1,10 @@
 import pathlib, re, json, time, sys
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 import urllib.request, urllib.error
 
-IDX = pathlib.Path(r"C:/Users/PC/ZCodeProject/index.html")
+IDX = (ROOT / "index.html")
 API_KEY = re.search(r'DEFAULT_APIKEY\s*=\s*"([^"]+)"', IDX.read_text(encoding="utf-8")).group(1)
-MEGA_MAP = json.loads(pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/drive_mega_map.json").read_text(encoding="utf-8")) if pathlib.Path(r"C:/Users/PC/ZCodeProject/reports/drive_mega_map.json").exists() else {}
+MEGA_MAP = json.loads((ROOT / "reports/drive_mega_map.json").read_text(encoding="utf-8")) if (ROOT / "reports/drive_mega_map.json").exists() else {}
 
 m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", IDX.read_text(encoding="utf-8"), flags=re.DOTALL)
 COLL = json.loads(m.group(1))
@@ -48,7 +49,7 @@ def check_drive(ids, api_key):
     return results
 
 drive_res = check_drive(IDS, API_KEY)
-out = pathlib.Path(r"C:\Users\PC\ZCodeProject\reports\drive_alive_report.json")
+out = (ROOT / "reports/drive_alive_report.json")
 out.write_text(json.dumps(drive_res, ensure_ascii=False, indent=2), encoding="utf-8")
 alive = sum(1 for v in drive_res.values() if v.get("ok") and not v.get("trashed"))
 dead = len(drive_res)-alive

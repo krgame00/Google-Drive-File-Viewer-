@@ -1,4 +1,9 @@
 import pathlib, re, json
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+import sys
+sys.path.insert(0, str(ROOT / "scripts" / "shared"))
+from project_paths import get_settings
+LINK_SOURCE_ROOT = get_settings()["linkSourceRoot"]
 
 def parse_file(path, tag):
     t = pathlib.Path(path).read_text(encoding='utf-8', errors='ignore').replace('http s://', 'https://')
@@ -17,8 +22,8 @@ def parse_file(path, tag):
         recs.append(dict(post=f"{tag}p{num}", gd=gd, mega=mega, od=od, mf=mf, wu=wu))
     return recs
 
-recs = parse_file(r'C:/Users/PC/Downloads/XBep_Links_Clean_2026-09-14.txt', 'clean14') + \
-       parse_file(r'C:/Users/PC/Downloads/XBep_Posts_41_to_80.txt', 'p41_80')
+recs = parse_file(LINK_SOURCE_ROOT / "XBep_Links_Clean_2026-09-14.txt", 'clean14') + \
+       parse_file(LINK_SOURCE_ROOT / "XBep_Posts_41_to_80.txt", 'p41_80')
 
 linkmap = {}
 for r in recs:
@@ -28,7 +33,7 @@ for r in recs:
         e = linkmap.setdefault(m1.group(1), dict(megas=[], ods=[], mfs=[], wus=[]))
         e['megas'] += r['mega']; e['ods'] += r['od']; e['mfs'] += r['mf']; e['wus'] += r['wu']
 
-coll = json.loads(pathlib.Path(r'C:/Users/PC/ZCodeProject/collections_merged.json').read_text(encoding='utf-8'))
+coll = json.loads((ROOT / "collections_merged.json").read_text(encoding='utf-8'))
 n_od = n_mf = n_wu = n_megafill = 0
 for c in coll:
     e = linkmap.get(c['id'])
@@ -43,10 +48,10 @@ for c in coll:
         c['mega_url'] = list(dict.fromkeys(e['megas']))[0]
         c.setdefault('mega_dead', None); c.setdefault('mega_code', None); n_megafill += 1
 
-pathlib.Path(r'C:/Users/PC/ZCodeProject/collections_merged.json').write_text(
+(ROOT / "collections_merged.json").write_text(
     json.dumps(coll, ensure_ascii=False, indent=1), encoding='utf-8')
 
-p = pathlib.Path(r'C:/Users/PC/ZCodeProject/index.html')
+p = (ROOT / "index.html")
 s = p.read_text(encoding='utf-8')
 m = re.search(r'(const XBEP_COLLECTION = )\[.*?\];', s, flags=re.DOTALL)
 assert m, 'XBEP const not found'
