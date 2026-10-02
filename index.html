@@ -4967,6 +4967,72 @@
           }
         })();
       }
+      function readVideoBlobRanges(url, headers, size, signal, onProgress, onChunk) {
+        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (สูงสุด 4 คำขอ × 8 MiB)
+        // ไม่ส่ง onChunk: ประกอบเป็น Blob ในแรมตามลำดับเดิม  |  ส่ง onChunk(index, start, blob):
+        // ส่งต่อทุกช่วงให้ผู้เรียก (เช่น เขียนลงดิสก์) แล้วคืนค่า content-type แทน Blob
+        // โยน AbortError เมื่อผู้ใช้ยกเลิก ส่วนความล้มเหลวอื่นให้ผู้เรียกตกกลับไปโหลดเชื่อมต่อเดียว
+        const CHUNK = 8388608, LIMIT = 4, RETRIES = 2;
+        const chunks = Math.ceil(size / CHUNK);
+        const parts = onChunk ? null : new Array(chunks);
+        const loaded = new Array(chunks).fill(0);
+        let type = '';
+        const progress = function () {
+          let sum = 0;
+          for (let i = 0; i < chunks; i++) sum += loaded[i];
+          onProgress(Math.min(sum, size), size);
+        };
+        const fetchChunk = function (index, attempt) {
+          const start = index * CHUNK;
+          const end = Math.min(start + CHUNK, size) - 1;
+          return fetch(url, {headers: Object.assign({}, headers, {Range: 'bytes=' + start + '-' + end}), signal: signal}).then(function (res) {
+            const actual = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+            // ต้องได้ช่วงตรงตามที่ขอและขนาดรวมตรงข้อมูลเมตาเท่านั้น ไม่เช่นนั้นข้อมูลจะประกอบผิด
+            if (res.status === 206 && actual && Number(actual[1]) === start && Number(actual[2]) === end && Number(actual[3]) === size) {
+              if (!type) type = res.headers.get('Content-Type') || '';
+              return readVideoBlobResponse(res, signal, function (n) { loaded[index] = n; progress(); });
+            }
+            if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
+            const error = new Error('upstream ignored range');
+            error.permanent = true;
+            throw error;
+          }).catch(function (err) {
+            if ((err && err.name === 'AbortError') || signal.aborted || err.permanent || attempt >= RETRIES) throw err;
+            return fetchChunk(index, attempt + 1);
+          });
+        };
+        let next = 0;
+        const worker = function () {
+          if (next >= chunks) return Promise.resolve();
+          const index = next++;
+          const start = index * CHUNK;
+          return fetchChunk(index, 0).then(function (blob) {
+            if (!onChunk) { parts[index] = blob; return; }
+            return Promise.resolve(onChunk(index, start, blob)).catch(function (err) { err.permanent = true; throw err; });
+          }).then(function () { return worker(); });
+        };
+        const pool = [];
+        for (let i = 0; i < Math.min(LIMIT, chunks); i++) pool.push(worker());
+        return Promise.all(pool).then(function () { return onChunk ? type : new Blob(parts, {type: type || 'application/octet-stream'}); });
+      }
+      function openVideoTempWriter() {
+        // เตรียมไฟล์ชั่วคราวใน OPFS เพื่อเขียนช่วงข้อมูลลงดิสก์ระหว่างโหลด (createWritable ตัดเนื้อหาเดิมทิ้งทุกครั้ง)
+        // จึงเหลือไฟล์ค้างสูงสุดไฟล์เดียวต่อเว็บ คืน null เมื่อเบราว์เซอร์ไม่รองรับ ผู้เรียกจะประกอบ Blob ในแรมแทน
+        try {
+          if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.getDirectory) return Promise.resolve(null);
+          return navigator.storage.getDirectory().then(function (dir) {
+            return dir.getFileHandle('gdv-vblob.part', {create: true}).then(function (handle) {
+              return handle.createWritable().then(function (writable) {
+                return {
+                  write: function (chunk, start) { return writable.write({type: 'write', position: start, data: chunk}); },
+                  done: function () { return writable.close().then(function () { return handle.getFile(); }); },
+                  stop: function () { try { return Promise.resolve(writable.abort()).catch(function () {}); } catch (_) { return Promise.resolve(); } }
+                };
+              });
+            });
+          }).catch(function () { return null; });
+        } catch (_) { return Promise.resolve(null); }
+      }
       function renderVideoBlobProgress(loaded, total) {
         const percent = total > 0 ? Math.min(100, Math.floor(loaded / total * 100)) : null;
         const elapsed = videoBlobTransfer ? (Date.now() - videoBlobTransfer.startedAt) / 1000 : 0;
@@ -4995,7 +5061,7 @@
         const size = Number(fileMetaOf(id).size);
         if (!(size > 0) || size >= 256 * 1024 * 1024) {
           const detail = size > 0 ? 'ขนาด ' + formatSize(size) : 'ไม่ทราบขนาดไฟล์';
-          if (!window.confirm('โหลดวิดีโอทั้งไฟล์ (' + detail + ') เพื่อเล่นในเว็บ? ต้องรอโหลดครบ ใช้เน็ตตามขนาดไฟล์และหน่วยความจำมากบนมือถือ สามารถยกเลิกระหว่างโหลดได้')) return;
+          if (!window.confirm('โหลดวิดีโอทั้งไฟล์ (' + detail + ') เพื่อเล่นในเว็บ? ต้องรอโหลดครบ ใช้เน็ตตามขนาดไฟล์และพื้นที่จัดเก็บชั่วคราวบนเครื่อง สามารถยกเลิกระหว่างโหลดได้')) return;
         }
         return loadVideoAsBlob(id);
       }
@@ -5023,13 +5089,34 @@
         renderVideoBlobProgress(0, 0);
         const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
-        return fetch(url, { headers: headers, signal: transfer.controller.signal })
-          .then(function (res) {
-            if (!active()) { transfer.controller.abort(); const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; }
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            return readVideoBlobResponse(res, transfer.controller.signal, function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); });
-          })
-          .then(function (blob) {
+        const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
+        const loadSingle = function () {
+          return fetch(url, { headers: headers, signal: transfer.controller.signal })
+            .then(function (res) {
+              if (!active()) { transfer.controller.abort(); const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; }
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              return readVideoBlobResponse(res, transfer.controller.signal, progressBlob);
+            });
+        };
+        const size = Number(fileMetaOf(id).size);
+        // ไฟล์ใหญ่กว่า 16 MiB ลองโหลดขนานก่อน ถ้าล้มด้วยเหตุอื่นที่ไม่ใช่การยกเลิก ค่อยกลับไปโหลดเชื่อมต่อเดียวตามเดิม
+        const load = size > 2 * 8388608 ? function () {
+          // เบราว์เซอร์ที่รองรับ OPFS จะเขียนทุกช่วงลงดิสก์ระหว่างโหลด แล้วเล่นจากไฟล์บนดิสก์
+          // ลดแรมสูงสุด ไม่เช่นนั้นไฟล์ใหญ่จะทำให้แท็บถูกฆ่า (Aw, Snap) ตอนประกอบ Blob เต็ม
+          return openVideoTempWriter().then(function (temp) {
+            const assembled = readVideoBlobRanges(url, headers, size, transfer.controller.signal, progressBlob,
+              temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null);
+            const finished = temp
+              ? assembled.then(function () { return temp.done(); })
+                .catch(function (err) { return Promise.resolve(temp.stop()).catch(function () {}).then(function () { throw err; }); })
+              : assembled;
+            return finished.catch(function (err) {
+              if ((err && err.name === 'AbortError') || transfer.controller.signal.aborted || !active()) throw err;
+              return loadSingle();
+            });
+          });
+        } : loadSingle;
+        return load().then(function (blob) {
             if (!active()) return;
             const nextUrl = URL.createObjectURL(blob);
             videoBlobTransfer = null;
