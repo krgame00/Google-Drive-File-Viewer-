@@ -109,7 +109,9 @@ async function streamFile(event, id, attempt) {
     if (boundedRange !== range) {
       const actual = (upstream.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
       const requested = boundedRange.match(/^bytes=(\d+)-(\d+)$/);
-      const rangeFailure = upstream.status !== 206 ? 'status' : !actual ? 'header'
+      // A 206 certifies the bounded interval; some responses hide Content-Range
+      // from scripts (CORS exposure), so an unreadable header passes through.
+      const rangeFailure = upstream.status !== 206 ? 'status' : !actual ? null
         : BigInt(actual[1]) !== BigInt(requested[1]) ? 'start'
         : BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2]) ? 'end'
         : actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]) ? 'total' : null;

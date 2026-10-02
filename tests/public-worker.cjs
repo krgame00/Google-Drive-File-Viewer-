@@ -38,6 +38,11 @@ test('cancellation prevents a smaller-range retry after a quota response',async(
  const res=await createDriveWorker(async()=>{calls++;controller.abort();return new Response('downloadQuotaExceeded',{status:403})}).fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=0-'},signal:controller.signal}));
  assert.equal(calls,1);assert.equal(res.status,403);
 });
+test('a partial 206 whose range header is hidden from scripts is passed through as-is',async()=>{
+ const {createDriveWorker}=await worker;
+ const res=await createDriveWorker(async()=>new Response('data',{status:206,headers:{'Content-Type':'video/mp4'}})).fetch(request());
+ assert.equal(res.status,206);assert.equal(await res.text(),'data');
+});
 test('ignored and mismatched bounded ranges are cancelled rather than played as a full download',async()=>{
  const {createDriveWorker}=await worker;
  for(const [status,contentRange] of [[200,null],[206,'bytes 5-8/100'],[206,'bytes 0-9999999/10000000'],[206,'bytes 3-0/100']]){

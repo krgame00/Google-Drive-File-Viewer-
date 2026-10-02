@@ -46,8 +46,13 @@ test('account streaming accepts an unknown total for a valid partial interval',a
  assert.equal(await res.text(),'data');
 });
 
+test('a 206 whose Content-Range is hidden from scripts plays instead of failing',async()=>{
+ const {request,errors}=setup({contentRange:''});
+ const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(res.status,206);assert.equal(await res.text(),'data');assert.equal(errors.length,0);
+});
 test('range rejection reports only a bounded failure category and upstream status',async()=>{
- for(const [opts,category] of [[{status:200},'status'],[{contentRange:''},'header'],[{contentRange:'bytes 5-8/100'},'start'],[{contentRange:'bytes 0-9999999/*'},'end'],[{contentRange:'bytes 0-3/3'},'total']]){
+ for(const [opts,category] of [[{status:200},'status'],[{contentRange:'bytes 5-8/100'},'start'],[{contentRange:'bytes 0-9999999/*'},'end'],[{contentRange:'bytes 0-3/3'},'total']]){
   const bad=setup(opts);await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
   assert.equal(bad.errors[0].rangeFailure,category);assert.equal(bad.errors[0].upstreamStatus,opts.status||206);
   assert(!JSON.stringify(bad.errors).includes('test-token'));

@@ -91,14 +91,16 @@ export function createDriveWorker(fetchImpl = fetch) {
           if (res.body) await res.body.cancel();
           return jsonError(502, 'unsupportedContentType');
         }
-        // A capped request must return the actual requested interval, never a full-file 200
-        // or a different cached interval. Leave Google's real quota errors intact above.
+        // A capped request must return a partial 206, never a full-file 200.
+        // A readable interval header must match the request; when Google hides
+        // Content-Range from scripts (CORS exposure) the 206 itself certifies
+        // the interval, so pass it through. Quota errors stay intact above.
         if (boundedRange !== range) {
           const actual = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
           const requested = boundedRange.match(/^bytes=(\d+)-(\d+)$/);
-          if (res.status !== 206 || !actual || BigInt(actual[1]) !== BigInt(requested[1])
+          if (res.status !== 206 || (actual && (BigInt(actual[1]) !== BigInt(requested[1])
               || BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2])
-              || (actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]))) {
+              || (actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]))))) {
             if (res.body) await res.body.cancel();
             return jsonError(502, 'upstreamIgnoredRange');
           }
