@@ -51,3 +51,7 @@ site: play a permitted MP4, seek, close, switch files, and sign out; repeat on
 Brave Android. Mock tests do not establish actual device playback compatibility.
 
 The adaptive-range revision retries only an open-ended interval rejected with a confirmed download quota response: 8 MiB, then 2 MiB, then 1 MiB, at the same byte offset. At most two size retries are allowed; explicit and suffix ranges, permission errors, and aborted requests do not enter this retry path. Persistent quota still returns an error. This revision needs a separate Cloudflare deployment.
+
+Range validation accepts a valid 206 interval whose complete length is unknown (`*`), while retaining checks for the starting offset and requested cap. Range failures report an allowlisted category (status, header, start, end or total) and the upstream HTTP status so a mobile screenshot can distinguish the cause. They never include raw headers or account credentials. See the mobile-range investigation report for current evidence and limits.
+
+Signed-in fallback now includes the public Cloudflare Worker: after the bearer stream fails at the media level, or when a remembered route says the Worker played this file before, public sources are tried with only the file ID — no token reaches Cloudflare, and whole-file loading still never starts automatically. The Worker route only plays files that are publicly readable, so a private-file failure continues through the remaining public sources to the bearer stream.

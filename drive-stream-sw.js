@@ -107,13 +107,15 @@ async function streamFile(event, id, attempt) {
       return failure(502);
     }
     if (boundedRange !== range) {
-      const actual = (upstream.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+      const actual = (upstream.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
       const requested = boundedRange.match(/^bytes=(\d+)-(\d+)$/);
-      if (upstream.status !== 206 || !actual || BigInt(actual[1]) !== BigInt(requested[1])
-          || BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2])
-          || BigInt(actual[3]) <= BigInt(actual[2])) {
+      const rangeFailure = upstream.status !== 206 ? 'status' : !actual ? 'header'
+        : BigInt(actual[1]) !== BigInt(requested[1]) ? 'start'
+        : BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2]) ? 'end'
+        : actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]) ? 'total' : null;
+      if (rangeFailure) {
         if (upstream.body) await upstream.body.cancel();
-        reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamRangeUnsupported',attempt});
+        reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamRangeUnsupported',attempt,rangeFailure,upstreamStatus:upstream.status});
         return failure(502);
       }
     }

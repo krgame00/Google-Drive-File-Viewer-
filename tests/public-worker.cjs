@@ -51,6 +51,12 @@ test('range conversion keeps large offsets exact and leaves downloads without Ra
  const {boundedMediaRange}=await worker;assert.equal(boundedMediaRange('bytes=9007199254740993-'),'bytes=9007199254740993-9007199263129600');
  assert.equal(boundedMediaRange(null),null);assert.equal(boundedMediaRange('bytes=0-1,4-5'),'bytes=0-1,4-5');
 });
+
+test('public streaming preserves a valid partial interval with unknown total',async()=>{
+ const {createDriveWorker}=await worker;
+ const res=await createDriveWorker(async()=>new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/*'}})).fetch(request());
+ assert.equal(res.status,206);assert.equal(res.headers.get('Content-Range'),'bytes 0-3/*');assert.equal(await res.text(),'data');
+});
 test('HTML quota and unknown HTML never become MP4 responses',async()=>{
  const {createDriveWorker}=await worker;
  for(const [html,status] of [['Too many users have downloaded this file',403],['<html>Sign in</html>',502]]){

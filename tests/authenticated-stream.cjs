@@ -38,6 +38,21 @@ test('account seeking keeps the requested offset and cancels wrong intervals',as
   const bad=setup(options);assert.equal((await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-')).status,502);assert.equal(bad.errors[0].reason,'streamRangeUnsupported');
  }
 });
+
+test('account streaming accepts an unknown total for a valid partial interval',async()=>{
+ const {request}=setup({contentRange:'bytes 0-3/*'});
+ const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(res.status,206);assert.equal(res.headers.get('Content-Range'),'bytes 0-3/*');
+ assert.equal(await res.text(),'data');
+});
+
+test('range rejection reports only a bounded failure category and upstream status',async()=>{
+ for(const [opts,category] of [[{status:200},'status'],[{contentRange:''},'header'],[{contentRange:'bytes 5-8/100'},'start'],[{contentRange:'bytes 0-9999999/*'},'end'],[{contentRange:'bytes 0-3/3'},'total']]){
+  const bad=setup(opts);await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+  assert.equal(bad.errors[0].rangeFailure,category);assert.equal(bad.errors[0].upstreamStatus,opts.status||206);
+  assert(!JSON.stringify(bad.errors).includes('test-token'));
+ }
+});
 test('account open ranges retry download quota with smaller intervals but never retry permission errors',async()=>{
  for(const reason of ['downloadQuotaExceeded','insufficientFilePermissions']){
   const {request,ctx}=setup();const ranges=[];ctx.fetch=async(url,opts)=>{ranges.push(opts.headers.get('Range'));return ranges.length<3?new Response(JSON.stringify({error:{errors:[{reason}]}}),{status:403,headers:{'Content-Type':'application/json'}}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100'}})};
@@ -109,7 +124,7 @@ test('account media failure tries Google backup and ignores its callback after c
     ctx.tryPublicStream=(id,fail,googleOnly)=>{backup={id,fail,googleOnly}};
     ctx.probeStreamEndpoint=()=>{probes++;return Promise.resolve('works')};
     ctx.tryStreamDirect('file1');await ready(true);sources[0].fail('media');
-    assert.equal(backup.id,'file1');assert.equal(backup.googleOnly,true);
+    assert.equal(backup.id,'file1');assert.equal(backup.googleOnly,false);
     assert.equal(errors.length,1);assert.deepEqual(fallbacks,[]);
     change(ctx);backup.fail();assert.equal(errors.length,1);assert.equal(probes,0);
   }
@@ -121,11 +136,19 @@ test('unsupported browser explains failure and signed-out user keeps public play
 test('remembered signed-in public route is tried before bearer without repeating public routes',async()=>{
  const {ctx,sources,ready}=playerSetup();ctx.preferredPlaybackRoute=()=> 'usercontent';let backup;
  ctx.tryPublicStream=(id,fail,googleOnly)=>{backup={id,fail,googleOnly}};
- ctx.tryStreamDirect('file1');assert.equal(sources.length,0);assert.equal(backup.googleOnly,true);
+ ctx.tryStreamDirect('file1');assert.equal(sources.length,0);assert.equal(backup.googleOnly,false);
  backup.fail();await ready(true);assert.match(String(sources[0].url),/__drive_stream/);
  const status={textContent:'',hidden:false};ctx.document={getElementById:()=>status};ctx.MEDIA_STREAM_FAIL_MSG='failed';ctx.videoAttempt=1;
  ctx.showStreamFailure=text=>{status.textContent=text};ctx.setVideoStatus=(state)=>{ctx.videoStatus=state};ctx.probeStreamEndpoint=async()=> 'unknown';
  ctx.tryPublicStream=()=>assert.fail('public routes must not repeat');sources[0].fail('media');await Promise.resolve();
+});
+
+test('remembered signed-in public worker route avoids bearer setup and carries no token',()=>{
+ const {ctx,sources}=playerSetup();ctx.preferredPlaybackRoute=()=> 'worker';let backup;
+ ctx.tryPublicStream=(id,fail,googleOnly)=>{backup={id,fail,googleOnly}};
+ ctx.prepareStreamWorker=()=>assert.fail('remembered working public route should be tried first');
+ ctx.tryStreamDirect('file1');assert.equal(sources.length,0);assert.equal(backup.id,'file1');assert.equal(backup.googleOnly,false);
+ assert(!JSON.stringify(backup).includes('test-token'));
 });
 test('error reports echo the attempt token from the request',async()=>{
   const {request,errors}=setup({token:null});

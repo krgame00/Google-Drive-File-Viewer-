@@ -4393,7 +4393,11 @@
         const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
         if (data.reason === 'streamRangeUnsupported') {
-          setVideoStatus('error', 'แหล่งสตรีมส่งข้อมูลไม่ตรงช่วงที่ร้องขอ จึงหยุดเล่นเพื่อป้องกันข้อมูลผิด กดลองใหม่หรือใช้พรีวิว Google');
+          const kinds = ['status','header','start','end','total'];
+          const kind = kinds.includes(data.rangeFailure) ? data.rangeFailure : 'unknown';
+          const status = Number(data.upstreamStatus);
+          const diagnostic = Number.isInteger(status) && status >= 100 && status <= 599 ? ' [RANGE/' + kind + '/HTTP' + status + ']' : '';
+          setVideoStatus('error', 'แหล่งสตรีมไม่รองรับช่วงข้อมูลที่เว็บร้องขอ กดลองใหม่หรือใช้พรีวิว Google' + diagnostic);
           if (vidPlayer.onerror) vidPlayer.onerror();
           return true;
         }
@@ -4786,8 +4790,9 @@
       function tryStreamDirect(id, usePreferred = true, skipPublic = false) {
         if (!accessToken) { tryPublicStream(id); return; }
         const preferred = usePreferred ? preferredPlaybackRoute(id) : null;
-        if (['usercontent', 'key'].includes(preferred) && (preferred !== 'key' || apiKey)) {
-          tryPublicStream(id, function () { tryStreamDirect(id, false, true); }, true);
+        // A remembered public route (including the Worker) plays without bearer setup first.
+        if (['usercontent', 'key', 'worker'].includes(preferred) && (preferred !== 'key' || apiKey)) {
+          tryPublicStream(id, function () { tryStreamDirect(id, false, true); }, false);
           return;
         }
         clearStreamBlocked();
@@ -4835,7 +4840,9 @@
                   });
               };
               if (skipPublic) finishFailure();
-              else tryPublicStream(id, finishFailure, true);
+              // Include the public Worker as a fallback: only the file ID reaches
+              // Cloudflare, and this route plays when the file is publicly readable.
+              else tryPublicStream(id, finishFailure, false);
             }
           }, 60000, 'bearer');
         });
