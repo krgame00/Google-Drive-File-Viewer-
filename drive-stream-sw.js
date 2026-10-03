@@ -15,12 +15,15 @@ function failure(status) {
   }});
 }
 
-function boundedMediaRange(range, chunkBytes = 8388608) {
+const MEDIA_CHUNK_BYTES = 16777216;
+function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
   const open = range && range.match(/^bytes=(\d{1,20})-$/i);
   if (!open) return range;
   const start = BigInt(open[1]);
   return 'bytes=' + start + '-' + (start + BigInt(chunkBytes) - 1n);
 }
+// One prefetched chunk for the next media request; lost if the worker restarts.
+let ahead = null;
 
 function requestToken(clients, id) {
   return new Promise(resolve => {
@@ -79,27 +82,40 @@ async function streamFile(event, id, attempt) {
     const range = request.headers.get('Range');
     let boundedRange = boundedMediaRange(range);
     if (boundedRange) headers.set('Range', boundedRange);
-    let upstream;
-    for (let retry = 0; retry < 3; retry++) {
-      try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
-        method: request.method, headers, credentials: 'omit', cache: 'no-store',
-        redirect: 'error', signal: request.signal
-      }); } catch (_) {
-        if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
-        return failure(502);
-      }
-      if (!upstream.ok) {
-        let reason='';
-        try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
-        if (upstream.status === 403 && reason === 'downloadQuotaExceeded' && boundedRange !== range && retry < 2 && !request.signal.aborted) {
-          boundedRange = boundedMediaRange(range, retry === 0 ? 2097152 : 1048576);
-          headers.set('Range', boundedRange);
-          continue;
+    // A chunk prefetched during the previous request may already cover this one.
+    let upstream = null;
+    const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
+    if (request.method === 'GET' && ahead && ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
+      const hit = ahead;
+      ahead = null;
+      try {
+        const cached = await hit.promise;
+        if (cached && cached.ok) upstream = cached;
+        else if (cached && cached.body) await cached.body.cancel();
+      } catch (_) {}
+    }
+    if (!upstream) {
+      for (let retry = 0; retry < 3; retry++) {
+        try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+          method: request.method, headers, credentials: 'omit', cache: 'no-store',
+          redirect: 'error', signal: request.signal
+        }); } catch (_) {
+          if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
+          return failure(502);
         }
-        reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
-        return failure(upstream.status);
+        if (!upstream.ok) {
+          let reason='';
+          try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
+          if (upstream.status === 403 && reason === 'downloadQuotaExceeded' && boundedRange !== range && retry < 2 && !request.signal.aborted) {
+            boundedRange = boundedMediaRange(range, retry === 0 ? 2097152 : 1048576);
+            headers.set('Range', boundedRange);
+            continue;
+          }
+          reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
+          return failure(upstream.status);
+        }
+        break;
       }
-      break;
     }
     const type = upstream.headers.get('Content-Type') || '';
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
@@ -119,6 +135,25 @@ async function streamFile(event, id, attempt) {
         if (upstream.body) await upstream.body.cancel();
         reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamRangeUnsupported',attempt,rangeFailure,upstreamStatus:upstream.status});
         return failure(502);
+      }
+    }
+    // Keep the next chunk in flight so the following media request starts
+    // without waiting for a fresh upstream connection. A seek aborts the stale
+    // prefetch; a failed one simply falls back to the normal fetch above.
+    const servedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
+    if (request.method === 'GET' && servedBound && boundedRange !== range && !request.signal.aborted) {
+      const nextStart = BigInt(servedBound[2]) + 1n;
+      if (ahead && (ahead.id !== id || ahead.start !== nextStart)) {
+        ahead.controller.abort();
+        ahead = null;
+      }
+      if (!ahead) {
+        const controller = new AbortController();
+        ahead = {id: id, start: nextStart, controller: controller, promise: fetch(
+          'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media',
+          {method: 'GET', headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n)}),
+           credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal}
+        ).catch(function () { return null; })};
       }
     }
     const responseHeaders = new Headers({'Cache-Control': 'no-store', 'Content-Type': type});

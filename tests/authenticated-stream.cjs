@@ -5,7 +5,7 @@ const {MessageChannel}=require('node:worker_threads');
 function setup({token='test-token',status=206,type='video/mp4',client=true,fetchFails=false,contentRange='bytes 0-3/100'}={}) {
   const events={},calls=[],errors=[];
   const theClient={url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else{errors.push(data)}}};
-  const ctx={URL,Headers,Response,MessageChannel,setTimeout,clearTimeout,
+  const ctx={URL,Headers,Response,MessageChannel,AbortController,setTimeout,clearTimeout,
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
       clients:{get:async(id)=>client?theClient:null,matchAll:async()=>client?[theClient]:[]}},
     fetch:async(url,options)=>{calls.push({url,options});if(fetchFails)throw new Error('private diagnostic test-token');return new Response('data',{status,headers:{'Content-Type':type,'Content-Range':contentRange}})}};
@@ -28,12 +28,12 @@ test('streams ranges with bearer header, without token in URL or cache',async()=
 });
 test('account streaming bounds open-ended ranges and preserves explicit ranges',async()=>{
  const {request,calls}=setup();const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
- assert.equal(calls[0].options.headers.get('Range'),'bytes=0-8388607');assert.equal(res.status,206);assert.equal(res.headers.get('Content-Range'),'bytes 0-3/100');
+ assert.equal(calls[0].options.headers.get('Range'),'bytes=0-16777215');assert.equal(res.status,206);assert.equal(res.headers.get('Content-Range'),'bytes 0-3/100');
  const next=setup();await next.request('__drive_stream?id=file1','GET','tab-1','bytes=4-7');assert.equal(next.calls[0].options.headers.get('Range'),'bytes=4-7');
 });
 test('account seeking keeps the requested offset and cancels wrong intervals',async()=>{
  const {request,calls}=setup({contentRange:'bytes 12345678-12345681/99999999'});
- const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=12345678-');assert.equal(res.status,206);assert.equal(calls[0].options.headers.get('Range'),'bytes=12345678-20734285');
+ const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=12345678-');assert.equal(res.status,206);assert.equal(calls[0].options.headers.get('Range'),'bytes=12345678-29122893');
  for(const options of [{status:200},{contentRange:'bytes 5-8/100'}]){
   const bad=setup(options);assert.equal((await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-')).status,502);assert.equal(bad.errors[0].reason,'streamRangeUnsupported');
  }
@@ -52,7 +52,7 @@ test('a 206 whose Content-Range is hidden from scripts plays instead of failing'
  assert.equal(res.status,206);assert.equal(await res.text(),'data');assert.equal(errors.length,0);
 });
 test('range rejection reports only a bounded failure category and upstream status',async()=>{
- for(const [opts,category] of [[{status:200},'status'],[{contentRange:'bytes 5-8/100'},'start'],[{contentRange:'bytes 0-9999999/*'},'end'],[{contentRange:'bytes 0-3/3'},'total']]){
+ for(const [opts,category] of [[{status:200},'status'],[{contentRange:'bytes 5-8/100'},'start'],[{contentRange:'bytes 0-99999999/*'},'end'],[{contentRange:'bytes 0-3/3'},'total']]){
   const bad=setup(opts);await bad.request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
   assert.equal(bad.errors[0].rangeFailure,category);assert.equal(bad.errors[0].upstreamStatus,opts.status||206);
   assert(!JSON.stringify(bad.errors).includes('test-token'));
@@ -62,8 +62,50 @@ test('account open ranges retry download quota with smaller intervals but never 
  for(const reason of ['downloadQuotaExceeded','insufficientFilePermissions']){
   const {request,ctx}=setup();const ranges=[];ctx.fetch=async(url,opts)=>{ranges.push(opts.headers.get('Range'));return ranges.length<3?new Response(JSON.stringify({error:{errors:[{reason}]}}),{status:403,headers:{'Content-Type':'application/json'}}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100'}})};
   const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');assert.equal(res.status,reason==='downloadQuotaExceeded'?206:403);
-  assert.deepEqual(ranges,reason==='downloadQuotaExceeded'?['bytes=0-8388607','bytes=0-2097151','bytes=0-1048575']:['bytes=0-8388607']);
+  assert.deepEqual(ranges,reason==='downloadQuotaExceeded'?['bytes=0-16777215','bytes=0-2097151','bytes=0-1048575','bytes=1048576-17825791']:['bytes=0-16777215']);
  }
+});
+test('the read-ahead chunk is served without a second upstream fetch',async()=>{
+ const {request,ctx}=setup();const calls=[];
+ ctx.fetch=async(url,options)=>{
+  const range=options.headers.get('Range');calls.push(range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  return new Response(range,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999'}});
+ };
+ const first=await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(await first.text(),'bytes=0-16777215');
+ assert.deepEqual(calls,['bytes=0-16777215','bytes=16777216-33554431'],'serving one chunk prefetches exactly the next one');
+ const second=await request('__drive_stream?id=file1','GET','tab-1','bytes=16777216-');
+ assert.equal(await second.text(),'bytes=16777216-33554431');
+ assert.deepEqual(calls,['bytes=0-16777215','bytes=16777216-33554431','bytes=33554432-50331647'],'the served chunk came from the prefetch, not a new fetch');
+});
+test('a seek away from the read-ahead aborts the stale prefetch',async()=>{
+ const {request,ctx}=setup();const signals=[];
+ ctx.fetch=async(url,options)=>{
+  signals.push(options.signal);
+  const range=options.headers.get('Range');
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  return new Response(range,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ };
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(signals.length,2);assert.equal(signals[1].aborted,false);
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=999999999-');
+ assert.equal(signals[1].aborted,true,'the stale read-ahead was aborted');
+ assert.equal(signals.length,4,'the seek fetched its own range and started a new read-ahead');
+});
+test('a failed read-ahead falls back to a fresh upstream fetch',async()=>{
+ const {request,ctx}=setup();let n=0;
+ ctx.fetch=async(url,options)=>{
+  n++;
+  if(n===2) return Promise.reject(new Error('prefetch dropped'));
+  const range=options.headers.get('Range');
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  return new Response(range,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999'}});
+ };
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ const second=await request('__drive_stream?id=file1','GET','tab-1','bytes=16777216-');
+ assert.equal(second.status,206);assert.equal(await second.text(),'bytes=16777216-33554431');
+ assert.equal(n,4,'the dropped prefetch triggered one replacement fetch plus the next read-ahead');
 });
 test('missing login or client never fetches a private file',async()=>{
   for(const options of [{token:null},{client:false}]){const {request,calls}=setup(options);assert.equal((await request()).status,401);assert.equal(calls.length,0)}
