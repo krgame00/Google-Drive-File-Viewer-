@@ -1254,6 +1254,11 @@
 
 
 
+    #videoCacheSettings p { font-size: .82rem; line-height: 1.6; font-weight: 400; }
+    #videoCacheSettings select, #videoCacheSettings button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: .82rem; }
+    #videoCacheSettings button { cursor: pointer; }
+    #videoCacheSettings button:disabled { opacity: .5; cursor: default; }
+    #videoCacheSettings select:focus-visible, #videoCacheSettings button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     /* Summary ของ settings card แบบใหญ่ */
 
     details.card > summary {
@@ -1792,6 +1797,17 @@
 
 
 
+    <details class="card" id="videoCacheSettings">
+      <summary>คลิปที่เก็บไว้ในเครื่อง</summary>
+      <p class="muted">เก็บเฉพาะคลิปที่กดโหลดทั้งไฟล์และโหลดเสร็จ เพื่อเปิดซ้ำโดยไม่โหลดใหม่ ลบคลิปที่ไม่ได้เปิดนานที่สุดเมื่อเต็ม และล้างเมื่อออกจากระบบ Google</p>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px">
+        <label for="videoCacheLimit">พื้นที่สูงสุด</label>
+        <select id="videoCacheLimit"><option value="0">ปิด</option><option value="1">1 GB</option><option value="2" selected>2 GB</option><option value="5">5 GB</option></select>
+        <button type="button" id="clearVideoCache">ล้างคลิปที่เก็บไว้</button>
+      </div>
+      <p id="videoCacheStatus" class="muted" aria-live="polite"></p>
+      <p class="muted">ใช้พื้นที่ของเบราว์เซอร์ เครื่องอาจล้างคลิปเองได้ คลิปใหญ่เกินพื้นที่ที่ตั้งไว้จะไม่ถูกเก็บ</p>
+    </details>
     <!-- ===== Link Input Card ===== -->
 
     <div class="card">
@@ -2053,6 +2069,7 @@
 
 
 
+  <script src="video-cache.js"></script>
   <script>
 
     (function () {
@@ -2755,6 +2772,7 @@
           }
 
           accessToken = null; tokenExpiry = 0; userProfile = null;
+          if (videoCache) videoCache.clear().then(refreshVideoCacheUI);
           lsRemove('gdv_auth_remember');
           if (videoModal.classList.contains("show")) closeVideo();
 
@@ -4344,6 +4362,60 @@
       let videoStatus = 'closed';
       let videoSlowTimer = null;
       let videoBlobTransfer = null;
+      const routeCooldown = window.GDVVideoCache ? window.GDVVideoCache.createRouteCooldown() : null;
+      const videoCache = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({limit: videoCacheLimit}) : null;
+      document.getElementById('videoCacheLimit').addEventListener('change', function (event) {
+        lsSet('gdv_video_cache_gb', event.target.value);
+        if (videoCache) videoCache.trim().then(refreshVideoCacheUI);
+      });
+      document.getElementById('clearVideoCache').addEventListener('click', function () {
+        const button = this;
+        if (!videoCache) return;
+        button.disabled = true;
+        videoCache.clear().then(function (cleared) { refreshVideoCacheUI(); showToast(cleared ? 'ล้างคลิปที่เก็บไว้แล้ว' : 'ล้างคลิปไม่สำเร็จ ลองอีกครั้ง'); }).finally(function () { button.disabled = false; });
+      });
+      refreshVideoCacheUI();
+      function videoCacheLimit() {
+        const setting = lsGet('gdv_video_cache_gb');
+        return (['0','1','2','5'].includes(setting) ? Number(setting) : 2) * 1073741824;
+      }
+      function videoCacheScope() {
+        if (!accessToken) return 'public';
+        return userProfile && userProfile.email ? 'account:' + userProfile.email : null;
+      }
+      function clearRetryRoutes() {
+        if (routeCooldown && vidCurrentId) routeCooldown.clear(vidCurrentId, accessToken ? 'signedin' : 'public');
+      }
+      function refreshVideoCacheUI() {
+        const select = document.getElementById('videoCacheLimit');
+        const status = document.getElementById('videoCacheStatus');
+        if (!select || !status) return;
+        select.value = String(videoCacheLimit() / 1073741824);
+        if (!videoCache || !videoCache.supported) { select.disabled = true; document.getElementById('clearVideoCache').disabled = true; status.textContent = 'เบราว์เซอร์นี้เก็บคลิปไว้เปิดซ้ำไม่ได้'; return; }
+        return videoCache.stats().then(function (stats) { status.textContent = stats.count + ' คลิป · ' + (formatSize(stats.bytes) || '0 B') + ' / ' + select.value + ' GB'; });
+      }
+      function startVideoPlayback(id) {
+        if (typeof videoCache === 'undefined' || !videoCache) { tryStreamDirect(id); return Promise.resolve(); }
+        const session = mediaSession, attempt = videoAttempt, token = accessToken, scope = videoCacheScope();
+        const active = function () { return session === mediaSession && attempt === videoAttempt && token === accessToken && id === vidCurrentId && videoModal.classList.contains('show'); };
+        let timer;
+        setVideoStatus('connecting', 'กำลังตรวจคลิปที่เก็บไว้ในเครื่อง…');
+        return Promise.race([videoCache.get(id, fileMetaOf(id), scope), new Promise(function (resolve) { timer = setTimeout(function () { resolve(null); }, 1500); })]).then(function (blob) {
+          clearTimeout(timer);
+          if (!active()) return;
+          if (!blob) { tryStreamDirect(id); return; }
+          revokeCurrentVideo();
+          currentVideoUrl = URL.createObjectURL(blob);
+          vidPlayer.removeAttribute('crossorigin'); vidPlayer.style.display = 'block';
+          tryVideoSrc(currentVideoUrl, function () {
+            if (session !== mediaSession || token !== accessToken || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
+            return videoCache.remove(id, scope).then(function () {
+              if (session === mediaSession && token === accessToken && id === vidCurrentId && videoModal.classList.contains('show')) tryStreamDirect(id);
+            });
+          }, 120000);
+          setVideoStatus('loading', 'กำลังเปิดคลิปที่เก็บไว้ในเครื่อง…');
+        });
+      }
       function playbackRouteRecords() {
         try {
           const records = JSON.parse(lsGet('gdv_playback_routes') || '[]');
@@ -4367,6 +4439,7 @@
         const source = vidPlayer.playbackRoute;
         if (!source || source.session !== mediaSession || source.id !== vidCurrentId || source.mode !== (accessToken ? 'signedin' : 'public') || !videoModal.classList.contains('show') || vidPlayer.paused || vidPlayer.style.display === 'none' || String(vidPlayer.src) !== source.url) return;
         rememberPlaybackRoute(source.id, source.route);
+        if (typeof routeCooldown !== 'undefined' && routeCooldown) routeCooldown.success(source.id, source.mode, source.route);
       }
       function setVideoStatus(state, message) {
         const prev = videoStatus;
@@ -4491,7 +4564,7 @@
 
               // สตรีมตรงก่อนเสมอ (เริ่มเล่นทันที + เลื่อนช่วงได้) — ไม่ได้ค่อย fallback ตามโหมด auth
 
-              tryStreamDirect(id);
+              startVideoPlayback(id);
 
             }
 
@@ -4776,12 +4849,12 @@
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
       document.getElementById('vidRetry').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) { clearStreamBlocked(); openVideo(vidCurrentId, vidTitle.textContent); }
+        if (videoModal.classList.contains('show') && vidCurrentId) { clearRetryRoutes(); clearStreamBlocked(); openVideo(vidCurrentId, vidTitle.textContent); }
       });
       document.getElementById('vidReconnect').addEventListener('click', function () {
         const id=vidCurrentId, session=mediaSession, name=vidTitle.textContent;
         ensureToken(true).then(function(token){
-          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) { clearStreamBlocked(); openVideo(id,name); }
+          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) { clearRetryRoutes(); clearStreamBlocked(); openVideo(id,name); }
         });
       });
       document.getElementById('vidBlob').addEventListener('click', function () {
@@ -4844,6 +4917,7 @@
 
       function tryStreamDirect(id, usePreferred = true, skipPublic = false) {
         if (!accessToken) { tryPublicStream(id); return; }
+        if (!skipPublic && typeof routeCooldown !== 'undefined' && routeCooldown && routeCooldown.blocked(id, 'signedin', 'bearer')) { tryPublicStream(id); return; }
         const preferred = usePreferred ? preferredPlaybackRoute(id) : null;
         // A remembered public route (including the Worker) plays without bearer setup first.
         if (['usercontent', 'key', 'worker'].includes(preferred) && (preferred !== 'key' || apiKey)) {
@@ -4972,6 +5046,10 @@
         if (apiKey) sources.push({route:'key', label:'API key', url:'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + apiKey});
         else notes.push('API key: ไม่ได้ตั้งค่า');
         const preferred = preferredPlaybackRoute(id);
+        if (typeof routeCooldown !== 'undefined' && routeCooldown) {
+          const mode = accessToken ? 'signedin' : 'public';
+          for (let i = sources.length - 1; i >= 0; i--) if (routeCooldown.blocked(id, mode, sources[i].route)) { notes.push(sources[i].label + ': เพิ่งเล่นไม่สำเร็จ กดลองเล่นใหม่เพื่อลองอีกครั้ง'); sources.splice(i, 1); }
+        }
         const first = sources.findIndex(function (source) { return source.route === preferred; });
         if (first > 0) sources.unshift(sources.splice(first, 1)[0]);
         function next() {
@@ -4987,7 +5065,7 @@
           const probeAttempt = videoAttempt;
           probePublicStreamError(id).then(function (message) {
             if (!active() || probeAttempt !== videoAttempt) return;
-            if (message) { publicError = message; note(source.label, 'upstream', message); next(); }
+            if (message) { publicError = message; if (typeof routeCooldown !== 'undefined' && routeCooldown) routeCooldown.fail(id, accessToken ? 'signedin' : 'public', source.route); note(source.label, 'upstream', message); next(); }
             else play();
           });
         }
@@ -5157,6 +5235,8 @@
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
         const transfer = videoBlobTransfer = {id: id, session: mediaSession, startedAt: Date.now(), controller: new AbortController()};
+        const cacheScope = typeof videoCacheScope === 'function' ? videoCacheScope() : null;
+        const cacheMeta = fileMetaOf(id);
         const active = function () { return videoBlobTransfer === transfer && transfer.session === mediaSession && id === vidCurrentId && videoModal.classList.contains('show'); };
         const btn = document.getElementById('vidBlob');
         const cancel = document.getElementById('vidCancelBlob');
@@ -5213,8 +5293,14 @@
           };
           return tryNext();
         } : loadSingle;
-        return load().then(function (blob) {
+        return load().then(async function (blob) {
             if (!active()) return;
+            if (typeof videoCache !== 'undefined' && videoCache && cacheScope) {
+              setVideoStatus('loading', 'โหลดครบแล้ว กำลังเก็บคลิปไว้เปิดซ้ำ…');
+              await videoCache.put(id, blob, cacheMeta, cacheScope);
+              refreshVideoCacheUI();
+              if (!active()) return;
+            }
             const nextUrl = URL.createObjectURL(blob);
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
@@ -5245,6 +5331,10 @@
         const session = mediaSession;
         const attempt = videoAttempt;
         const playbackId = vidCurrentId;
+        if (route && typeof routeCooldown !== 'undefined' && routeCooldown) {
+          const reportFailure = onFail, mode = accessToken ? 'signedin' : 'public';
+          onFail = function (reason, diagnostic) { routeCooldown.fail(playbackId, mode, route); reportFailure(reason, diagnostic); };
+        }
 
         if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
         vidPlayer.playbackRoute = route ? {id: vidCurrentId, session: session, mode: accessToken ? 'signedin' : 'public', route: route, url: new URL(String(url), location.href).href} : null;
@@ -5822,7 +5912,7 @@
 
             })
 
-            .then(function (blob) {
+          .then(function (blob) {
               if (session !== mediaSession) return;
 
               vidLoading.classList.remove("show");

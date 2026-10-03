@@ -418,7 +418,7 @@ test('an old session block is cleared and the next file gets a fresh attempt',()
   assert.deepEqual(previews,[]);
 });
 test('retry and reconnect clear the remembered block before reopening',()=>{
-  assert(/vidRetry'\)\.addEventListener\('click', function \(\) \{\s*if \(videoModal\.classList\.contains\('show'\) && vidCurrentId\) \{ clearStreamBlocked\(\); openVideo/.test(html),'retry clears the flag');
+  assert(/vidRetry'\)\.addEventListener\('click', function \(\) \{\s*if \(videoModal\.classList\.contains\('show'\) && vidCurrentId\) \{ clearRetryRoutes\(\); clearStreamBlocked\(\); openVideo/.test(html),'retry clears cooldown and block');
   assert(/vidReconnect'\)\.addEventListener\('click',[\s\S]{0,400}clearStreamBlocked\(\); openVideo/.test(html),'reconnect clears the flag');
 });
 

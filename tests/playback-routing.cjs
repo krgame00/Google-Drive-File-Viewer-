@@ -39,3 +39,7 @@ test('switching to preview while a preflight is pending cannot reopen native pla
  const {ctx,sources}=setup();ctx.preferredPlaybackRoute=()=> 'key';let resolve;ctx.probePublicStreamError=()=>new Promise(r=>resolve=r);
  ctx.tryPublicStream('file1');ctx.videoAttempt++;resolve(null);await Promise.resolve();assert.equal(sources.length,0);
 });
+test('recently failed public routes are skipped without losing the remaining route',async()=>{
+ const {ctx,sources}=setup();ctx.accessToken='test-token';ctx.routeCooldown={blocked:(id,mode,route)=>mode==='signedin'&&route==='worker'};
+ ctx.tryPublicStream('file1');assert.match(sources[0].url,/usercontent/);sources[0].fail();await Promise.resolve();assert.match(sources[1].url,/googleapis/);
+});

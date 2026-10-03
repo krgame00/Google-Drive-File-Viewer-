@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>Video cache browser test</title>
+<button id="run">Run disposable cache test</button><pre id="result">Ready</pre>
+<script src="../video-cache.js"></script>
+<script>
+document.getElementById('run').onclick=async function(){
+  this.disabled=true;const result=document.getElementById('result');
+  const cache=GDVVideoCache.createVideoCache({cacheName:'gdv-disposable-cache-test',limit:()=>16});
+  function check(value,label){if(!value)throw new Error(label);result.textContent+='\nPASS '+label;}
+  result.textContent='Testing actual browser Cache Storage';
+  try{
+    check(cache.supported,'supported');
+    check(await cache.put('sample',new Blob(['abcd'],{type:'video/mp4'}),{size:4,modifiedTime:'v1'},'test'),'save complete payload');
+    const reopen=GDVVideoCache.createVideoCache({cacheName:'gdv-disposable-cache-test',limit:()=>16});
+    const blob=await reopen.get('sample',{size:4,modifiedTime:'v1'},'test');
+    check(blob&&await blob.text()==='abcd','new cache instance reopens exact bytes');
+    check(!await reopen.get('sample',{},'other'),'account scope isolated');
+    check((await reopen.stats()).bytes===4,'usage count');
+    await reopen.clear();check((await reopen.stats()).count===0,'clear removes payload and metadata');
+    result.textContent+='\nALL PASSED';
+  }catch(err){result.textContent+='\nFAIL '+err.message;}
+  finally{await cache.clear();this.disabled=false;}
+};
+</script>

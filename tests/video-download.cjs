@@ -31,6 +31,11 @@ test('successful download enables retry and unloads a Google preview before nati
   await ctx.loadVideoAsBlob('fileA');assert.deepEqual(played,['blob:video']);assert.equal(ctx.vidFrame.style.display,'none');assert.equal(ctx.vidPlayer.style.display,'block');
   assert.equal(el('vidBlob').disabled,false);assert.equal(el('vidCancelBlob').hidden,true);
 });
+test('only a completed active download is saved and cache failure does not prevent playback',async()=>{
+  const {ctx,played}=setup();const saved=[];ctx.videoCacheScope=()=> 'account:example';ctx.refreshVideoCacheUI=()=>{};
+  ctx.videoCache={put:async(id,blob,meta,scope)=>{saved.push({id,size:blob.size,scope});return false;}};
+  ctx.fetch=async()=>response([[1,2,3]],3);await ctx.loadVideoAsBlob('fileA');assert.equal(saved.length,1);assert.equal(saved[0].size,3);assert.equal(saved[0].scope,'account:example');assert.deepEqual(played,['blob:video']);
+});
 test('cancelled transfer cannot play or run automatic fallback after resolving late',async()=>{
   const {ctx,el,played}=setup();let finish,giveups=0;ctx.fetch=()=>new Promise(resolve=>finish=resolve);
   const load=ctx.loadVideoAsBlob('fileA',()=>giveups++);const transfer=ctx.videoBlobTransfer;ctx.cancelVideoBlobTransfer(true);
