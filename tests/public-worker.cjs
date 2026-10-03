@@ -13,7 +13,7 @@ test('open-ended start and seek requests are bounded while explicit and suffix r
  const {createDriveWorker}=await worker;
  for(const [input,expected] of [['bytes=0-','bytes=0-8388607'],['bytes=12345678-','bytes=12345678-20734285'],['bytes=0-63','bytes=0-63'],['bytes=-4096','bytes=-4096']]){
   const start=input==='bytes=12345678-'?12345678:0,contentRange='bytes '+start+'-'+(start+3)+'/99999999';
-  let actual;const app=createDriveWorker(async(url,opts)=>{actual=opts.headers.get('Range');return new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':contentRange,'Content-Length':'4'}})});
+  let actual;const app=createDriveWorker(async(url,opts)=>{if(actual===undefined)actual=opts.headers.get('Range');return new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':contentRange,'Content-Length':'4'}})});
   const res=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:input}}));assert.equal(actual,expected);assert.equal(res.headers.get('Content-Range'),contentRange);assert.equal(await res.text(),'data');
  }
 });
@@ -25,7 +25,48 @@ test('chunking never changes quota errors into video or advertises a fake full r
 test('quota on open ranges tries 8, 2 and 1 MiB at the same offset and stops after success',async()=>{
  const {createDriveWorker}=await worker;const ranges=[];
  const app=createDriveWorker(async(url,opts)=>{ranges.push(opts.headers.get('Range'));return ranges.length<3?new Response('downloadQuotaExceeded',{status:403}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 100-103/99999999'}})});
- const res=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=100-'}}));assert.equal(res.status,206);assert.deepEqual(ranges,['bytes=100-8388707','bytes=100-2097251','bytes=100-1048675']);
+ const res=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=100-'}}));assert.equal(res.status,206);assert.deepEqual(ranges,['bytes=100-8388707','bytes=100-2097251','bytes=100-1048675','bytes=1048676-9437283']);
+});
+test('the read-ahead chunk is served without a second upstream fetch',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  const range=opts.headers.get('Range');ranges.push(range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  return new Response(range,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ });
+ const first=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=0-'}}));
+ assert.equal(await first.text(),'bytes=0-8388607');
+ assert.deepEqual(ranges,['bytes=0-8388607','bytes=8388608-16777215']);
+ const second=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=8388608-'}}));
+ assert.equal(await second.text(),'bytes=8388608-16777215');
+ assert.deepEqual(ranges,['bytes=0-8388607','bytes=8388608-16777215','bytes=16777216-25165823'],'the served chunk came from the prefetch, not a new fetch');
+});
+test('a seek away from the read-ahead aborts the stale prefetch',async()=>{
+ const {createDriveWorker}=await worker;const signals=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  signals.push(opts.signal);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(opts.headers.get('Range'));
+  return new Response(opts.headers.get('Range'),{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ });
+ await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=0-'}}));
+ assert.equal(signals.length,2);assert.equal(signals[1].aborted,false);
+ await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=999999999-'}}));
+ assert.equal(signals[1].aborted,true,'the stale read-ahead was aborted');
+ assert.equal(signals.length,4,'the seek fetched its own range and started a new read-ahead');
+});
+test('a failed read-ahead falls back to a fresh upstream fetch',async()=>{
+ const {createDriveWorker}=await worker;let n=0;
+ const app=createDriveWorker(async(url,opts)=>{
+  n++;
+  if(n===2) return Promise.reject(new Error('prefetch dropped'));
+  const m=/^bytes=(\d+)-(\d+)$/.exec(opts.headers.get('Range'));
+  return new Response(opts.headers.get('Range'),{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ });
+ const first=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=0-'}}));
+ assert.equal(await first.text(),'bytes=0-8388607');
+ const second=await app.fetch(new Request('https://worker.test/?id=file1',{headers:{Range:'bytes=8388608-'}}));
+ assert.equal(second.status,206);assert.equal(await second.text(),'bytes=8388608-16777215');
+ assert.equal(n,4,'the dropped prefetch triggered one replacement fetch plus the next read-ahead');
 });
 test('persistent quota stops at three requests and explicit intervals never trigger size retries',async()=>{
  const {createDriveWorker}=await worker;

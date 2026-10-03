@@ -149,11 +149,14 @@ async function streamFile(event, id, attempt) {
       }
       if (!ahead) {
         const controller = new AbortController();
-        ahead = {id: id, start: nextStart, controller: controller, promise: fetch(
+        const entry = {id: id, start: nextStart, controller: controller};
+        const guard = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 120000);
+        entry.promise = fetch(
           'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media',
           {method: 'GET', headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n)}),
            credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal}
-        ).catch(function () { return null; })};
+        ).then(function (res) { clearTimeout(guard); return res; }, function () { clearTimeout(guard); return null; });
+        ahead = entry;
       }
     }
     const responseHeaders = new Headers({'Cache-Control': 'no-store', 'Content-Type': type});
