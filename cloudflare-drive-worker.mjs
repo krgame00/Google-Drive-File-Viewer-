@@ -19,6 +19,63 @@ export function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 }
 // One prefetched chunk for the next media request; lost if the isolate restarts.
 let ahead = null;
+// Files whose source answered with a usable length stream in parallel.
+let parallelOk = null;
+async function fetchParallelChunk(id, start, end, signal, fetchImpl) {
+  // Split one bounded interval into four sub-intervals fetched in parallel
+  // through the confirmation flow and stream them in order; returns
+  // {res, servedRange} or null to fall back to a single connection.
+  const total = end - start + 1n;
+  if (total < 4n) return null;
+  const part = total / 4n;
+  const ranges = [];
+  for (let i = 0n; i < 4n; i++) {
+    const s = start + i * part;
+    ranges.push([s, i === 3n ? end : s + part - 1n]);
+  }
+  const outcomes = await Promise.all(ranges.map(function (pair) {
+    return fetchMediaChunk(id, 'bytes=' + pair[0] + '-' + pair[1], signal, fetchImpl).catch(function () { return null; });
+  }));
+  for (let i = 0; i < outcomes.length; i++) {
+    const outcome = outcomes[i];
+    const res = outcome && outcome.res;
+    const actual = res && res.status === 206 ? (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i) : null;
+    if (!actual || BigInt(actual[1]) !== ranges[i][0] || BigInt(actual[2]) > ranges[i][1]) {
+      for (const outcome2 of outcomes) if (outcome2 && outcome2.res && outcome2.res.body) outcome2.res.body.cancel().catch(function () {});
+      return null;
+    }
+  }
+  let delivered = 0n, known = true, fileTotal = null;
+  for (const outcome of outcomes) {
+    const length = Number(outcome.res.headers.get('Content-Length'));
+    if (Number.isFinite(length) && length >= 0) delivered += BigInt(length); else known = false;
+    const headerTotal = (outcome.res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+    if (headerTotal && headerTotal[1] !== '*') fileTotal = BigInt(headerTotal[1]);
+  }
+  if (!known || delivered === 0n) { for (const outcome of outcomes) if (outcome.res && outcome.res.body) outcome.res.body.cancel().catch(function () {}); return null; }
+  const type = outcomes[outcomes.length - 1].res.headers.get('Content-Type') || 'application/octet-stream';
+  const stop = start + delivered - 1n;
+  const compositeRange = 'bytes ' + start + '-' + stop + '/' + (fileTotal !== null && fileTotal > stop ? fileTotal.toString() : '*');
+  const readers = outcomes.map(function (outcome) { return outcome.res.body.getReader(); });
+  let index = 0;
+  const stream = new ReadableStream({
+    async pull(controller) {
+      while (index < readers.length) {
+        const chunk = await readers[index].read();
+        if (chunk.done) { index++; continue; }
+        controller.enqueue(chunk.value);
+        return;
+      }
+      controller.close();
+    },
+    cancel() { for (const reader of readers) reader.cancel().catch(function () {}); }
+  });
+  const headers = new Headers(cors);
+  headers.set('Content-Type', type);
+  headers.set('Content-Range', compositeRange);
+  headers.set('Content-Length', delivered.toString());
+  return {res: new Response(stream, {status: 206, headers: headers}), servedRange: 'bytes=' + start + '-' + stop};
+}
 const attrs = tag => Object.fromEntries([...tag.matchAll(/([\w-]+)\s*=\s*["']([^"']*)["']/g)]
   .map(m => [m[1].toLowerCase(), m[2].replace(/&amp;/g, '&')]));
 function confirmationUrl(html, id) {
@@ -113,9 +170,15 @@ export function createDriveWorker(fetchImpl = fetch) {
           if (cached && cached.res) result = cached;
         } catch (_) {}
       }
+      if (!result && request.method === 'GET' && requestedBound && boundedMediaRange(range) !== range && parallelOk === id) {
+        result = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), abort.signal, fetchImpl);
+      }
       if (!result) result = await fetchMediaChunk(id, range, abort.signal, fetchImpl);
       if (result.error) return jsonError(result.status || 502, result.error);
       const res = result.res, servedRange = result.servedRange;
+      // A source that reports usable lengths can be fetched in parallel from
+      // the next interval on; lengthless answers keep the single connection.
+      if (res.status === 206 && res.headers.get('Content-Length')) parallelOk = id;
       // A capped request must return a partial 206, never a full-file 200.
       // A readable interval header must match the request; when Google hides
       // Content-Range from scripts (CORS exposure) the 206 itself certifies
@@ -134,7 +197,9 @@ export function createDriveWorker(fetchImpl = fetch) {
       // without waiting for a fresh upstream confirmation flow. A seek aborts
       // the stale prefetch; a failed one simply falls back to a fresh fetch.
       const servedBound = /^bytes=(\d+)-(\d+)$/.exec(servedRange);
-      if (request.method === 'GET' && servedBound && servedRange !== range && !request.signal.aborted) {
+      const servedTotal = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+      const atFileEnd = servedTotal && servedTotal[1] !== '*' && requestedBound && BigInt(servedTotal[1]) <= BigInt(servedBound[2]) + 1n;
+      if (request.method === 'GET' && servedBound && servedRange !== range && !atFileEnd && !request.signal.aborted) {
         const nextStart = BigInt(servedBound[2]) + 1n;
         if (ahead && (ahead.id !== id || ahead.start !== nextStart)) {
           ahead.controller.abort();
@@ -143,8 +208,9 @@ export function createDriveWorker(fetchImpl = fetch) {
         if (!ahead) {
           const controller = new AbortController();
           const entry = {id: id, start: nextStart, controller: controller};
-          entry.promise = fetchMediaChunk(
-            id, 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n), controller.signal, fetchImpl
+          entry.promise = (parallelOk === id
+            ? fetchParallelChunk(id, nextStart, nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n, controller.signal, fetchImpl)
+            : fetchMediaChunk(id, 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n), controller.signal, fetchImpl)
           ).then(function (outcome) { clearTimeout(timer); return outcome; }).catch(function () { clearTimeout(timer); return null; });
           const timer = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 60000);
           ahead = entry;

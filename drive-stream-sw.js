@@ -24,6 +24,65 @@ function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 }
 // One prefetched chunk for the next media request; lost if the worker restarts.
 let ahead = null;
+// Files whose source answered with a usable length stream in parallel.
+let parallelOk = null;
+async function fetchParallelChunk(id, start, end, token, signal) {
+  // Split one bounded interval into four sub-intervals fetched in parallel
+  // and stream them to the player in order; returns the composite 206
+  // Response, or null to fall back to a single connection.
+  const total = end - start + 1n;
+  if (total < 4n) return null;
+  const part = total / 4n;
+  const ranges = [];
+  for (let i = 0n; i < 4n; i++) {
+    const s = start + i * part;
+    ranges.push([s, i === 3n ? end : s + part - 1n]);
+  }
+  let responses;
+  try {
+    responses = await Promise.all(ranges.map(function (pair) {
+      return fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+        method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: signal,
+        headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + pair[0] + '-' + pair[1]})
+      });
+    }));
+  } catch (_) { return null; }
+  for (let i = 0; i < responses.length; i++) {
+    const res = responses[i];
+    const actual = res.ok && res.status === 206 ? (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i) : null;
+    if (!actual || BigInt(actual[1]) !== ranges[i][0] || BigInt(actual[2]) > ranges[i][1]) {
+      for (const other of responses) if (other.body) other.body.cancel().catch(function () {});
+      return null;
+    }
+  }
+  let delivered = 0n, known = true, fileTotal = null;
+  for (const res of responses) {
+    const length = Number(res.headers.get('Content-Length'));
+    if (Number.isFinite(length) && length >= 0) delivered += BigInt(length); else known = false;
+    const headerTotal = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+    if (headerTotal && headerTotal[1] !== '*') fileTotal = BigInt(headerTotal[1]);
+  }
+  if (!known || delivered === 0n) { for (const res of responses) if (res.body) res.body.cancel().catch(function () {}); return null; }
+  const type = responses[responses.length - 1].headers.get('Content-Type') || 'application/octet-stream';
+  const stop = start + delivered - 1n;
+  const compositeRange = 'bytes ' + start + '-' + stop + '/' + (fileTotal !== null && fileTotal > stop ? fileTotal.toString() : '*');
+  const readers = responses.map(function (res) { return res.body.getReader(); });
+  let index = 0;
+  const stream = new ReadableStream({
+    async pull(controller) {
+      while (index < readers.length) {
+        const chunk = await readers[index].read();
+        if (chunk.done) { index++; continue; }
+        controller.enqueue(chunk.value);
+        return;
+      }
+      controller.close();
+    },
+    cancel() { for (const reader of readers) reader.cancel().catch(function () {}); }
+  });
+  const headers = new Headers({'Cache-Control': 'no-store', 'Content-Type': type, 'Content-Range': compositeRange, 'Accept-Ranges': 'bytes', 'Content-Length': delivered.toString()});
+  return new Response(stream, {status: 206, headers: headers});
+}
 
 function requestToken(clients, id) {
   return new Promise(resolve => {
@@ -95,28 +154,36 @@ async function streamFile(event, id, attempt) {
       } catch (_) {}
     }
     if (!upstream) {
-      for (let retry = 0; retry < 3; retry++) {
-        try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
-          method: request.method, headers, credentials: 'omit', cache: 'no-store',
-          redirect: 'error', signal: request.signal
-        }); } catch (_) {
-          if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
-          return failure(502);
-        }
-        if (!upstream.ok) {
-          let reason='';
-          try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
-          if (upstream.status === 403 && reason === 'downloadQuotaExceeded' && boundedRange !== range && retry < 2 && !request.signal.aborted) {
-            boundedRange = boundedMediaRange(range, retry === 0 ? 2097152 : 1048576);
-            headers.set('Range', boundedRange);
-            continue;
+      if (request.method === 'GET' && requestedBound && boundedRange !== range && parallelOk === id) {
+        upstream = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), token, request.signal);
+      }
+      if (!upstream) {
+        for (let retry = 0; retry < 3; retry++) {
+          try { upstream = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+            method: request.method, headers, credentials: 'omit', cache: 'no-store',
+            redirect: 'error', signal: request.signal
+          }); } catch (_) {
+            if (!request.signal.aborted) reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamFetchFailed',attempt});
+            return failure(502);
           }
-          reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
-          return failure(upstream.status);
+          if (!upstream.ok) {
+            let reason='';
+            try { const body=await upstream.json(); reason=body.error?.errors?.[0]?.reason || ''; } catch (_) {}
+            if (upstream.status === 403 && reason === 'downloadQuotaExceeded' && boundedRange !== range && retry < 2 && !request.signal.aborted) {
+              boundedRange = boundedMediaRange(range, retry === 0 ? 2097152 : 1048576);
+              headers.set('Range', boundedRange);
+              continue;
+            }
+            reporter.postMessage({type:'drive-stream-error',id,status:upstream.status,reason,attempt});
+            return failure(upstream.status);
+          }
+          break;
         }
-        break;
       }
     }
+    // A source that reports usable lengths can be fetched in parallel from
+    // the next interval on; lengthless answers keep the single connection.
+    if (upstream && upstream.status === 206 && upstream.headers.get('Content-Length')) parallelOk = id;
     const type = upstream.headers.get('Content-Type') || '';
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
       if (upstream.body) await upstream.body.cancel();
@@ -141,7 +208,9 @@ async function streamFile(event, id, attempt) {
     // without waiting for a fresh upstream connection. A seek aborts the stale
     // prefetch; a failed one simply falls back to the normal fetch above.
     const servedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
-    if (request.method === 'GET' && servedBound && boundedRange !== range && !request.signal.aborted) {
+    const servedTotal = (upstream.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+    const atFileEnd = servedTotal && servedTotal[1] !== '*' && requestedBound && BigInt(servedTotal[1]) <= BigInt(servedBound[2]) + 1n;
+    if (request.method === 'GET' && servedBound && boundedRange !== range && !atFileEnd && !request.signal.aborted) {
       const nextStart = BigInt(servedBound[2]) + 1n;
       if (ahead && (ahead.id !== id || ahead.start !== nextStart)) {
         ahead.controller.abort();
@@ -151,10 +220,13 @@ async function streamFile(event, id, attempt) {
         const controller = new AbortController();
         const entry = {id: id, start: nextStart, controller: controller};
         const guard = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 120000);
-        entry.promise = fetch(
-          'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media',
-          {method: 'GET', headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n)}),
-           credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal}
+        const end = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
+        entry.promise = (parallelOk === id
+          ? fetchParallelChunk(id, nextStart, end, token)
+          : fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
+              method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
+              headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + nextStart + '-' + end})
+            })
         ).then(function (res) { clearTimeout(guard); return res; }, function () { clearTimeout(guard); return null; });
         ahead = entry;
       }
