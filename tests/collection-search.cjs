@@ -43,9 +43,8 @@ vm.runInContext('showSoloSquirt=false;',ctx);
 // solo badge แยกอิสระ: มี solo_squirt แต่ไม่มี squirting ต้องผ่านฟิลเตอร์ปิด (ไม่ถูกกรองออก)
 const soloOnlyItem=Object.assign({},item,{solo_squirt:true});
 assert.equal(matches(soloOnlyItem),true,'solo-only item not filtered by squirt filter');
-// badge ทั้งสองแบบต้องมีในโค้ด
+// badge น้ำพุ่งต้องมีในโค้ด, Solo badge เอาออกแล้ว (เหลือฟิลเตอร์)
 assert(html.includes('💦 น้ำพุ่ง'),'squirt badge exists');
-assert(html.includes('>Solo</span>'),'solo badge exists');
 
 // ป้ายวันตรวจสถานะต้องมาจากตัวแปรเดียว ไม่มี hardcode ซ้ำ
 assert(html.includes('const COLL_CHECKED_AT = '),'COLL_CHECKED_AT declared');

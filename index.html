@@ -6636,7 +6636,6 @@
             var deadBadge = '';
             var noDateBadge = isNoDate ? ' <span class="coll-badge nodate">ชื่อไม่มีวันที่</span>' : '';
             var approxBadge = c.approx ? ' <span class="coll-badge" style="background:rgba(94,106,210,.14);color:#a5adff;border:1px solid rgba(94,106,210,.25)">ประมาณ</span>' : '';
-            var soloBadge2 = c.solo_squirt ? ' <span class="coll-badge" style="background:rgba(148,163,184,.14);color:#94a3b8;border:1px solid rgba(148,163,184,.25)">Solo</span>' : '';
             var soloBadge = effSq(c) ? ' <span class="coll-badge" style="background:rgba(56,189,248,.14);color:#38bdf8;border:1px solid rgba(56,189,248,.25)">💦 น้ำพุ่ง</span>' : '';
             var dotCls = c.dead===true ? 'dead' : c.dead===false ? 'ok' : 'muted';
             var dateCls = isNoDate || isDead ? 'coll-date' : 'coll-date evt';
@@ -6655,7 +6654,7 @@
             var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+c.id+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:#38bdf8;color:#38bdf8;":"opacity:.55;")+'">💦</button>';
             var mfBtn = hasMF ? '<a class="btn-ghost btn-mf" href="'+c.mf_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MediaFire ↗</a>' : '';
             card.innerHTML =
-              '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+soloBadge2+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
+              '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
               '<div class="coll-title" title="'+String(c.desc).replace(/"/g,'&quot;')+'">'+c.title+'</div>'+
               (driveNameTxt && driveNameTxt!=="มืด" ? '<div class="coll-id">'+String(driveNameTxt).replace(/</g,"&lt;")+'</div>' : '')+
               '<div class="coll-status">' + statusBadge('Drive', c.dead) + (c.mega_url ? statusBadge('MEGA', c.mega_dead) : '') + '<span class="coll-check-time" title="ตรวจสถานะเมื่อ '+COLL_CHECKED_AT+'">🕒 '+COLL_CHECKED_AT+'</span></div>' +
