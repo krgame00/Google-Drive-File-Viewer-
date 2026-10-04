@@ -1895,7 +1895,7 @@
 
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowDead" style="accent-color:var(--accent)"> แสดงรายการใช้ไม่ได้</label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowNoDate" checked style="accent-color:var(--accent)"> แสดงชื่อที่ไม่มีวันที่</label>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collSoloSquirt" style="accent-color:var(--accent)"> 💦 เฉพาะ Solo / Special Flow</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collSoloSquirt" style="accent-color:var(--accent)"> 💦 เฉพาะน้ำพุ่ง</label><button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button><span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
           <button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button>
           <button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button>
@@ -2647,6 +2647,7 @@
           userProfile = null;
         }
         refreshAuthUI(!!accessToken);
+        try{window.dispatchEvent(new CustomEvent("gdv-auth",{detail:{signedIn:!!accessToken}}));}catch(_){}
         const resolve = tokenResolver;
         tokenResolver = null;
         if (resolve) resolve(accessToken);
@@ -2657,7 +2658,7 @@
         waitForGis(function () {
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.appdata",
             callback: finishTokenRequest,
             error_callback: function () { finishTokenRequest(null); }
           });
@@ -6338,6 +6339,86 @@
         let showDead = localStorage.getItem("gdv_coll_showDead")==="1";
         let showNoDate = localStorage.getItem("gdv_coll_showNoDate")!=="0"; // default show
         let showSoloSquirt = localStorage.getItem("gdv_coll_solo_squirt")==="1";
+        // ===== Tag: น้ำพุ่ง (squirting) — local + Drive appData sync, last-write-wins =====
+        var TAG_LS = "gdv_tags_v1", TAG_FILE_LS = "gdv_tags_fileid", TAG_NAME = "gdv-tags.json";
+        function tagLoad(){ try { return JSON.parse(localStorage.getItem(TAG_LS)||"{}")||{}; } catch(_){ return {}; } }
+        function tagSave(){ try { localStorage.setItem(TAG_LS, JSON.stringify(tagOverrides)); } catch(_){} }
+        var tagOverrides = tagLoad();
+        function effSq(c){ var o=tagOverrides[c.id]; if(o) return !!o.s; return !!c.solo_squirt; }
+        var tagPushTimer=null, tagFileId=localStorage.getItem(TAG_FILE_LS)||null, tagLastToken=null, tagBusy=false;
+        function tagStatus(t){ var el=document.getElementById("collTagSyncStatus"); if(el) el.textContent=t; }
+        function tagMerge(remote){
+          var changed=false;
+          Object.keys(remote||{}).forEach(function(id){
+            var r=remote[id], l=tagOverrides[id];
+            if(!l || (r.t||0)>(l.t||0)){ tagOverrides[id]=r; changed=true; }
+          });
+          if(changed){ tagSave(); render(); }
+          return changed;
+        }
+        async function tagApiList(token){
+          var r=await fetch("https://www.googleapis.com/drive/v3/files?q="+encodeURIComponent("'appDataFolder' in parents and name='"+TAG_NAME+"' and trashed=false")+"&spaces=appDataFolder&fields=files(id,modifiedTime)",{headers:{Authorization:"Bearer "+token}});
+          if(!r.ok) throw new Error("list "+r.status);
+          return r.json();
+        }
+        async function tagPull(){
+          if(tagBusy) return;
+          try{
+            if(typeof accessToken==="undefined"||!accessToken) return;
+            tagBusy=true; tagStatus("กำลังซิงก์…");
+            var token=accessToken, j=await tagApiList(token);
+            if(j.files&&j.files.length){
+              tagFileId=j.files[0].id; localStorage.setItem(TAG_FILE_LS,tagFileId);
+              var d=await fetch("https://www.googleapis.com/drive/v3/files/"+encodeURIComponent(tagFileId)+"?alt=media",{headers:{Authorization:"Bearer "+token}});
+              if(d.ok){ var body=await d.json(); var ch=tagMerge(body.tags); tagStatus("ซิงก์แล้ว"+(ch?" (มีอัปเดต)":"")); tagPushMerged(token); }
+              else tagStatus("ดึงไม่สำเร็จ");
+            } else tagStatus("ยังไม่มีแท็กบน Drive");
+          }catch(_){ tagStatus("ซิงก์ไม่สำเร็จ"); } finally { tagBusy=false; }
+        }
+        async function tagPushMerged(token){
+          try{
+            var payload=JSON.stringify({version:1,tags:tagOverrides});
+            if(!tagFileId){
+              var c=await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({name:TAG_NAME,parents:["appDataFolder"],mimeType:"application/json"})});
+              if(!c.ok) return; tagFileId=(await c.json()).id; localStorage.setItem(TAG_FILE_LS,tagFileId);
+            }
+            await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(tagFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:payload});
+          }catch(_){}
+        }
+        function tagSchedulePush(){
+          if(typeof accessToken==="undefined"||!accessToken){ tagStatus("เก็บในเครื่อง (ยังไม่ sign-in)"); return; }
+          clearTimeout(tagPushTimer);
+          tagPushTimer=setTimeout(function(){ tagStatus("กำลังบันทึก…"); tagPushMerged(accessToken); tagStatus("บันทึกแล้ว ✓"); },1500);
+        }
+        function toggleTag(id){
+          var item=XBEP_COLLECTION.find(function(x){return x.id===id});
+          if(!item) return;
+          var nv=!effSq(item);
+          tagOverrides[id]={s:nv?1:0,t:Date.now()};
+          tagSave(); render(); tagSchedulePush();
+          showToast(nv?"ติดแท็ก 💦 น้ำพุ่งแล้ว":"ถอดแท็ก 💦 แล้ว");
+        }
+        function attachTagButtons(){
+          grid.querySelectorAll("[data-tag]").forEach(function(btn){
+            btn.addEventListener("click",function(ev){ ev.stopPropagation(); toggleTag(btn.getAttribute("data-tag")); });
+          });
+          var syncBtn=document.getElementById("collTagSync");
+          if(syncBtn&&!syncBtn.dataset.wired){
+            syncBtn.dataset.wired="1";
+            syncBtn.addEventListener("click",function(){
+              ensureToken().then(function(t){ if(t){ tagPull(); } else showToast("ลงชื่อเข้าใช้ไม่สำเร็จ"); });
+            });
+          }
+        }
+        setInterval(function(){
+          try{
+            if(typeof accessToken!=="undefined"&&accessToken){
+              if(accessToken!==tagLastToken){ tagLastToken=accessToken; tagPull(); }
+            } else tagLastToken=null;
+          }catch(_){}
+        },3000);
+        try{window.addEventListener("gdv-auth",function(){ tagPull(); });}catch(_){}
+        try{if(typeof accessToken!=="undefined"&&accessToken) tagPull();}catch(_){}
         let collPage = parseInt(localStorage.getItem("gdv_coll_page")||"1",10) || 1;
         let collPageMode = localStorage.getItem("gdv_coll_pagemode")!=="0";
         function collectionLayout(width, mobile) {
@@ -6448,7 +6529,7 @@
           if(!anyAlive && !showDead) return false;
           var isNoDate = !c.dead && (!c.drive_name || c.drive_name==="มืด" || c.drive_name==="โฟลเดอร์ไม่มีชื่อ" || !/\d{1,2}\.\d{1,2}\.\d{2}/.test(c.drive_name||""));
           if(isNoDate && !showNoDate) return false;
-          if((typeof showSoloSquirt !== "undefined" && showSoloSquirt) && !c.solo_squirt) return false;
+          if((typeof showSoloSquirt !== "undefined" && showSoloSquirt) && !effSq(c)) return false;
           var byDate = activeDate==="all" || (c.date||"ไม่ระบุ")===activeDate;
           if(!byDate) return false;
           if(!q) return true;
@@ -6541,7 +6622,7 @@
             var deadBadge = '';
             var noDateBadge = isNoDate ? ' <span class="coll-badge nodate">ชื่อไม่มีวันที่</span>' : '';
             var approxBadge = c.approx ? ' <span class="coll-badge" style="background:rgba(94,106,210,.14);color:#a5adff;border:1px solid rgba(94,106,210,.25)">ประมาณ</span>' : '';
-            var soloBadge = c.solo_squirt ? ' <span class="coll-badge" style="background:rgba(56,189,248,.14);color:#38bdf8;border:1px solid rgba(56,189,248,.25)">💦 Solo Special</span>' : '';
+            var soloBadge = effSq(c) ? ' <span class="coll-badge" style="background:rgba(56,189,248,.14);color:#38bdf8;border:1px solid rgba(56,189,248,.25)">💦 น้ำพุ่ง</span>' : '';
             var dotCls = c.dead===true ? 'dead' : c.dead===false ? 'ok' : 'muted';
             var dateCls = isNoDate || isDead ? 'coll-date' : 'coll-date evt';
             var hasMega = !!c.mega_url && !c.mega_dead;
@@ -6555,6 +6636,8 @@
             var driveBtn = driveAliveLocal ? '<a class="btn-ghost" href="'+c.url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">Drive ↗</a>' : '';
             var megaBtn = megaAliveLocal ? '<a class="btn-ghost btn-mega" href="'+c.mega_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MEGA ↗</a>' : '';
             var odBtn = hasOD ? '<a class="btn-ghost btn-od" href="'+c.od_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">OneDrive ↗</a>' : '';
+            var tagOn = effSq(c);
+            var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+c.id+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:#38bdf8;color:#38bdf8;":"opacity:.55;")+'">💦</button>';
             var mfBtn = hasMF ? '<a class="btn-ghost btn-mf" href="'+c.mf_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MediaFire ↗</a>' : '';
             card.innerHTML =
               '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
@@ -6563,6 +6646,7 @@
               '<div class="coll-status">' + statusBadge('Drive', c.dead) + (c.mega_url ? statusBadge('MEGA', c.mega_dead) : '') + '<span class="coll-check-time" title="ตรวจสถานะเมื่อ '+COLL_CHECKED_AT+'">🕒 '+COLL_CHECKED_AT+'</span></div>' +
               '<div class="coll-actions">'+
                 '<button type="button" class="btn-primary" data-open="'+c.id+'"'+(isDead?' disabled title="ไม่มีลิงก์ที่ใช้งานได้"':(!driveAliveLocal?' disabled title="Drive ใช้ไม่ได้ — เลือกลิงก์สำรอง"':''))+' style="flex:1">เปิด</button>'+
+                tagBtn+
                 driveBtn+
                 megaBtn+
                 odBtn+
@@ -6597,6 +6681,7 @@
             grid.appendChild(card);
           });
 
+          attachTagButtons();
           observeFolderCovers(grid);
           grid.querySelectorAll("[data-open]").forEach(function(btn){
 
