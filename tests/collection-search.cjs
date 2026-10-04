@@ -6,7 +6,7 @@ const start=html.indexOf('        function collMatches(');
 assert(start>=0,'collMatches exists');
 const end=html.indexOf('\n        }',start);
 const ctx={};vm.createContext(ctx);
-vm.runInContext('var q="",showDead=false,showNoDate=true,activeDate="all";\n'+html.slice(start,end+10),ctx);
+vm.runInContext('var q="",showDead=false,showNoDate=true,activeDate="all";\nfunction effSq(c){if(typeof c.squirting!=="undefined")return !!c.squirting;return !!c.solo_squirt;}\n'+html.slice(start,end+10),ctx);
 const matches=ctx.collMatches;
 
 const item={title:"โพสต์ทดสอบ",desc:"คำอธิบายสั้น ๆ",url:"",id:"abc123",kind:"folder",date:"1.5.69",drive_name:"1.5.69 ชื่อโฟลเดอร์",dead:false};
