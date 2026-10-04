@@ -31,15 +31,21 @@ vm.runInContext('showDead=false;activeDate="2.5.69";',ctx);
 assert.equal(matches(item),false,'date filter applies');
 vm.runInContext('activeDate="all";',ctx);
 
-// ตัวกรอง Solo Special
-const soloItem=Object.assign({},item,{solo_squirt:true});
-const nonSoloItem=Object.assign({},item,{solo_squirt:false});
-assert.equal(matches(soloItem),true,'solo item matches default');
-assert.equal(matches(nonSoloItem),true,'non-solo item matches default');
+// ตัวกรองน้ำพุ่ง (เฉพาะ squirting — solo ไม่เกี่ยว)
+const soloItem=Object.assign({},item,{squirting:true});
+const nonSoloItem=Object.assign({},item,{squirting:false});
+assert.equal(matches(soloItem),true,'squirt item matches default');
+assert.equal(matches(nonSoloItem),true,'non-squirt item matches default');
 vm.runInContext('showSoloSquirt=true;',ctx);
-assert.equal(matches(soloItem),true,'solo item matches when filter active');
-assert.equal(matches(nonSoloItem),false,'non-solo item rejected when filter active');
+assert.equal(matches(soloItem),true,'squirt item matches when filter active');
+assert.equal(matches(nonSoloItem),false,'non-squirt item rejected when filter active');
 vm.runInContext('showSoloSquirt=false;',ctx);
+// solo badge แยกอิสระ: มี solo_squirt แต่ไม่มี squirting ต้องผ่านฟิลเตอร์ปิด (ไม่ถูกกรองออก)
+const soloOnlyItem=Object.assign({},item,{solo_squirt:true});
+assert.equal(matches(soloOnlyItem),true,'solo-only item not filtered by squirt filter');
+// badge ทั้งสองแบบต้องมีในโค้ด
+assert(html.includes('💦 น้ำพุ่ง'),'squirt badge exists');
+assert(html.includes('>Solo</span>'),'solo badge exists');
 
 // ป้ายวันตรวจสถานะต้องมาจากตัวแปรเดียว ไม่มี hardcode ซ้ำ
 assert(html.includes('const COLL_CHECKED_AT = '),'COLL_CHECKED_AT declared');
