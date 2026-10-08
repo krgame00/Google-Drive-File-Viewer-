@@ -1678,9 +1678,31 @@
     .video-help { width: 100%; }
     .video-help summary { min-height: 44px; padding: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
     .video-help-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+    .pdf-controls { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+    .pdf-controls[hidden], #pdfStage[hidden] { display: none !important; }
+    .pdf-controls button { min-width: 44px; min-height: 44px; padding: 6px 10px; }
+    .pdf-page-count { min-width: 58px; color: #e5e7eb; text-align: center; font-size: 13px; white-space: nowrap; }
+    #pdfStage { position: absolute; inset: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; background: #292929; overscroll-behavior: contain; }
+    #pdfCanvas { display: block; max-width: none; height: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
+    .video-box[data-viewer="pdf"] .ratio { aspect-ratio: auto; height: min(72dvh, 900px); flex: 0 1 auto; }
+    .video-box[data-viewer="pdf"] .video-toolbar > .media-nav { display: none; }
+    .video-box[data-viewer="pdf"] .pdf-controls { display: flex; }
+    .video-box[data-viewer="pdf"] .video-footer .video-help,
+    .video-box[data-viewer="pdf"] .video-footer .video-info { display: none; }
+    .video-box:fullscreen[data-viewer="pdf"] .ratio { flex: 1 1 0; height: auto; }
+    .video-box:fullscreen #pdfStage { padding: 16px; }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
+      .video-box[data-viewer="pdf"] { max-height: calc(100dvh - 16px); }
+      .video-box[data-viewer="pdf"] .ratio { height: min(72dvh, 900px); }
+      .video-box[data-viewer="pdf"] .video-toolbar { gap: 4px; padding: 6px; }
+      .video-box[data-viewer="pdf"] .video-toolbar { overflow-x: auto; scrollbar-width: none; }
+      .video-box[data-viewer="pdf"] .video-toolbar::-webkit-scrollbar { display: none; }
+      .video-box[data-viewer="pdf"] .pdf-controls { gap: 3px; margin-left: 0; }
+      .video-box[data-viewer="pdf"] .pdf-controls button { min-width: 40px; min-height: 44px; padding: 5px; }
+      .video-box[data-viewer="pdf"] #vidFullscreen { min-width: 44px; padding: 6px; font-size: 12px; }
+      .video-box[data-viewer="pdf"] .pdf-page-count { min-width: 48px; font-size: 11px; }
       .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
       .video-box:fullscreen .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
@@ -1988,6 +2010,14 @@
       <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า">&#8249;</button>
 
       <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
+      <div class="pdf-controls" id="pdfControls" hidden aria-label="ควบคุมหน้า PDF">
+        <button type="button" class="btn-ghost btn-sm" id="pdfPrev" aria-label="หน้าก่อนหน้า">‹</button>
+        <span class="pdf-page-count" id="pdfPageCount" aria-live="polite">1 / 1</span>
+        <button type="button" class="btn-ghost btn-sm" id="pdfNext" aria-label="หน้าถัดไป">›</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfZoomOut" aria-label="ซูมออก">−</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfFit" aria-label="พอดีความกว้าง">พอดี</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfZoomIn" aria-label="ซูมเข้า">+</button>
+      </div>
       <button type="button" class="btn-ghost btn-sm" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น">เต็มจอ</button>
       </div>
 
@@ -1996,6 +2026,8 @@
         <video id="vidPlayer" controls playsinline></video>
 
         <iframe id="vidFrame" title="Video Player" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="display:none;"></iframe>
+
+        <div id="pdfStage" hidden><canvas id="pdfCanvas" aria-label="หน้า PDF"></canvas></div>
 
         <div class="vid-loading" id="vidLoading">
 
@@ -2198,6 +2230,11 @@
 
       const vidClose        = document.getElementById("vidClose");
 
+      const pdfStage        = document.getElementById("pdfStage");
+      const pdfCanvas       = document.getElementById("pdfCanvas");
+      const pdfControls     = document.getElementById("pdfControls");
+      const pdfPageCount    = document.getElementById("pdfPageCount");
+
       const lbPrev          = document.getElementById("lbPrev");
 
       const lbNext          = document.getElementById("lbNext");
@@ -2257,6 +2294,14 @@
       let currentVideoUrl = null; // blob URL วิดีโอปัจจุบัน เก็บไว้ revoke
 
       let currentDocUrl = null;   // blob URL เอกสารปัจจุบัน เก็บไว้ revoke
+
+      let pdfDocument = null;
+      let pdfRenderTask = null;
+      let pdfLibraryPromise = null;
+      let pdfPageNumber = 1;
+      let pdfScale = 1;
+      let pdfFitMode = 'page';
+      let pdfRenderVersion = 0;
 
       let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
 
@@ -3930,7 +3975,8 @@
 
         } else {
 
-          openDocument(id, name);
+          const fileMeta = allFiles.find(function (file) { return file.id === id; });
+          openDocument(id, name, fileMeta && fileMeta.mimeType);
 
         }
 
@@ -4532,6 +4578,7 @@
         previewAspect = null;
         if (vidFrame.parentElement) vidFrame.parentElement.style.aspectRatio = '';
         vidLoading.classList.remove("show");
+        resetPdfViewer();
       }
       function openVideo(id, name) {
         if (lightbox.classList.contains("show")) closeLightbox();
@@ -5824,6 +5871,123 @@
 
       }
 
+      function resetPdfViewer() {
+        pdfRenderVersion++;
+        if (pdfRenderTask) { try { pdfRenderTask.cancel(); } catch (_) {} pdfRenderTask = null; }
+        if (pdfDocument) { try { Promise.resolve(pdfDocument.destroy()).catch(function () {}); } catch (_) {} pdfDocument = null; }
+        if (pdfStage) pdfStage.hidden = true;
+        if (pdfControls) pdfControls.hidden = true;
+        if (pdfCanvas) { pdfCanvas.width = 0; pdfCanvas.height = 0; }
+        const box = videoModal.querySelector('.video-box');
+        if (box) delete box.dataset.viewer;
+      }
+
+      function loadPdfLibrary() {
+        if (!pdfLibraryPromise) {
+          pdfLibraryPromise = import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs')
+            .then(function (pdfjs) {
+              pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.mjs';
+              return pdfjs;
+            })
+            .catch(function (error) { pdfLibraryPromise = null; throw error; });
+        }
+        return pdfLibraryPromise;
+      }
+
+      async function renderPdfPage() {
+        if (!pdfDocument || !pdfStage || pdfStage.hidden) return;
+        const renderVersion = ++pdfRenderVersion;
+        if (pdfRenderTask) { try { pdfRenderTask.cancel(); } catch (_) {} pdfRenderTask = null; }
+        try {
+          const page = await pdfDocument.getPage(pdfPageNumber);
+          if (renderVersion !== pdfRenderVersion) return;
+          const baseViewport = page.getViewport({ scale: 1 });
+          const width = Math.max(1, pdfStage.clientWidth - 24);
+          const height = Math.max(1, pdfStage.clientHeight - 24);
+          const fitScale = pdfFitMode === 'page'
+            ? Math.min(width / baseViewport.width, height / baseViewport.height)
+            : width / baseViewport.width;
+          const scale = pdfFitMode ? fitScale : pdfScale;
+          const cssViewport = page.getViewport({ scale: scale });
+          const maxPixels = 12 * 1024 * 1024;
+          const pixelRatio = Math.max(0.5, Math.min(2, window.devicePixelRatio || 1, Math.sqrt(maxPixels / (cssViewport.width * cssViewport.height))));
+          const renderViewport = page.getViewport({ scale: scale * pixelRatio });
+          pdfCanvas.width = Math.ceil(renderViewport.width);
+          pdfCanvas.height = Math.ceil(renderViewport.height);
+          pdfCanvas.style.width = cssViewport.width + 'px';
+          pdfCanvas.style.height = cssViewport.height + 'px';
+          const context = pdfCanvas.getContext('2d', { alpha: false });
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+          pdfRenderTask = page.render({ canvasContext: context, viewport: renderViewport });
+          await pdfRenderTask.promise;
+          if (renderVersion === pdfRenderVersion) {
+            pdfPageCount.textContent = pdfPageNumber + ' / ' + pdfDocument.numPages;
+            document.getElementById('pdfPrev').disabled = pdfPageNumber <= 1;
+            document.getElementById('pdfNext').disabled = pdfPageNumber >= pdfDocument.numPages;
+          }
+        } catch (error) {
+          if (error && error.name !== 'RenderingCancelledException') console.warn('PDF page render failed', error);
+        } finally {
+          if (renderVersion === pdfRenderVersion) pdfRenderTask = null;
+        }
+      }
+
+      async function openPdfBlob(blob, id, session) {
+        const box = videoModal.querySelector('.video-box');
+        if (box) box.dataset.viewer = 'pdf';
+        vidFrame.style.display = 'none';
+        pdfStage.hidden = false;
+        pdfControls.hidden = false;
+        pdfPageNumber = 1;
+        pdfFitMode = 'page';
+        pdfLoadingState(true, 'กำลังเตรียมหน้า PDF…');
+        try {
+          const pdfjs = await loadPdfLibrary();
+          if (session !== mediaSession || !videoModal.classList.contains('show')) return;
+          const loadingTask = pdfjs.getDocument({ url: currentDocUrl });
+          pdfDocument = await loadingTask.promise;
+          if (session !== mediaSession || !videoModal.classList.contains('show')) { resetPdfViewer(); return; }
+          pdfLoadingState(false);
+          await renderPdfPage();
+        } catch (error) {
+          if (session !== mediaSession || !videoModal.classList.contains('show')) return;
+          console.warn('PDF.js viewer unavailable; falling back to Google preview', error);
+          fallbackDocIframe(id);
+        }
+      }
+
+      function pdfLoadingState(loading, message) {
+        if (loading) {
+          vidLoadingText.textContent = message || 'กำลังโหลด PDF…';
+          vidProgressBar.style.width = '100%';
+          vidLoading.classList.add('show');
+        } else {
+          vidLoading.classList.remove('show');
+        }
+      }
+
+      document.getElementById('pdfPrev').addEventListener('click', function () {
+        if (pdfDocument && pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; renderPdfPage(); }
+      });
+      document.getElementById('pdfNext').addEventListener('click', function () {
+        if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; renderPdfPage(); }
+      });
+      document.getElementById('pdfZoomIn').addEventListener('click', function () {
+        if (pdfFitMode && pdfDocument) pdfDocument.getPage(pdfPageNumber).then(function (page) { pdfScale = Math.min(4, fitPdfScale(page) * 1.2); pdfFitMode = null; renderPdfPage(); });
+        else { pdfScale = Math.min(4, (pdfScale || 1) * 1.2); renderPdfPage(); }
+      });
+      document.getElementById('pdfZoomOut').addEventListener('click', function () {
+        if (pdfFitMode && pdfDocument) pdfDocument.getPage(pdfPageNumber).then(function (page) { pdfScale = Math.max(0.25, fitPdfScale(page) / 1.2); pdfFitMode = null; renderPdfPage(); });
+        else { pdfScale = Math.max(0.25, (pdfScale || 1) / 1.2); renderPdfPage(); }
+      });
+      document.getElementById('pdfFit').addEventListener('click', function () { pdfFitMode = 'page'; renderPdfPage(); });
+      function fitPdfScale(page) {
+        const viewport = page.getViewport({ scale: 1 });
+        return Math.min(Math.max(1, pdfStage.clientWidth - 24) / viewport.width, Math.max(1, pdfStage.clientHeight - 24) / viewport.height);
+      }
+      window.addEventListener('resize', function () { if (pdfDocument && pdfFitMode) renderPdfPage(); }, { passive: true });
+
       function revokeCurrentDoc() {
 
         if (currentDocUrl) {
@@ -5868,10 +6032,11 @@
 
 
 
-      function openDocument(id, name) {
+      function openDocument(id, name, mimeType) {
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         resetMediaPlayback();
+        const isPdf = String(mimeType || '').toLowerCase().split(';')[0].trim() === 'application/pdf' || /\.pdf$/i.test(name || '');
         vidFrame.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
         vidFrame.setAttribute('allowfullscreen', '');
         const session = mediaSession;
@@ -5879,6 +6044,9 @@
         document.body.style.overflow = "hidden";
 
         vidTitle.textContent = name || "เอกสาร";
+
+        const videoBox = videoModal.querySelector('.video-box');
+        if (videoBox && isPdf) videoBox.dataset.viewer = 'pdf';
 
         vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
 
@@ -5890,7 +6058,7 @@
 
         vidLoading.classList.remove("show");
 
-        vidFrame.style.display = "block";
+        vidFrame.style.display = isPdf ? "none" : "block";
 
         revokeCurrentDoc();
 
@@ -5935,12 +6103,12 @@
               revokeCurrentDoc();
 
               currentDocUrl = URL.createObjectURL(blob);
-
-              vidFrame.src = currentDocUrl;
+              if (isPdf) openPdfBlob(blob, id, session);
+              else vidFrame.src = currentDocUrl;
 
             })
 
-            .catch(function () { if (session !== mediaSession) return; vidLoading.classList.remove("show"); fallbackDocIframe(id); });
+          .catch(function () { if (session !== mediaSession) return; vidLoading.classList.remove("show"); fallbackDocIframe(id); });
 
         } else {
 
@@ -5957,6 +6125,8 @@
       function fallbackDocIframe(id) {
 
         vidLoading.classList.remove("show");
+
+        resetPdfViewer();
 
         vidFrame.style.display = "block";
 
@@ -5978,6 +6148,11 @@
           if (e.key === "r" || e.key === "R" || e.key === "0") { resetImageView(); return; }
         }
         if (videoModal.classList.contains("show")) {
+          const box = videoModal.querySelector('.video-box');
+          if (box && box.dataset.viewer === 'pdf') {
+            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { if (pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; renderPdfPage(); } return; }
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') { if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; renderPdfPage(); } return; }
+          }
           if (e.shiftKey && e.key === "ArrowLeft") { navigateMedia("video", -1); return; }
           if (e.shiftKey && e.key === "ArrowRight") { navigateMedia("video", 1); return; }
         }
