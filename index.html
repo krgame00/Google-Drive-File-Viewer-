@@ -790,6 +790,21 @@
 
     .lightbox.show { display: flex; }
 
+    .lightbox[data-viewer="pdf"] #lbImg,
+    .lightbox[data-viewer="pdf"] #lbPrev,
+    .lightbox[data-viewer="pdf"] #lbNext,
+    .lightbox[data-viewer="pdf"] #lbOrig { display: none !important; }
+    .lightbox[data-viewer="pdf"] #lbCount { display: none; }
+    .lightbox[data-viewer="pdf"] #lbReset { display: none !important; }
+    .pdf-controls.lb-pdf-controls { position: absolute; z-index: 3; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(20,20,20,.88); backdrop-filter: blur(12px); }
+    .pdf-controls.lb-pdf-controls button { min-width: 44px; min-height: 44px; }
+    .lightbox[data-viewer="pdf"] #pdfStage { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-start; padding: max(68px, calc(env(safe-area-inset-top) + 60px)) 16px max(78px, calc(env(safe-area-inset-bottom) + 68px)); overflow: auto; background: transparent; touch-action: none; }
+    .lightbox[data-viewer="pdf"] #pdfCanvas { max-width: none; max-height: none; transform-origin: center; touch-action: none; }
+    .lightbox[data-viewer="pdf"] #pdfStage[hidden], .lightbox[data-viewer="pdf"] #pdfControls[hidden] { display: none !important; }
+    .pdf-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: .9rem; pointer-events: none; }
+    .pdf-loading[hidden] { display: none !important; }
+    .pdf-loading .spinner { width: 34px; height: 34px; border: 3px solid rgba(255,255,255,.18); border-top-color: #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+
     .lightbox img {
 
       width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0;
@@ -1683,26 +1698,13 @@
     .pdf-controls button { min-width: 44px; min-height: 44px; padding: 6px 10px; }
     .pdf-page-count { min-width: 58px; color: #e5e7eb; text-align: center; font-size: 13px; white-space: nowrap; }
     #pdfStage { position: absolute; inset: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; background: #292929; overscroll-behavior: contain; }
-    #pdfCanvas { display: block; max-width: none; height: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
-    .video-box[data-viewer="pdf"] .ratio { aspect-ratio: auto; height: min(72dvh, 900px); flex: 0 1 auto; }
-    .video-box[data-viewer="pdf"] .video-toolbar > .media-nav { display: none; }
-    .video-box[data-viewer="pdf"] .pdf-controls { display: flex; }
-    .video-box[data-viewer="pdf"] .video-footer .video-help,
-    .video-box[data-viewer="pdf"] .video-footer .video-info { display: none; }
-    .video-box:fullscreen[data-viewer="pdf"] .ratio { flex: 1 1 0; height: auto; }
-    .video-box:fullscreen #pdfStage { padding: 16px; }
+    #pdfCanvas { display: block; max-width: none; height: auto; margin: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
-      .video-box[data-viewer="pdf"] { max-height: calc(100dvh - 16px); }
-      .video-box[data-viewer="pdf"] .ratio { height: min(72dvh, 900px); }
-      .video-box[data-viewer="pdf"] .video-toolbar { gap: 4px; padding: 6px; }
-      .video-box[data-viewer="pdf"] .video-toolbar { overflow-x: auto; scrollbar-width: none; }
-      .video-box[data-viewer="pdf"] .video-toolbar::-webkit-scrollbar { display: none; }
-      .video-box[data-viewer="pdf"] .pdf-controls { gap: 3px; margin-left: 0; }
-      .video-box[data-viewer="pdf"] .pdf-controls button { min-width: 40px; min-height: 44px; padding: 5px; }
-      .video-box[data-viewer="pdf"] #vidFullscreen { min-width: 44px; padding: 6px; font-size: 12px; }
-      .video-box[data-viewer="pdf"] .pdf-page-count { min-width: 48px; font-size: 11px; }
+      .pdf-controls.lb-pdf-controls { max-width: calc(100vw - 16px); gap: 2px; padding: 4px; }
+      .pdf-controls.lb-pdf-controls button { min-width: 40px; min-height: 44px; padding: 4px; }
+      .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
       .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
       .video-box:fullscreen .ratio:has(iframe[style*="display: block"]) { aspect-ratio: auto; }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
@@ -1988,11 +1990,25 @@
 
       <button type="button" class="lb-reset lb-ui" id="lbReset" title="คืนขนาดพอดีจอ (คีย์บอร์ด: R)">คืนขนาด</button>
 
+      <div class="pdf-controls lb-ui lb-pdf-controls" id="pdfControls" hidden aria-label="ควบคุมหน้า PDF">
+        <button type="button" class="btn-ghost btn-sm" id="pdfPrev" aria-label="หน้าก่อนหน้า">‹</button>
+        <span class="pdf-page-count" id="pdfPageCount" aria-live="polite">1 / 1</span>
+        <button type="button" class="btn-ghost btn-sm" id="pdfNext" aria-label="หน้าถัดไป">›</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfZoomOut" aria-label="ซูมออก">−</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfFit" aria-label="พอดีหน้า">พอดี</button>
+        <button type="button" class="btn-ghost btn-sm" id="pdfZoomIn" aria-label="ซูมเข้า">+</button>
+      </div>
+
       <button type="button" class="media-nav prev lb-ui" id="lbPrev" aria-label="รูปก่อนหน้า">&#8249;</button>
 
       <button type="button" class="media-nav next lb-ui" id="lbNext" aria-label="รูปถัดไป">&#8250;</button>
 
       <img id="lbImg" alt="รูปภาพขยายเต็มจอ" />
+
+      <div id="pdfStage" hidden aria-label="หน้า PDF">
+        <div class="pdf-loading" id="pdfLoading" role="status" aria-live="polite"><div class="spinner"></div><span id="pdfLoadingText">กำลังโหลด PDF…</span></div>
+        <canvas id="pdfCanvas" aria-label="หน้า PDF"></canvas>
+      </div>
 
     </div>
 
@@ -2010,14 +2026,6 @@
       <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า">&#8249;</button>
 
       <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
-      <div class="pdf-controls" id="pdfControls" hidden aria-label="ควบคุมหน้า PDF">
-        <button type="button" class="btn-ghost btn-sm" id="pdfPrev" aria-label="หน้าก่อนหน้า">‹</button>
-        <span class="pdf-page-count" id="pdfPageCount" aria-live="polite">1 / 1</span>
-        <button type="button" class="btn-ghost btn-sm" id="pdfNext" aria-label="หน้าถัดไป">›</button>
-        <button type="button" class="btn-ghost btn-sm" id="pdfZoomOut" aria-label="ซูมออก">−</button>
-        <button type="button" class="btn-ghost btn-sm" id="pdfFit" aria-label="พอดีความกว้าง">พอดี</button>
-        <button type="button" class="btn-ghost btn-sm" id="pdfZoomIn" aria-label="ซูมเข้า">+</button>
-      </div>
       <button type="button" class="btn-ghost btn-sm" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น">เต็มจอ</button>
       </div>
 
@@ -2026,8 +2034,6 @@
         <video id="vidPlayer" controls playsinline></video>
 
         <iframe id="vidFrame" title="Video Player" allow="autoplay; encrypted-media; fullscreen" allowfullscreen style="display:none;"></iframe>
-
-        <div id="pdfStage" hidden><canvas id="pdfCanvas" aria-label="หน้า PDF"></canvas></div>
 
         <div class="vid-loading" id="vidLoading">
 
@@ -2234,6 +2240,8 @@
       const pdfCanvas       = document.getElementById("pdfCanvas");
       const pdfControls     = document.getElementById("pdfControls");
       const pdfPageCount    = document.getElementById("pdfPageCount");
+      const pdfLoading      = document.getElementById("pdfLoading");
+      const pdfLoadingText  = document.getElementById("pdfLoadingText");
 
       const lbPrev          = document.getElementById("lbPrev");
 
@@ -2302,6 +2310,7 @@
       let pdfScale = 1;
       let pdfFitMode = 'page';
       let pdfRenderVersion = 0;
+      let pdfInLightbox = false;
 
       let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
 
@@ -3953,7 +3962,7 @@
 
 
 
-      function handleFileClick(id, kind, name) {
+      function handleFileClick(id, kind, name, mimeType) {
 
               if (kind === "folder") {
 
@@ -3976,7 +3985,7 @@
         } else {
 
           const fileMeta = allFiles.find(function (file) { return file.id === id; });
-          openDocument(id, name, fileMeta && fileMeta.mimeType);
+          openDocument(id, name, mimeType || fileMeta && fileMeta.mimeType);
 
         }
 
@@ -4106,6 +4115,10 @@
 
       function openLightbox(id, forceOriginal) {
         if (videoModal.classList.contains("show")) closeVideo();
+
+        if (pdfInLightbox) closeLightbox();
+        resetPdfViewer();
+        lbImg.style.display = "";
 
               lbImg.dataset.fid = id; // จำเป็น: media nav ใช้ชี้หา index
 
@@ -4242,9 +4255,14 @@
       }
 
       function closeLightbox() {
+        const closingPdf = pdfInLightbox;
         lightbox.classList.remove("show");
         lightbox.setAttribute("aria-hidden", "true");
         lbImg.src = "";
+        lbImg.style.display = "";
+        resetPdfViewer();
+        revokeCurrentDoc();
+        if (closingPdf) mediaSession++;
         resetImageView();
         cancelImageTap();
         if (lbImg._blobUrl) { URL.revokeObjectURL(lbImg._blobUrl); lbImg._blobUrl = null; }
@@ -4297,7 +4315,8 @@
       }
 
       function applyImageView() {
-        lbImg.style.transform = 'translate(' + imageView.x + 'px,' + imageView.y + 'px) scale(' + imageView.scale + ')';
+        const surface = pdfInLightbox ? pdfCanvas : lbImg;
+        surface.style.transform = 'translate(' + imageView.x + 'px,' + imageView.y + 'px) scale(' + imageView.scale + ')';
       }
 
       function resetImageView() {
@@ -4340,7 +4359,8 @@
         if (now - imgLastTapTime < 300 && Math.abs(x - imgLastTapX) < 40 && Math.abs(y - imgLastTapY) < 40) {
           cancelImageTap();
           imgLastTapTime = 0;
-          if (imageView.scale > 1.01) { resetImageView(); } else { imageView = clampImagePan({ scale: 2, x: 0, y: 0 }, lbImg.clientWidth, lbImg.clientHeight); applyImageView(); }
+          const surface = pdfInLightbox ? pdfCanvas : lbImg;
+          if (imageView.scale > 1.01) { resetImageView(); } else { imageView = clampImagePan({ scale: 2, x: 0, y: 0 }, surface.clientWidth, surface.clientHeight); applyImageView(); }
           setImageControlsVisible(true);
           return 'zoom';
         }
@@ -4355,7 +4375,7 @@
       let imgDownOnImage = false;
 
       lightbox.addEventListener('pointerdown', function (e) {
-        if (e.target !== lbImg) return; // ปุ่ม/พื้นหลังใช้พฤติกรรมเดิม
+        if (e.target !== lbImg && !(pdfInLightbox && e.target === pdfCanvas)) return; // ปุ่ม/พื้นหลังใช้พฤติกรรมเดิม
         imgDownOnImage = true;
         imgPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (imgPointers.size >= 2) {
@@ -4371,7 +4391,8 @@
       lightbox.addEventListener('pointermove', function (e) {
         if (!imgPointers.has(e.pointerId) || !imgGesture) return;
         imgPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        const vw = lbImg.clientWidth || window.innerWidth, vh = lbImg.clientHeight || window.innerHeight;
+        const surface = pdfInLightbox ? pdfCanvas : lbImg;
+        const vw = surface.clientWidth || window.innerWidth, vh = surface.clientHeight || window.innerHeight;
         if (imgGesture.mode === 'pinch' && imgPointers.size >= 2) {
           const pts = Array.from(imgPointers.values());
           const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
@@ -4394,7 +4415,14 @@
           const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
           const moved = Math.abs(dx) + Math.abs(dy) >= 8;
           const dir = moved ? swipeNavigateFor(dx, dy) : 0;
-          if (dir) navigateMedia('image', dir);
+          if (dir && pdfInLightbox && pdfDocument) {
+            const nextPage = pdfPageNumber + dir;
+            if (nextPage >= 1 && nextPage <= pdfDocument.numPages) {
+              pdfPageNumber = nextPage;
+              resetImageView();
+              renderPdfPage();
+            }
+          } else if (dir) navigateMedia('image', dir);
           handleImageTap(e.clientX, e.clientY, moved);
         }
         imgGesture = null;
@@ -4405,9 +4433,15 @@
         cancelImageTap();
       });
       const lbResetBtn = document.getElementById('lbReset');
-      if (lbResetBtn) lbResetBtn.addEventListener('click', resetImageView);
+      if (lbResetBtn) lbResetBtn.addEventListener('click', function () {
+        if (pdfInLightbox) { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); }
+        else resetImageView();
+      });
       window.addEventListener('orientationchange', function () {
-        if (lightbox.classList.contains('show')) resetImageView();
+        if (lightbox.classList.contains('show')) {
+          if (pdfInLightbox) { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); }
+          else resetImageView();
+        }
       });
 
 
@@ -5877,9 +5911,10 @@
         if (pdfDocument) { try { Promise.resolve(pdfDocument.destroy()).catch(function () {}); } catch (_) {} pdfDocument = null; }
         if (pdfStage) pdfStage.hidden = true;
         if (pdfControls) pdfControls.hidden = true;
-        if (pdfCanvas) { pdfCanvas.width = 0; pdfCanvas.height = 0; }
-        const box = videoModal.querySelector('.video-box');
-        if (box) delete box.dataset.viewer;
+        if (pdfCanvas) { pdfCanvas.width = 0; pdfCanvas.height = 0; pdfCanvas.style.transform = ''; }
+        if (pdfLoading) pdfLoading.hidden = false;
+        if (lightbox) lightbox.removeAttribute('data-viewer');
+        pdfInLightbox = false;
       }
 
       function loadPdfLibrary() {
@@ -5902,8 +5937,9 @@
           const page = await pdfDocument.getPage(pdfPageNumber);
           if (renderVersion !== pdfRenderVersion) return;
           const baseViewport = page.getViewport({ scale: 1 });
-          const width = Math.max(1, pdfStage.clientWidth - 24);
-          const height = Math.max(1, pdfStage.clientHeight - 24);
+          const stageStyle = window.getComputedStyle(pdfStage);
+          const width = Math.max(1, pdfStage.clientWidth - parseFloat(stageStyle.paddingLeft) - parseFloat(stageStyle.paddingRight));
+          const height = Math.max(1, pdfStage.clientHeight - parseFloat(stageStyle.paddingTop) - parseFloat(stageStyle.paddingBottom));
           const fitScale = pdfFitMode === 'page'
             ? Math.min(width / baseViewport.width, height / baseViewport.height)
             : width / baseViewport.width;
@@ -5927,16 +5963,19 @@
             document.getElementById('pdfNext').disabled = pdfPageNumber >= pdfDocument.numPages;
           }
         } catch (error) {
-          if (error && error.name !== 'RenderingCancelledException') console.warn('PDF page render failed', error);
+          if (error && error.name !== 'RenderingCancelledException') {
+            console.warn('PDF page render failed', error);
+            if (pdfInLightbox && lightbox.classList.contains('show')) fallbackPdfToDrive(lbImg.dataset.fid, vidTitle.textContent);
+          }
         } finally {
           if (renderVersion === pdfRenderVersion) pdfRenderTask = null;
         }
       }
 
       async function openPdfBlob(blob, id, session) {
-        const box = videoModal.querySelector('.video-box');
-        if (box) box.dataset.viewer = 'pdf';
-        vidFrame.style.display = 'none';
+        pdfInLightbox = true;
+        lightbox.dataset.viewer = 'pdf';
+        lbImg.style.display = 'none';
         pdfStage.hidden = false;
         pdfControls.hidden = false;
         pdfPageNumber = 1;
@@ -5944,49 +5983,106 @@
         pdfLoadingState(true, 'กำลังเตรียมหน้า PDF…');
         try {
           const pdfjs = await loadPdfLibrary();
-          if (session !== mediaSession || !videoModal.classList.contains('show')) return;
+          if (session !== mediaSession || !lightbox.classList.contains('show')) return;
           const loadingTask = pdfjs.getDocument({ url: currentDocUrl });
-          pdfDocument = await loadingTask.promise;
-          if (session !== mediaSession || !videoModal.classList.contains('show')) { resetPdfViewer(); return; }
+          const loadedDocument = await loadingTask.promise;
+          if (session !== mediaSession || !lightbox.classList.contains('show')) { Promise.resolve(loadedDocument.destroy()).catch(function () {}); return; }
+          pdfDocument = loadedDocument;
           pdfLoadingState(false);
           await renderPdfPage();
         } catch (error) {
-          if (session !== mediaSession || !videoModal.classList.contains('show')) return;
+          if (session !== mediaSession || !lightbox.classList.contains('show')) return;
           console.warn('PDF.js viewer unavailable; falling back to Google preview', error);
-          fallbackDocIframe(id);
+          fallbackPdfToDrive(id, vidTitle.textContent);
         }
       }
 
       function pdfLoadingState(loading, message) {
         if (loading) {
-          vidLoadingText.textContent = message || 'กำลังโหลด PDF…';
-          vidProgressBar.style.width = '100%';
-          vidLoading.classList.add('show');
+          pdfLoadingText.textContent = message || 'กำลังโหลด PDF…';
+          pdfLoading.hidden = false;
         } else {
-          vidLoading.classList.remove('show');
+          pdfLoading.hidden = true;
         }
       }
 
-      document.getElementById('pdfPrev').addEventListener('click', function () {
-        if (pdfDocument && pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; renderPdfPage(); }
-      });
-      document.getElementById('pdfNext').addEventListener('click', function () {
-        if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; renderPdfPage(); }
-      });
-      document.getElementById('pdfZoomIn').addEventListener('click', function () {
-        if (pdfFitMode && pdfDocument) pdfDocument.getPage(pdfPageNumber).then(function (page) { pdfScale = Math.min(4, fitPdfScale(page) * 1.2); pdfFitMode = null; renderPdfPage(); });
-        else { pdfScale = Math.min(4, (pdfScale || 1) * 1.2); renderPdfPage(); }
-      });
-      document.getElementById('pdfZoomOut').addEventListener('click', function () {
-        if (pdfFitMode && pdfDocument) pdfDocument.getPage(pdfPageNumber).then(function (page) { pdfScale = Math.max(0.25, fitPdfScale(page) / 1.2); pdfFitMode = null; renderPdfPage(); });
-        else { pdfScale = Math.max(0.25, (pdfScale || 1) / 1.2); renderPdfPage(); }
-      });
-      document.getElementById('pdfFit').addEventListener('click', function () { pdfFitMode = 'page'; renderPdfPage(); });
       function fitPdfScale(page) {
         const viewport = page.getViewport({ scale: 1 });
-        return Math.min(Math.max(1, pdfStage.clientWidth - 24) / viewport.width, Math.max(1, pdfStage.clientHeight - 24) / viewport.height);
+        const style = window.getComputedStyle(pdfStage);
+        const width = pdfStage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const height = pdfStage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+        return Math.min(Math.max(1, width) / viewport.width, Math.max(1, height) / viewport.height);
       }
+      function zoomPdf(multiplier) {
+        if (!pdfDocument) return;
+        pdfDocument.getPage(pdfPageNumber).then(function (page) {
+          const baseScale = pdfFitMode ? fitPdfScale(page) : pdfScale;
+          pdfScale = Math.min(4, Math.max(0.25, baseScale * multiplier));
+          pdfFitMode = null;
+          resetImageView();
+          renderPdfPage();
+        });
+      }
+      document.getElementById('pdfPrev').addEventListener('click', function () {
+        if (pdfDocument && pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; resetImageView(); renderPdfPage(); }
+      });
+      document.getElementById('pdfNext').addEventListener('click', function () {
+        if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; resetImageView(); renderPdfPage(); }
+      });
+      document.getElementById('pdfZoomIn').addEventListener('click', function () { zoomPdf(1.2); });
+      document.getElementById('pdfZoomOut').addEventListener('click', function () { zoomPdf(1 / 1.2); });
+      document.getElementById('pdfFit').addEventListener('click', function () { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); });
       window.addEventListener('resize', function () { if (pdfDocument && pdfFitMode) renderPdfPage(); }, { passive: true });
+
+      function fallbackPdfToDrive(id, name) {
+        if (lightbox.classList.contains('show')) closeLightbox();
+        openDocument(id, name, 'application/pdf', true);
+      }
+
+      function openPdfDocument(id, name, mimeType) {
+        if (videoModal.classList.contains('show')) closeVideo();
+        if (lightbox.classList.contains('show')) closeLightbox();
+        mediaPreviousOverflow = document.body.style.overflow;
+        resetMediaPlayback();
+        const session = mediaSession;
+        const auth = authParams();
+        vidTitle.textContent = name || 'PDF';
+        vidOpenTab.href = 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view';
+        currentMediaIndex = -1;
+        currentMediaKind = 'pdf';
+        lbImg.dataset.fid = id;
+        lbImg.style.display = 'none';
+        lbImg.src = '';
+        setImageControlsVisible(true);
+        cancelImageTap();
+        resetImageView();
+        pdfStage.hidden = false;
+        pdfControls.hidden = false;
+        pdfInLightbox = true;
+        lightbox.dataset.viewer = 'pdf';
+        lightbox.classList.add('show');
+        lightbox.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        pdfPageNumber = 1;
+        pdfFitMode = 'page';
+        pdfLoadingState(true, 'กำลังโหลด PDF…');
+        pdfPageCount.textContent = '…';
+        if (auth.mode === 'none') { fallbackPdfToDrive(id, name); return; }
+        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
+        const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
+        getBlobCached(origCacheKey(id), url, headers, function (event) {
+          if (session !== mediaSession || !event.lengthComputable) return;
+          pdfLoadingState(true, 'กำลังโหลด PDF… ' + Math.round(event.loaded / event.total * 100) + '%');
+        }).then(function (blob) {
+          if (session !== mediaSession || !lightbox.classList.contains('show')) return;
+          revokeCurrentDoc();
+          currentDocUrl = URL.createObjectURL(blob);
+          openPdfBlob(blob, id, session);
+        }).catch(function () {
+          if (session !== mediaSession || !lightbox.classList.contains('show')) return;
+          fallbackPdfToDrive(id, name);
+        });
+      }
 
       function revokeCurrentDoc() {
 
@@ -6032,11 +6128,12 @@
 
 
 
-      function openDocument(id, name, mimeType) {
+      function openDocument(id, name, mimeType, forceDrivePreview) {
+        const isPdf = !forceDrivePreview && (String(mimeType || '').toLowerCase().split(';')[0].trim() === 'application/pdf' || /\.pdf$/i.test(name || ''));
+        if (isPdf) { openPdfDocument(id, name, mimeType); return; }
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         resetMediaPlayback();
-        const isPdf = String(mimeType || '').toLowerCase().split(';')[0].trim() === 'application/pdf' || /\.pdf$/i.test(name || '');
         vidFrame.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
         vidFrame.setAttribute('allowfullscreen', '');
         const session = mediaSession;
@@ -6044,9 +6141,6 @@
         document.body.style.overflow = "hidden";
 
         vidTitle.textContent = name || "เอกสาร";
-
-        const videoBox = videoModal.querySelector('.video-box');
-        if (videoBox && isPdf) videoBox.dataset.viewer = 'pdf';
 
         vidOpenTab.href = "https://drive.google.com/file/d/" + id + "/view";
 
@@ -6058,7 +6152,7 @@
 
         vidLoading.classList.remove("show");
 
-        vidFrame.style.display = isPdf ? "none" : "block";
+        vidFrame.style.display = "block";
 
         revokeCurrentDoc();
 
@@ -6103,8 +6197,7 @@
               revokeCurrentDoc();
 
               currentDocUrl = URL.createObjectURL(blob);
-              if (isPdf) openPdfBlob(blob, id, session);
-              else vidFrame.src = currentDocUrl;
+              vidFrame.src = currentDocUrl;
 
             })
 
@@ -6142,17 +6235,19 @@
 
       document.addEventListener("keydown", function (e) {
         if (lightbox.classList.contains("show")) {
+          if (pdfInLightbox) {
+            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { document.getElementById('pdfPrev').click(); return; }
+            if (e.key === 'ArrowRight' || e.key === 'PageDown') { document.getElementById('pdfNext').click(); return; }
+            if (e.key === '+' || e.key === '=') { zoomPdf(1.2); return; }
+            if (e.key === '-') { zoomPdf(1 / 1.2); return; }
+            if (e.key === 'r' || e.key === 'R' || e.key === '0') { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); return; }
+          }
           if (e.key === "ArrowLeft") { navigateMedia("image", -1); return; }
           if (e.key === "ArrowRight") { navigateMedia("image", 1); return; }
           if (e.key === "f" || e.key === "F") { toggleLightboxFullscreen(); return; }
           if (e.key === "r" || e.key === "R" || e.key === "0") { resetImageView(); return; }
         }
         if (videoModal.classList.contains("show")) {
-          const box = videoModal.querySelector('.video-box');
-          if (box && box.dataset.viewer === 'pdf') {
-            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { if (pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; renderPdfPage(); } return; }
-            if (e.key === 'ArrowRight' || e.key === 'PageDown') { if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; renderPdfPage(); } return; }
-          }
           if (e.shiftKey && e.key === "ArrowLeft") { navigateMedia("video", -1); return; }
           if (e.shiftKey && e.key === "ArrowRight") { navigateMedia("video", 1); return; }
         }
@@ -6734,6 +6829,7 @@
             var name=item.drive_name||item.title||"";
             if(mime.startsWith("image/")) handleFileClick(extId,"image",name);
             else if(mime.startsWith("video/")) handleFileClick(extId,"video",name);
+            else if(mime.toLowerCase()==="application/pdf"||/\.pdf$/i.test(name)) handleFileClick(extId,"doc",name,mime);
             else window.open("https://drive.google.com/file/d/"+encodeURIComponent(extId)+"/view","_blank","noopener");
             return;
           }
