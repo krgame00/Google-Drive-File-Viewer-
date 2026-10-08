@@ -2502,7 +2502,7 @@
 
         if (mime && mime.indexOf("audio/") === 0) return "audio";
 
-        if (ext === "pdf") return "pdf";
+        if (ext === "pdf" || String(mime || "").toLowerCase().split(";")[0].trim() === "application/pdf") return "pdf";
 
         if (["doc", "docx", "odt", "rtf"].indexOf(ext) >= 0) return "word";
 
@@ -3455,7 +3455,7 @@
 
           const ext = fileExt(f.name);
 
-          const badgeText = isFolder ? "Folder" : kind !== "file" ? kind : (ext || "file");
+          const badgeText = isFolder ? "Folder" : kind !== "file" ? kind : iconKind === "pdf" ? "PDF" : (ext || "file");
 
           // บรรทัดรอง: โฟลเดอร์ · วันที่ หรือ ขนาด · วันที่
 
