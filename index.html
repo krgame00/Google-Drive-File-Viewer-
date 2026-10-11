@@ -58,7 +58,20 @@
 
           --accent: #5e6ad2;
 
-          --accent-hover: #828fff;
+          --accent-hover: #4e5ac0;
+          --accent-text: #8b97ff;
+          --surface-subtle: rgba(255,255,255,0.025);
+          --surface-subtle-hover: rgba(255,255,255,0.05);
+          --border-hover: rgba(255,255,255,0.16);
+          --badge-evt-bg: rgba(94,106,210,0.18);
+          --badge-evt-border: rgba(94,106,210,0.35);
+          --badge-evt-text: #a5adff;
+          --badge-squirt-bg: rgba(56,189,248,0.14);
+          --badge-squirt-border: rgba(56,189,248,0.28);
+          --badge-squirt-text: #38bdf8;
+          --badge-warn-bg: rgba(245,158,11,0.12);
+          --badge-warn-border: rgba(245,158,11,0.3);
+          --badge-warn-text: #fbbf24;
 
           --accent-soft: rgba(94,106,210,0.12);
 
@@ -88,7 +101,7 @@
 
           --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
 
-          --shadow-glow: 0 0 24px var(--accent-glow);
+          --shadow-glow: 0 12px 32px rgba(0, 0, 0, 0.55);
 
           --radius: 8px;
 
@@ -125,6 +138,19 @@
           --accent: #4f46e5;
 
           --accent-hover: #4338ca;
+          --accent-text: #4338ca;
+          --surface-subtle: #f8f9fc;
+          --surface-subtle-hover: #eef0f7;
+          --border-hover: #c5cadb;
+          --badge-evt-bg: rgba(79, 70, 229, 0.1);
+          --badge-evt-border: rgba(79, 70, 229, 0.28);
+          --badge-evt-text: #4338ca;
+          --badge-squirt-bg: rgba(2, 132, 199, 0.1);
+          --badge-squirt-border: rgba(2, 132, 199, 0.28);
+          --badge-squirt-text: #0369a1;
+          --badge-warn-bg: rgba(217, 119, 6, 0.1);
+          --badge-warn-border: rgba(217, 119, 6, 0.28);
+          --badge-warn-text: #b45309;
 
           --accent-soft: rgba(79, 70, 229, 0.1);
 
@@ -154,7 +180,7 @@
 
           --shadow-lg: 0 8px 24px rgba(15, 20, 40, 0.14);
 
-          --shadow-glow: 0 0 24px var(--accent-glow);
+          --shadow-glow: 0 12px 32px rgba(15, 20, 40, 0.16);
 
         }
 
@@ -168,7 +194,7 @@
 
     body {
 
-      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      font-family: "Noto Sans Thai", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
       font-feature-settings: "cv01","ss03";
 
       background: var(--bg);
@@ -205,7 +231,7 @@
 
       display: inline-flex; align-items: center; gap: 10px;
 
-      font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em;
+      font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
 
       color: var(--text-strong);
 
@@ -517,7 +543,7 @@
 
     .files-header h2 {
 
-      font-size: 0.98rem; font-weight: 600; color: var(--text-strong);
+      font-size: 1.25rem; font-weight: 700; color: var(--text-strong);
 
       letter-spacing: -0.01em;
 
@@ -690,7 +716,7 @@
 
     .state-box svg { width: 44px; height: 44px; margin-bottom: 12px; opacity: 0.5; }
 
-    .state-box h3 { font-size: 0.95rem; font-weight: 600; color: var(--text-strong); margin-bottom: 6px; }
+    .state-box h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-strong); margin-bottom: 6px; }
 
     .state-box p { font-size: 0.85rem; }
 
@@ -859,6 +885,19 @@
 
     }
 
+    .lb-title {
+      position: absolute; top: max(14px, env(safe-area-inset-top)); left: max(14px, env(safe-area-inset-left));
+      max-width: calc(50vw - 70px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #fff; font-size: 0.82rem; font-weight: 500;
+      background: rgba(20,20,20,0.78); border: 1px solid rgba(255,255,255,0.16);
+      padding: 4px 14px; border-radius: 999px; z-index: 2;
+      backdrop-filter: blur(8px); pointer-events: none;
+    }
+    .lb-title:empty { display: none; }
+    .lightbox[data-viewer="pdf"] .lb-title { max-width: calc(100vw - 140px); }
+
+
+
 
 
     /* ปุ่ม "ดูต้นฉบับ" — แสดงเฉพาะตอนดูภาพย่อจาก CDN */
@@ -951,7 +990,7 @@
 
       height: 100%; width: 0%; background: var(--accent);
 
-      transition: width 0.2s;
+      transition: transform 0.2s, opacity 0.2s; transform-origin: left;
 
     }
 
@@ -1052,16 +1091,20 @@
     @media(max-width:1000px){.coll-grid{grid-template-columns:repeat(3,1fr)}}
     @media(max-width:680px){.coll-grid{grid-template-columns:1fr}}
     @media(max-width:420px){.coll-grid{grid-template-columns:1fr}}
-    .coll-card{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,background .15s}
-    .coll-card:hover{border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.04)}
+    .coll-card{background:var(--surface-subtle);border:1px solid var(--border);border-radius:10px;padding:10px 11px;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,background .15s}
+    .coll-card:hover{border-color:var(--border-hover);background:var(--surface-subtle-hover)}
+
     .coll-card.dead{opacity:.55}
     .coll-card.no-date{border-style:dashed}
     .coll-head{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;flex-wrap:wrap}
-    .coll-date{font-size:11px;font-weight:600;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text)}
-    .coll-date.evt{background:rgba(94,106,210,.18);border-color:rgba(94,106,210,.35);color:#a5adff}
-    .coll-kind{font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--muted)}
-    .coll-kind.folder{color:#f59e0b;border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.10)}
-    .coll-kind.file{color:#818cf8;border-color:rgba(99,102,241,.3);background:rgba(99,102,241,.12)}
+    .coll-date{font-size:11px;font-weight:600;padding:3px 6px;border-radius:6px;background:var(--surface-subtle-hover);border:1px solid var(--border);color:var(--text)}
+    .coll-date.evt{background:var(--badge-evt-bg);border-color:var(--badge-evt-border);color:var(--badge-evt-text)}
+
+    .coll-kind{font-size:10px;font-weight:700;letter-spacing:.04em;padding:3px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface-subtle);color:var(--muted)}
+    .coll-kind.folder{color:var(--badge-warn-text);border-color:var(--badge-warn-border);background:var(--badge-warn-bg)}
+    .coll-kind.file{color:var(--badge-evt-text);border-color:var(--badge-evt-border);background:var(--badge-evt-bg)}
+
+
     .coll-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
     .coll-dot.ok{background:#10b981}.coll-dot.muted{background:#8a8f98}.coll-dot.dead{background:#ff4d4d}
     .coll-title{font-size:13px;font-weight:600;line-height:1.35;letter-spacing:-.15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px;color:var(--text-strong)}
@@ -1071,13 +1114,17 @@
     .coll-actions{display:flex;gap:6px;margin-top:auto}
     .coll-actions .btn-primary,.coll-actions .btn-ghost{flex:1;font-size:12px;font-weight:600;padding:7px 8px;border-radius:7px;border:1px solid var(--border);cursor:pointer;text-align:center}
     .coll-actions .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-    .coll-actions .btn-primary:hover{background:#6b77e0}
-    .coll-actions .btn-ghost{background:rgba(255,255,255,.03);color:var(--text)}
-    .coll-actions .btn-ghost:hover{background:rgba(255,255,255,.06)}
+    .coll-actions .btn-primary:hover{background:var(--accent-hover)}
+    .coll-actions .btn-ghost{background:var(--surface-subtle);color:var(--text)}
+    .coll-actions .btn-ghost:hover{background:var(--surface-subtle-hover);border-color:var(--border-hover)}
+
+
     .coll-actions .btn-primary[disabled]{opacity:.4;cursor:not-allowed}
     .coll-badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:999px;letter-spacing:.02em}
     .coll-badge.dead{background:#ff4d4d;color:#fff}
-    .coll-badge.nodate{background:rgba(245,158,11,.14);color:#f59e0b;border:1px solid rgba(245,158,11,.25)}
+    .coll-badge.nodate{background:var(--badge-warn-bg);color:var(--badge-warn-text);border:1px solid var(--badge-warn-border)}
+    .coll-badge.approx{background:var(--badge-evt-bg);color:var(--badge-evt-text);border:1px solid var(--badge-evt-border)}
+    .coll-badge.squirt{background:var(--badge-squirt-bg);color:var(--badge-squirt-text);border:1px solid var(--badge-squirt-border)}
     .btn-mega{background:#d90007;border-color:#b80006;color:#fff}
 .btn-mega:hover{background:#ee0a14}
 .mega-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;background:#d90007;color:#fff;letter-spacing:.02em}
@@ -1089,15 +1136,16 @@
     .btn-mf:hover{background:#1fa9f2}
 .coll-missing{background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--danger);border-radius:8px;padding:8px 12px;font-size:.78rem;margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .coll-pagi{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;flex-wrap:wrap}
-    .coll-pagi button{min-width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--muted);cursor:pointer;font-size:12px;padding:0 10px}
+    .coll-pagi button{min-width:32px;height:32px;border-radius:7px;border:1px solid var(--border);background:var(--surface-subtle);color:var(--muted);cursor:pointer;font-size:12px;padding:0 10px}
     .coll-pagi button.active{background:var(--text);color:var(--bg);border-color:var(--text)}
     .coll-pagi button:disabled{opacity:.4;pointer-events:none}
     .coll-pagi-info{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin:4px 0 0;flex-basis:100%;text-align:center;overflow-wrap:anywhere}
     .filter-chips{max-height:none;overflow:visible}
     .filter-chips.collapsed .filter-chip:nth-child(n+13){display:none}
-    .filter-chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.02);color:var(--muted);cursor:pointer}
+    .filter-chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface-subtle);color:var(--muted);cursor:pointer}
+    .filter-chip:hover{border-color:var(--border-hover);background:var(--surface-subtle-hover)}
     .filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
-    .filter-chip:hover{border-color:rgba(255,255,255,.12)}
+
     .coll-missing{font-size:11px;padding:6px 10px;border-radius:8px}
     .coll-missing .dismiss{margin-left:auto;cursor:pointer;opacity:.6;border:none;background:none;color:inherit;font-size:14px;line-height:1}
     .coll-missing .dismiss:hover{opacity:1}
@@ -1459,7 +1507,7 @@
     #collMissing { color:var(--text)!important;font-size:13px;line-height:1.7;background:var(--bg-elevated)!important;border-color:var(--border)!important; }
     #collSearch { padding-right:36px!important;max-width:100%; }
     #collSearch::placeholder { color:var(--muted);opacity:1; }
-    #collectionsCard :focus-visible { outline:2px solid var(--accent-hover);outline-offset:3px; }
+    #collectionsCard :focus-visible { outline:2px solid var(--accent-text);outline-offset:3px; }
     @media(max-width:680px){
       .coll-card { padding:14px;gap:10px; }
       .coll-title { font-size:15px;min-height:0; }
@@ -1473,6 +1521,29 @@
     }
     @media(prefers-reduced-motion:reduce){.coll-card{transition:none;}}
     .coll-sort {display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;}
+    .coll-header-bar {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+    .coll-header-bar h2 {font-size:1.25rem;font-weight:700;letter-spacing:-0.015em;color:var(--text-strong);margin:0;}
+    .coll-header-actions {display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .coll-toolbar {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:0 0 12px;border-bottom:1px solid var(--border);}
+    .coll-search-box {position:relative;flex:1 1 200px;min-width:160px;}
+    .coll-search-box input {width:100%;padding:7px 10px;font-size:.82rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text);}
+    .coll-pill {display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated);transition:border-color .15s,color .15s,background .15s;}
+    .coll-pill:hover {border-color:var(--border-hover);color:var(--text);}
+    .coll-pill:has(input:checked) {border-color:var(--accent);color:var(--text-strong);background:var(--accent-soft);}
+    .coll-pill input {accent-color:var(--accent);}
+    .coll-filter-drawer {position:relative;margin-left:auto;}
+    .coll-filter-drawer > summary {list-style:none;margin:0;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;font-size:.78rem;font-weight:500;color:var(--text);background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;cursor:pointer;text-decoration:none;}
+    .coll-filter-drawer > summary::-webkit-details-marker {display:none;}
+    .coll-filter-drawer > summary:hover {border-color:var(--border-hover);background:var(--card-hover);text-decoration:none;}
+    .coll-filter-drawer[open] > summary {border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text);margin-bottom:0;}
+    .coll-drawer-panel {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;padding:10px 0 2px;border-top:1px dashed var(--border);}
+    @media(max-width:680px){
+      .coll-header-bar h2 {font-size:1.08rem;}
+      .coll-toolbar {padding:8px;}
+      .coll-search-box {flex:1 1 100%;}
+      .coll-filter-drawer {margin-left:0;width:100%;}
+      .coll-filter-drawer > summary {width:100%;justify-content:center;min-height:40px;}
+    }
     #collSort {min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text);font:inherit;}
     .coll-status {display:flex;flex-wrap:wrap;gap:6px;font-size:12px;line-height:1.5;}
     .source-status {padding:4px 7px;border:1px solid var(--border);border-radius:6px;color:var(--muted);}
@@ -1497,7 +1568,7 @@
       transition: color var(--transition), background var(--transition), border-color var(--transition);
       max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .crumb:hover { color: var(--accent-hover); background: var(--accent-soft); }
+    .crumb:hover { color: var(--accent-text); background: var(--accent-soft); }
     .crumb.current {
       color: var(--text-strong); font-weight: 600;
       max-width: min(340px, 45vw);
@@ -1521,7 +1592,7 @@
     #bcHome {
       border-color: var(--border);
       background: var(--accent-soft);
-      color: var(--accent-hover);
+      color: var(--accent-text);
     }
     #bcHome:hover {
       background: var(--accent-glow);
@@ -1914,28 +1985,32 @@
 
     <div class="card" id="collectionsCard">
 
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
 
-        <h2 style="font-size:.98rem;font-weight:600;letter-spacing:-.01em">📚 คลัง XBep — <span id="collCount" aria-live="polite"></span> <span style="font-size:.78rem;color:var(--muted);font-weight:400">กดเปิดดูได้เลย</span></h2>
 
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-
-          <div style="position:relative"><input type="text" id="collSearch" aria-label="ค้นหาคลังตามวันที่หรือชื่อ" placeholder="ค้นหาวันที่หรือชื่อ…" style="padding:7px 10px;font-size:.82rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text);min-width:160px"/><button type="button" id="collSearchClear" title="ล้าง" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;display:none">×</button></div>
-
-          <label class="coll-sort">เรียงตาม <select id="collSort"><option value="newest">ใหม่สุด</option><option value="oldest">เก่าสุด</option><option value="name">ชื่อ</option></select></label>
-          <button type="button" class="btn-ghost btn-sm" id="collToggle" title="ซ่อน/แสดง">ซ่อน</button>
-
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowDead" style="accent-color:var(--accent)"> แสดงรายการใช้ไม่ได้</label>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collShowNoDate" checked style="accent-color:var(--accent)"> แสดงชื่อที่ไม่มีวันที่</label>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collSoloSquirt" style="accent-color:var(--accent)"> 💦 เฉพาะน้ำพุ่ง</label><button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button><span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);cursor:pointer;border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:var(--bg-elevated)"><input type="checkbox" id="collPageMode" checked style="accent-color:var(--accent)"> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
+      <div class="coll-header-bar">
+        <h2>📚 คลัง XBep — <span id="collCount" aria-live="polite"></span> <span style="font-size:.78rem;color:var(--muted);font-weight:400">กดเปิดดูได้เลย</span></h2>
+        <div class="coll-header-actions">
           <button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button>
           <button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button>
           <button type="button" class="btn-ghost btn-sm" id="collMobileView" aria-pressed="false">มุมมองรายการ</button>
-          <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
-
+          <button type="button" class="btn-ghost btn-sm" id="collToggle" title="ซ่อน/แสดง">ซ่อน</button>
         </div>
-
+      </div>
+      <div class="coll-toolbar" id="collToolbar">
+        <div class="coll-search-box"><input type="text" id="collSearch" aria-label="ค้นหาคลังตามวันที่หรือชื่อ" placeholder="ค้นหาวันที่หรือชื่อ…" /><button type="button" id="collSearchClear" title="ล้าง" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;display:none">×</button></div>
+        <label class="coll-sort">เรียงตาม <select id="collSort"><option value="newest">ใหม่สุด</option><option value="oldest">เก่าสุด</option><option value="name">ชื่อ</option></select></label>
+        <label class="coll-pill"><input type="checkbox" id="collSoloSquirt"> 💦 เฉพาะน้ำพุ่ง</label>
+        <button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button>
+        <span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span>
+        <details class="coll-filter-drawer" id="collFilterDrawer">
+          <summary title="ตั้งค่าการแสดงผลและตัวกรองเพิ่มเติม">⚙️ ตัวเลือกมุมมอง</summary>
+          <div class="coll-drawer-panel">
+            <label class="coll-pill"><input type="checkbox" id="collShowDead"> แสดงรายการใช้ไม่ได้</label>
+            <label class="coll-pill"><input type="checkbox" id="collShowNoDate" checked> แสดงชื่อที่ไม่มีวันที่</label>
+            <label class="coll-pill"><input type="checkbox" id="collPageMode" checked> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
+            <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
+          </div>
+        </details>
       </div>
 
       <div id="collMissing" class="coll-missing" style="display:none"></div>
@@ -1984,6 +2059,7 @@
       <button type="button" class="lb-close lb-ui" id="lbClose" aria-label="ปิด">&times;</button>
       <button type="button" class="lb-fs lb-ui" id="lbFullscreen" aria-label="เต็มจอ" title="เต็มจอ (F)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
 
+      <div class="lb-title lb-ui" id="lbTitle"></div>
       <div class="lb-count lb-ui" id="lbCount"></div>
 
       <button type="button" class="lb-orig lb-ui" id="lbOrig">ดูต้นฉบับ</button>
@@ -2003,7 +2079,7 @@
 
       <button type="button" class="media-nav next lb-ui" id="lbNext" aria-label="รูปถัดไป">&#8250;</button>
 
-      <img id="lbImg" alt="รูปภาพขยายเต็มจอ" />
+      <img id="lbImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="รูปภาพขยายเต็มจอ" />
 
       <div id="pdfStage" hidden aria-label="หน้า PDF">
         <div class="pdf-loading" id="pdfLoading" role="status" aria-live="polite"><div class="spinner"></div><span id="pdfLoadingText">กำลังโหลด PDF…</span></div>
@@ -4265,6 +4341,8 @@
         if (closingPdf) mediaSession++;
         resetImageView();
         cancelImageTap();
+        const lbTitleEl = document.getElementById("lbTitle");
+        if (lbTitleEl) lbTitleEl.textContent = "";
         if (lbImg._blobUrl) { URL.revokeObjectURL(lbImg._blobUrl); lbImg._blobUrl = null; }
         document.body.style.overflow = "";
         if (document.fullscreenElement && document.exitFullscreen) {
@@ -4296,6 +4374,11 @@
         const idx = list.findIndex(function (item) { return item.id === lbImg.dataset.fid; });
 
         el.textContent = (idx >= 0 ? idx + 1 : "-") + " / " + list.length;
+        const titleEl = document.getElementById("lbTitle");
+        if (titleEl) {
+          const item = (idx >= 0 ? list[idx] : null) || (typeof allFiles !== "undefined" && allFiles.find(function (f) { return f.id === lbImg.dataset.fid; }));
+          titleEl.textContent = (item && item.name) || "";
+        }
 
       }
 
@@ -6047,6 +6130,8 @@
         const session = mediaSession;
         const auth = authParams();
         vidTitle.textContent = name || 'PDF';
+        const lbTitleEl = document.getElementById('lbTitle');
+        if (lbTitleEl) lbTitleEl.textContent = name || 'PDF';
         vidOpenTab.href = 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view';
         currentMediaIndex = -1;
         currentMediaKind = 'pdf';
@@ -6738,6 +6823,7 @@
           grid.style.display = collapsed ? "none" : "";
 
           if(chipsWrap) chipsWrap.style.display = collapsed ? "none" : "";
+          var toolbarEl=document.getElementById("collToolbar");if(toolbarEl) toolbarEl.style.display = collapsed ? "none" : "";
           var pagination=document.getElementById("collPagi");if(pagination && collapsed) pagination.style.display="none";
           if(toggleBtn) toggleBtn.setAttribute("aria-expanded",String(!collapsed));
 
@@ -6906,8 +6992,9 @@
             var driveNameTxt = c.drive_name ? c.drive_name : (isDead ? "(ใช้ไม่ได้ตามผลตรวจที่บันทึกไว้)" : "");
             var deadBadge = '';
             var noDateBadge = isNoDate ? ' <span class="coll-badge nodate">ชื่อไม่มีวันที่</span>' : '';
-            var approxBadge = c.approx ? ' <span class="coll-badge" style="background:rgba(94,106,210,.14);color:#a5adff;border:1px solid rgba(94,106,210,.25)">ประมาณ</span>' : '';
-            var soloBadge = effSq(c) ? ' <span class="coll-badge" style="background:rgba(56,189,248,.14);color:#38bdf8;border:1px solid rgba(56,189,248,.25)">💦 น้ำพุ่ง</span>' : '';
+            var approxBadge = c.approx ? ' <span class="coll-badge approx">ประมาณ</span>' : '';
+            var soloBadge = effSq(c) ? ' <span class="coll-badge squirt">💦 น้ำพุ่ง</span>' : '';
+
             var dotCls = c.dead===true ? 'dead' : c.dead===false ? 'ok' : 'muted';
             var dateCls = isNoDate || isDead ? 'coll-date' : 'coll-date evt';
             var hasMega = !!c.mega_url && !c.mega_dead;
@@ -6922,7 +7009,7 @@
             var megaBtn = megaAliveLocal ? '<a class="btn-ghost btn-mega" href="'+c.mega_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MEGA ↗</a>' : '';
             var odBtn = hasOD ? '<a class="btn-ghost btn-od" href="'+c.od_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">OneDrive ↗</a>' : '';
             var tagOn = effSq(c);
-            var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+c.id+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:#38bdf8;color:#38bdf8;":"opacity:.55;")+'">💦</button>';
+            var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+c.id+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:var(--badge-squirt-border);color:var(--badge-squirt-text);background:var(--badge-squirt-bg);":"opacity:.55;")+'">💦</button>';
             var mfBtn = hasMF ? '<a class="btn-ghost btn-mf" href="'+c.mf_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MediaFire ↗</a>' : '';
             card.innerHTML =
               '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+

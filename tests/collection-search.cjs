@@ -86,5 +86,29 @@ vm.runInContext(html.slice(tagStart, tagEnd), tagCtx);
   assert.notEqual(statusText, 'บันทึกแล้ว ✓', 'failed upload must never report הבันทึกแล้ว ✓');
   assert.match(statusText, /ไม่สำเร็จ/, 'failed upload reports failure status');
 
+  // P1 UI/UX Checks:
+  // 1. Noto Sans Thai must be active in body font-family
+  assert.match(html, /body\s*\{[^}]*font-family:\s*"Noto Sans Thai"/s, 'body font-family must include Noto Sans Thai first');
+  // 2. WCAG AA contrast on --accent-hover and .coll-actions .btn-primary:hover
+  assert(!html.includes('--accent-hover: #828fff'), '--accent-hover must not use low-contrast #828fff (2.9:1 on white)');
+  assert.match(html, /\.coll-actions\s+\.btn-primary:hover\s*\{\s*background:\s*var\(--accent-hover\)/, 'collection primary button hover uses --accent-hover token');
+  // 3. Light mode tokens for collection cards & badges
+  assert.match(html, /html\[data-theme="light"\]\s*\{[^}]*--surface-subtle:/s, 'light theme defines --surface-subtle token');
+  assert.match(html, /\.coll-card\s*\{\s*background:\s*var\(--surface-subtle\)/, '.coll-card uses theme-aware --surface-subtle variable');
+  // 4. Collection toolbar cognitive load organization (filter drawer)
+  assert.match(html, /<details[^>]*class="coll-filter-drawer"[^>]*id="collFilterDrawer"/, 'secondary collection filters are grouped in coll-filter-drawer');
+
+  // P2 UI/UX Checks:
+  // 5. Lightbox displays file title (#lbTitle) and lbImg has valid placeholder src
+  assert(html.includes('id="lbTitle"'), 'lightbox includes #lbTitle element for image/PDF filename');
+  assert.match(html, /<img\s+id="lbImg"\s+src="data:image\/gif;base64,/, 'lbImg has initial transparent data URI src');
+  // 6. Progress bar uses GPU transform transition instead of layout width transition
+  assert(!/transition:\s*width\b/.test(html), 'vid-progress-bar must not animate layout width');
+  assert.match(html, /\.vid-progress-bar\s*\{[^}]*transition:\s*transform/s, 'vid-progress-bar animates transform');
+  // 7. No zero-offset chromatic glow on --shadow-glow
+  assert(!html.includes('--shadow-glow: 0 0 24px'), '--shadow-glow uses directional elevation instead of zero-offset glow');
+
   console.log('PASS collection search normalize and check-time constant');
 })().catch(err => { console.error(err); process.exit(1); });
+
+
