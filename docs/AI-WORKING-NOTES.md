@@ -11,8 +11,8 @@
 | **Completed Video Cache (`video-cache.js`)** | `VERIFIED WORKING` | แคชคลิปที่โหลดจบลง Cache Storage แยกตาม Scope บัญชี, จำกัดขนาดแบบ LRU, ป้องกัน Race Condition ด้วย `navigator.locks` และ `generation` epoch (`node --test tests/video-cache.cjs` — PASS) |
 | **Image & PDF Lightbox Viewer (`index.html`)** | `VERIFIED WORKING` | รองรับการซูม/ลาก (Pinch/Pan/Double-tap) ทั้งภาพปกติ (`lbImg`) และเอกสาร PDF (`pdfCanvas` ผ่าน PDF.js), แสดงปุ่ม `#lbPrev`/`#lbNext` ในโหมด PDF ให้กดข้ามไปดูรูปถัดไปในโฟลเดอร์ได้ทันที, รอ `await prevTask.promise` หลัง `cancel()` ป้องกัน Canvas Lock ตอนกดข้ามหน้ารัวๆ และเชื่อมลำดับมีเดียระหว่าง PDF กับรูปภาพในโฟลเดอร์ (`node tests/image-viewer.cjs` & `node tests/media-lifecycle.cjs` — PASS) |
 | **Collection Search & Tag Sync (`index.html`, `ADR-0001`)** | `VERIFIED WORKING` | ค้นหาชื่อไทยแบบ NFC/NFD normalize, กรองแท็ก `💦 น้ำพุ่ง` (`squirting`), ซิงก์ `gdv-tags.json` ขึ้น Drive `appDataFolder` แบบรอผล `await tagPushMerged` จริงก่อนแสดง `"บันทึกแล้ว ✓"` และตรวจ `COLL_CHECKED_AT` แบบไดนามิกไม่พังเมื่อสคริปต์รายวันอัปเดตเวลา (`node tests/collection-search.cjs` — PASS) |
-| **Collection Data Sync (`tools/collection_data.js`)** | `VERIFIED WORKING` | ซิงก์ข้อมูลระหว่าง `collections_merged.json` และ `index.html` ตรงกันทั้งสองฝั่ง (`node tools/collection_data.js check` — 325 รายการตรงกัน) |
-| **UI/UX Typography, WCAG Contrast, Light Theme, Toolbar & P2 Polish (`index.html`)** | `VERIFIED WORKING` | เปิดใช้งานฟอนต์ `"Noto Sans Thai"` ใน `body`, ปรับลำดับขั้นขนาดหัวข้อ (`≥ 1.25x` Modular Type Scale), แยก `--accent-hover` (`#4e5ac0`, คอนทราสต์ `5.41:1` ผ่าน WCAG AA) กับ `--accent-text`, เพิ่ม CSS Variables สำหรับโหมดสว่าง (`html[data-theme="light"]`), จัดระเบียบแถบเครื่องมือ `#collectionsCard` ด้วย `<details class="coll-filter-drawer" id="collFilterDrawer">`, เพิ่มป้ายชื่อไฟล์ `#lbTitle` ใน Lightbox, ปรับ `.vid-progress-bar` และ `--shadow-glow` ให้ผ่านเกณฑ์ GPU/Elevation และลบกฎ CSS ที่ซ้ำซ้อน (`impeccable detect --json index.html` — `[]` 0 warnings & `node --test tests/*.cjs` — 130/130 PASS) |
+| **Collection Data Sync (`tools/collection_data.js`)** | `VERIFIED WORKING` | ซิงก์ข้อมูลระหว่าง `collections_merged.json` และ `index.html` ตรงกันทั้งสองฝั่ง (`node tools/collection_data.js check` — 335 รายการตรงกัน) |
+| **UI/UX Typography, WCAG Contrast, Light Theme, Toolbar & P2 Polish (`index.html`)** | `VERIFIED WORKING` | เปิดใช้งานฟอนต์ `"Noto Sans Thai"` ใน `body`, ปรับลำดับขั้นขนาดหัวข้อ (`≥ 1.25x` Modular Type Scale), แยก `--accent-hover` (`#4e5ac0`, คอนทราสต์ `5.41:1` ผ่าน WCAG AA) กับ `--accent-text`, เพิ่ม CSS Variables สำหรับโหมดสว่าง (`html[data-theme="light"]`), จัดระเบียบแถบเครื่องมือ `#collectionsCard` ด้วย `<details class="coll-filter-drawer" id="collFilterDrawer">`, เพิ่มป้ายชื่อไฟล์ `#lbTitle` ใน Lightbox, ปรับ `.vid-progress-bar` และ `--shadow-glow` ให้ผ่านเกณฑ์ GPU/Elevation และลบกฎ CSS ที่ซ้ำซ้อน (`impeccable detect --json index.html` — `[]` 0 warnings & `node --test tests/*.cjs` — 132/132 PASS) |
 
 ---
 
@@ -95,3 +95,32 @@
   - ใน `fetchParallelChunk` (`drive-stream-sw.js` และ `cloudflare-drive-worker.mjs`) เพิ่มการตรวจสอบ `actualEnd < actualStart || (i < ranges.length - 1 && actualEnd !== ranges[i][1])` ให้ยกเลิกและถอยกลับไปใช้การดึงช่วงเดียวแบบปลอดภัยทันที
   - เพิ่มชุดทดสอบ TDD ครอบคลุมทั้ง 6 จุดใน `tests/natural-sort.cjs`, `tests/collection-search.cjs`, `tests/auth-restore.cjs`, `tests/authenticated-stream.cjs`, และ `tests/public-worker.cjs`
   - ผลการรันทดสอบทั้งหมด: `node --test tests/*.cjs` ผ่านครบ **132/132 PASS (0 fail)**, `node tools/collection_data.js check` ตรงกันครบ **325 รายการ**, และ `impeccable detect --json index.html` คืนค่า `[]` (**0 warnings**)
+
+### 8. ตรวจสอบสถานะลิงก์ทั้งหมดในคลังล่าสุด (`11 ต.ค. 69 (21:07 น.)`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ผลการตรวจสอบ (Verification Evidence):**
+  - รัน `py scripts/checks/check_drive_alive.py`, `py scripts/checks/check_mega_alive.py`, `py scripts/data/patch_alive_from_report.py`, และ `node tools/collection_data.js extract`
+  - **Google Drive (325 รายการ):** ใช้ได้ **93 รายการ** (`28.6%`), ใช้ไม่ได้ **232 รายการ** (ลดลงจากรอบ `4 ต.ค. 69` จำนวน **52 รายการ** เนื่องจากโฟลเดอร์ของเดือน `7.69` ตั้งแต่วันที่ `1.7.69`–`31.7.69` จำนวน 52 โฟลเดอร์ถูกเจ้าของย้ายลงถังขยะ `trashed: true` และไม่สามารถดึงไฟล์ภายในได้แล้ว)
+  - **MEGA สำรอง (55 รายการ):** ใช้ได้ครบ **55 / 55 รายการ (100%)** (`dead: 0`)
+  - **ลิงก์สำรองอื่นๆ:** OneDrive (`od_url`) **57 รายการ**, MediaFire (`mf_url`) **3 รายการ**
+  - **สรุปรวมรายการที่ยังเปิดใช้งานได้ (อย่างน้อย 1 ช่องทาง Drive / MEGA / OneDrive / MediaFire):** **94 / 325 รายการ (28.9%)** โดยเดือน `8.69` (63/63), เดือน `9.69` (19/19), และหมวด `ไม่ระบุวันที่` (8/8) ยังเปิดใช้งานได้ครบ **100%**
+  - อัปเดต `index.html` (`COLL_CHECKED_AT = "11 ต.ค. 69 (21:07 น.)"`), `collections_merged.json`, `reports/drive_alive_report.json`, `reports/mega_alive_report.json`, และ `reports/mega_alive_detail.json` พร้อมตรวจ `node tools/collection_data.js check` และ `node --test tests/*.cjs` ผ่านครบ **132/132 PASS**
+
+### 9. กู้คืนและเพิ่มลิงก์จาก Google Drive สำรอง (`1MCcoQbr0OYPT1HQzPDUFMSv5NHKxe00b` — `XBep`) เข้าสู่คอลเลกชัน (`11 ต.ค. 69 (21:29 น.)`)
+- **สถานะ:** `VERIFIED WORKING`
+- **รายละเอียดการจับคู่และเพิ่มรายการ (Root Cause & Mapping):**
+  1. สแกนโครงสร้างโฟลเดอร์สำรอง `1MCcoQbr0OYPT1HQzPDUFMSv5NHKxe00b` (`XBep`) ทั้งหมด 3 โฟลเดอร์หลัก (`6.69`, `7.69`, `1.7.69`) และโฟลเดอร์ย่อยข้างใน (`มืด` / `,nf`) รวม 90 โฟลเดอร์ย่อย
+  2. **กู้คืนรายการที่เสีย/ถูกย้ายลงถังขยะเดิมกลับมาใช้งานได้ 70 รายการ:**
+     - **เดือน `7.69` (53 โฟลเดอร์):** จับคู่ตรงตามรหัส `<old_id>_<D>-7-69` จำนวน 34 โฟลเดอร์ และจับคู่โฟลเดอร์ย่อย `มืด` / `,nf` ด้วยรายชื่อไฟล์ภายใน (`children_sample` ตรงกัน `3/3`) อีก 19 โฟลเดอร์ (เก็บ `prev_id` ไว้เป็นหลักฐานอ้างอิง)
+     - **เดือน `6.69` (17 โฟลเดอร์):** จับคู่โฟลเดอร์วันที่ `10.6.69`–`19.6.69` (`#57`–`#74` ยกเว้น `#63` ที่ในไดรฟ์สำรองมีเฉพาะไฟล์ `.getxfer` ค้าง) ทั้งโฟลเดอร์หลักและโฟลเดอร์ย่อย `มืด` / `,nf` ด้วย `children_sample` ตรงกัน
+  3. **เพิ่มรายการโฟลเดอร์ `มืด` (รอบค่ำ) ของเดือน `7.69` ที่ยังไม่เคยมีการ์ดแยกในคอลเลกชันอีก 10 รายการ:**
+     - ได้แก่ วันที่ `4.7.69 (มืด)` (`อีเวนต์ #26` ที่เคยตกหล่นไป), `17.7.69 (มืด)`, `18.7.69 (มืด)`, `19.7.69 (มืด)`, `20.7.69 (มืด)`, `21.7.69 (มืด)`, `22.7.69 (มืด)`, `23.7.69 (มืด)`, `24.7.69 (มืด)`, และ `26.7.69 (มืด)` ทำให้เดือน `7.69` มีการ์ดครบทั้งโฟลเดอร์หลักและโฟลเดอร์มืดทุกวันตั้งแต่วันที่ `1.7.69`–`31.7.69`
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - รัน `py scripts/checks/check_drive_alive.py` และ `py scripts/data/patch_alive_from_report.py`:
+    - จำนวนรายการในคลังเพิ่มขึ้นจาก `325` เป็น **`335 รายการ`**
+    - ลิงก์ Google Drive ที่ใช้งานได้จริงเพิ่มขึ้นจาก `93 / 325` (`28.6%`) เป็น **`173 / 335 รายการ` (`51.6%`, เพิ่มขึ้น `+80` ลิงก์ที่ใช้งานได้ทันที!)**
+    - **เดือน `7.69`:** กลับมาใช้งานได้ครบ **`65 / 65 รายการ (100%)`**
+    - **เดือน `6.69`:** เพิ่มจาก `0 / 60` เป็น **`17 / 60 รายการ (28.3%)`**
+  - รัน `node tools/collection_data.js extract` และ `node tools/collection_data.js check`: ตรงกันครบ **335 รายการ**
+  - รัน `node --test tests/*.cjs`: ผ่านครบ **132/132 PASS (0 fail)**
+
