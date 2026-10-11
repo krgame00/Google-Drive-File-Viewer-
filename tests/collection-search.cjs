@@ -47,8 +47,44 @@ assert.equal(matches(soloOnlyItem),true,'solo-only item not filtered by squirt f
 assert(html.includes('💦 น้ำพุ่ง'),'squirt badge exists');
 
 // ป้ายวันตรวจสถานะต้องมาจากตัวแปรเดียว ไม่มี hardcode ซ้ำ
-assert(html.includes('const COLL_CHECKED_AT = '),'COLL_CHECKED_AT declared');
-const hard=(html.match(/14 ก\.ย\. 69/g)||[]).length;
+const checkedMatch = html.match(/const COLL_CHECKED_AT = "([^"]+)";/);
+assert(checkedMatch && checkedMatch[1].trim().length > 0,'COLL_CHECKED_AT declared');
+const hard = html.split(checkedMatch[1]).length - 1;
 assert.equal(hard,1,'check-time date appears only in COLL_CHECKED_AT, got '+hard);
 
-console.log('PASS collection search normalize and check-time constant');
+// tagSchedulePush ต้องรอให้ tagPushMerged อัปโหลดเสร็จจริงก่อนขึ้น "บันทึกแล้ว ✓" และแจ้งเตือนเมื่ออัปโหลดล้มเหลว
+const tagStart = html.indexOf('        var TAG_LS = "gdv_tags_v1"');
+const tagEnd = html.indexOf('        function toggleTag(', tagStart);
+assert(tagStart >= 0 && tagEnd > tagStart, 'tag sync functions exist');
+let scheduledCb = null, statusText = '', fetchImpl = null;
+const tagCtx = {
+  localStorage: { getItem: k => k === 'gdv_tags_fileid' ? 'file-123' : null, setItem() {} },
+  document: { getElementById: id => id === 'collTagSyncStatus' ? { set textContent(v) { statusText = v; }, get textContent() { return statusText; } } : null },
+  fetch: (...args) => fetchImpl(...args),
+  setTimeout: cb => { scheduledCb = cb; return 1; },
+  clearTimeout() {},
+  accessToken: 'tok-1',
+  render() {}
+};
+vm.createContext(tagCtx);
+vm.runInContext(html.slice(tagStart, tagEnd), tagCtx);
+
+(async () => {
+  let resolveUpload;
+  fetchImpl = () => new Promise(r => { resolveUpload = r; });
+  tagCtx.tagSchedulePush();
+  scheduledCb();
+  assert.equal(statusText, 'กำลังบันทึก…', 'status stays กำลังบันทึก… while upload is in flight');
+  resolveUpload({ ok: true });
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(statusText, 'บันทึกแล้ว ✓', 'status becomes บันทึกแล้ว ✓ after upload resolves ok');
+
+  fetchImpl = () => Promise.resolve({ ok: false, status: 500 });
+  tagCtx.tagSchedulePush();
+  scheduledCb();
+  await new Promise(r => setTimeout(r, 10));
+  assert.notEqual(statusText, 'บันทึกแล้ว ✓', 'failed upload must never report הבันทึกแล้ว ✓');
+  assert.match(statusText, /ไม่สำเร็จ/, 'failed upload reports failure status');
+
+  console.log('PASS collection search normalize and check-time constant');
+})().catch(err => { console.error(err); process.exit(1); });

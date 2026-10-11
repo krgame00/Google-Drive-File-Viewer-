@@ -222,7 +222,7 @@ async function streamFile(event, id, attempt) {
         const guard = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 120000);
         const end = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
         entry.promise = (parallelOk === id
-          ? fetchParallelChunk(id, nextStart, end, token)
+          ? fetchParallelChunk(id, nextStart, end, token, controller.signal)
           : fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
               method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
               headers: new Headers({Authorization: 'Bearer ' + token, Range: 'bytes=' + nextStart + '-' + end})

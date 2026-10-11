@@ -20,4 +20,4 @@
 
 - ต้องเพิ่ม `drive.appdata` ใน OAuth scope → ผู้ใช้เก่าต้อง sign-in ใหม่ 1 ครั้ง (popup consent)
 - ยังไม่ sign-in = เก็บ local อย่างเดียว แล้วรวมตอน sign-in (merge ตาม timestamp)
-- ฟิลด์เก่า `solo_squirt` ใน `collections_merged.json` ยังคงอยู่เป็นค่า default; override อยู่ใน `gdv-tags.json` แยกกัน ไม่แก้ไฟล์คลัง
+- ฟิลด์ `squirting` ใน `collections_merged.json` (แยกออกจาก `solo_squirt` เดิมตาม `CONTEXT.md`) ทำหน้าที่เป็นค่า default; override อยู่ใน `gdv-tags.json` แยกกัน ไม่แก้ไฟล์คลัง

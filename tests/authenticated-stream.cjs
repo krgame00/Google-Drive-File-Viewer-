@@ -138,6 +138,20 @@ test('chunks after a length-bearing answer stream four parallel sub-intervals in
  assert.equal(calls.length,9,'the read-ahead prefetches the next chunk as four parallel sub-intervals');
  assert.deepEqual(calls.slice(5),['bytes=33554432-37748735','bytes=37748736-41943039','bytes=41943040-46137343','bytes=46137344-50331647']);
 });
+test('a seek away from a parallel read-ahead aborts all four prefetch sub-intervals',async()=>{
+ const {request,ctx}=setup();const signals=[];
+ ctx.fetch=async(url,options)=>{
+  signals.push(options.signal);
+  const range=options.headers.get('Range');
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999','Content-Length':'4'}});
+ };
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ assert.equal(signals.length,5,'warmup fetch plus four parallel read-ahead sub-intervals');
+ assert.ok(signals.slice(1,5).every(s=>s && s.aborted===false),'all four parallel read-ahead requests carry active abort signals');
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=999999999-');
+ assert.ok(signals.slice(1,5).every(s=>s && s.aborted===true),'seeking away aborts all four stale parallel read-ahead requests');
+});
 test('a sub-answer that is not partial falls back to a single bounded fetch',async()=>{
  const {request,ctx,streamBody}=setup();const calls=[];
  const fourSubs=(start,end)=>{const p=(end-start+1)/4;return [0,1,2,3].map(i=>{const s=start+i*p;const e=i===3?end:s+p-1;return 'bytes='+s+'-'+e;});};

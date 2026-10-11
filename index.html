@@ -6664,15 +6664,15 @@
             var payload=JSON.stringify({version:1,tags:tagOverrides});
             if(!tagFileId){
               var c=await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true",{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({name:TAG_NAME,parents:["appDataFolder"],mimeType:"application/json"})});
-              if(!c.ok) return; tagFileId=(await c.json()).id; localStorage.setItem(TAG_FILE_LS,tagFileId);
+              if(!c.ok) return false; tagFileId=(await c.json()).id; localStorage.setItem(TAG_FILE_LS,tagFileId);
             }
-            await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(tagFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:payload});
-          }catch(_){}
+            var u=await fetch("https://www.googleapis.com/upload/drive/v3/files/"+encodeURIComponent(tagFileId)+"?uploadType=media",{method:"PATCH",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:payload}); return !!(u&&u.ok);
+          }catch(_){ return false; }
         }
         function tagSchedulePush(){
           if(typeof accessToken==="undefined"||!accessToken){ tagStatus("เก็บในเครื่อง (ยังไม่ sign-in)"); return; }
           clearTimeout(tagPushTimer);
-          tagPushTimer=setTimeout(function(){ tagStatus("กำลังบันทึก…"); tagPushMerged(accessToken); tagStatus("บันทึกแล้ว ✓"); },1500);
+          tagPushTimer=setTimeout(function(){ tagStatus("กำลังบันทึก…"); tagPushMerged(accessToken).then(function(ok){ tagStatus(ok?"บันทึกแล้ว ✓":"บันทึกไม่สำเร็จ"); }); },1500);
         }
         function toggleTag(id){
           var item=XBEP_COLLECTION.find(function(x){return x.id===id});

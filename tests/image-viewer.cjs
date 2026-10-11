@@ -4,7 +4,7 @@ function fn(name){const start=html.indexOf('      function '+name+'(');assert(st
 function setup(){
   const els={};let timers=new Map(),seq=0;const timerMs=new Map();const navCalls=[];const uiEls=[];
   const el=id=>{ const node={id,style:{},textContent:'',hidden:false,clientWidth:800,clientHeight:600,className:'lb-ui',setAttribute(n,v){node.attrs=node.attrs||{};node.attrs[n]=v},src:'',dataset:{}}; node.classList={_log:[],add(c){node.classList._log.push('+ '+c)},remove(c){node.classList._log.push('- '+c)},toggle(c,f){node.classList._log.push((f?'+ ':'- ')+c);return !!f},contains(c){return (' '+node.className+' ').indexOf(' '+c+' ')!==-1}}; return els[id]||(els[id]=node); };
-  const ctx={document:{getElementById:id=>el(id),querySelectorAll:sel=>{ if(sel==='.lightbox .lb-ui'){ if(!uiEls.length){uiEls.push(el('btnA'),el('btnB'));} } return uiEls; },activeElement:null},lbImg:el('lbImg'),console,Date:{now:()=>nowValue},setTimeout(cb,ms){timers.set(++seq,cb);timerMs.set(seq,ms);return seq},clearTimeout(id){timers.delete(id)},navigateMedia(kind,dir){navCalls.push([kind,dir])},imageView:{scale:1,x:0,y:0},imageControlsVisible:true,imgTapTimer:null,imgLastTapTime:0,imgLastTapX:0,imgLastTapY:0};
+  const ctx={document:{getElementById:id=>el(id),querySelectorAll:sel=>{ if(sel==='.lightbox .lb-ui'){ if(!uiEls.length){uiEls.push(el('btnA'),el('btnB'));} } return uiEls; },activeElement:null},lbImg:el('lbImg'),pdfCanvas:el('pdfCanvas'),pdfInLightbox:false,console,Date:{now:()=>nowValue},setTimeout(cb,ms){timers.set(++seq,cb);timerMs.set(seq,ms);return seq},clearTimeout(id){timers.delete(id)},navigateMedia(kind,dir){navCalls.push([kind,dir])},imageView:{scale:1,x:0,y:0},imageControlsVisible:true,imgTapTimer:null,imgLastTapTime:0,imgLastTapX:0,imgLastTapY:0};
   let nowValue=1000;
   vm.createContext(ctx);
   for(const name of ['clampImageScale','clampImagePan','applyImageView','resetImageView','imageGestureMode','swipeNavigateFor','setImageControlsVisible','cancelImageTap','handleImageTap'])
@@ -34,6 +34,9 @@ test('resetImageView คืนค่า 1/0/0 และล้าง transform',(
   const r=ctx.resetImageView();
   assert.equal(r.scale,1);assert.equal(r.x,0);assert.equal(r.y,0);
   assert.match(els.lbImg.style.transform,/translate\(0px,0px\) scale\(1\)/);
+  ctx.pdfInLightbox=true;
+  ctx.resetImageView();
+  assert.match(els.pdfCanvas.style.transform,/translate\(0px,0px\) scale\(1\)/);
 });
 test('pinch = สองนิ้ว, pan = ซูมอยู่, swipe = scale 1',()=>{
   const {ctx}=setup();
