@@ -817,11 +817,10 @@
     .lightbox.show { display: flex; }
 
     .lightbox[data-viewer="pdf"] #lbImg,
-    .lightbox[data-viewer="pdf"] #lbPrev,
-    .lightbox[data-viewer="pdf"] #lbNext,
     .lightbox[data-viewer="pdf"] #lbOrig { display: none !important; }
-    .lightbox[data-viewer="pdf"] #lbCount { display: none; }
+    .lb-count:empty { display: none; }
     .lightbox[data-viewer="pdf"] #lbReset { display: none !important; }
+    .media-nav:disabled { opacity: 0.3; pointer-events: none; }
     .pdf-controls.lb-pdf-controls { position: absolute; z-index: 3; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(20,20,20,.88); backdrop-filter: blur(12px); }
     .pdf-controls.lb-pdf-controls button { min-width: 44px; min-height: 44px; }
     .lightbox[data-viewer="pdf"] #pdfStage { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-start; padding: max(68px, calc(env(safe-area-inset-top) + 60px)) 16px max(78px, calc(env(safe-area-inset-bottom) + 68px)); overflow: auto; background: transparent; touch-action: none; }
@@ -2917,7 +2916,9 @@
           accessToken = null; tokenExpiry = 0; userProfile = null;
           if (videoCache) videoCache.clear().then(refreshVideoCacheUI);
           lsRemove('gdv_auth_remember');
+          if (typeof caches !== "undefined" && caches && caches.delete) Promise.resolve(caches.delete(MEDIA_CACHE)).catch(function () {});
           if (videoModal.classList.contains("show")) closeVideo();
+          if (lightbox.classList.contains("show")) closeLightbox();
 
           refreshAuthUI(false);
 
@@ -3613,7 +3614,7 @@
 
           html +=
 
-            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-type="' + dataType + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
+            '<div class="file-card" data-id="' + escapeAttr(f.id) + '" data-kind="' + kind + '" data-type="' + dataType + '" data-mime="' + escapeAttr(f.mimeType || '') + '" data-name="' + escapeAttr(f.name) + '" data-size="' + (f.size || '') + '" data-date="' + escapeAttr(f.modifiedTime || '') + '" style="animation-delay:' + delay + 's">' +
 
               '<div class="file-thumb"' + (isFolder ? ' data-folder-cover="' + escapeAttr(f.id) + '"' : '') + '>' +
 
@@ -3666,7 +3667,7 @@
 
           card.addEventListener("click", function () {
 
-            handleFileClick(card.dataset.id, card.dataset.kind, card.dataset.name);
+            handleFileClick(card.dataset.id, card.dataset.kind, card.dataset.name, card.dataset.mime);
 
           });
 
@@ -3712,7 +3713,7 @@
 
                 function applyFilter() {
 
-                  const q = searchInput.value.trim().toLowerCase();
+                  const q = searchInput.value.trim().normalize("NFC").toLowerCase();
 
                   const cards = filesWrap.querySelectorAll(".file-card");
 
@@ -3720,7 +3721,7 @@
 
                   cards.forEach(function (card) {
 
-                    const name = (card.dataset.name || "").toLowerCase();
+                    const name = (card.dataset.name || "").normalize("NFC").toLowerCase();
 
                     const matchText = !q || name.indexOf(q) !== -1;
 
@@ -3864,9 +3865,9 @@
 
                                                   cards.sort(function (ca, cb) {
 
-                                                    const a = { id: ca.dataset.id, name: ca.dataset.name, mimeType: ca.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : "", size: ca.dataset.size, modifiedTime: ca.dataset.date };
+                                                    const a = { id: ca.dataset.id, name: ca.dataset.name, mimeType: ca.dataset.mime || (ca.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : ca.dataset.type || ca.dataset.kind || ""), size: ca.dataset.size, modifiedTime: ca.dataset.date };
 
-                                                    const b = { id: cb.dataset.id, name: cb.dataset.name, mimeType: cb.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : "", size: cb.dataset.size, modifiedTime: cb.dataset.date };
+                                                    const b = { id: cb.dataset.id, name: cb.dataset.name, mimeType: cb.dataset.mime || (cb.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : cb.dataset.type || cb.dataset.kind || ""), size: cb.dataset.size, modifiedTime: cb.dataset.date };
 
                                                     return cmpSort(a, b);
 
@@ -3954,9 +3955,8 @@
 
                 window._gdvMediaNav = window._gdvMediaNav || {};
 
-                window._gdvMediaNav.navigateLightbox = function (dir) { navigateMedia("image", dir); };
-
-                window._gdvMediaNav.navigateVideo = function (dir) { navigateMedia("video", dir); };
+                window._gdvMediaNav.navigateLightbox = function (dir) { if (pdfInLightbox && (!filesWrap || mediaList("image").length <= 1)) { stepPdfPage(dir, false); return; } navigateMedia("image", dir); };
+                window._gdvMediaNav.navigateVideo = function (dir) { if (!vidCurrentId) { navigateMedia("image", dir); return; } navigateMedia("video", dir); };
 
                 const lbPrevBtn = document.getElementById("lbPrev");
 
@@ -3994,7 +3994,7 @@
 
                   const k = card.dataset.kind;
 
-                  if (kind === "image" && k === "image") out.push({ id: card.dataset.id, name: card.dataset.name });
+                  if (kind === "image" && (k === "image" || card.dataset.type === "pdf" || /\.pdf$/i.test(card.dataset.name || ""))) out.push({ id: card.dataset.id, name: card.dataset.name, kind: k === "image" ? "image" : "pdf" });
 
                   else if (kind === "video" && k === "video") out.push({ id: card.dataset.id, name: card.dataset.name });
 
@@ -4030,7 +4030,7 @@
 
                 const item = list[currentMediaIndex];
 
-                if (kind === "image") openLightbox(item.id);
+                if (kind === "image") { if (item.kind === "pdf") openPdfDocument(item.id, item.name, "application/pdf"); else openLightbox(item.id); }
 
                 else openVideo(item.id, item.name);
 
@@ -4458,7 +4458,7 @@
       let imgDownOnImage = false;
 
       lightbox.addEventListener('pointerdown', function (e) {
-        if (e.target !== lbImg && !(pdfInLightbox && e.target === pdfCanvas)) return; // ปุ่ม/พื้นหลังใช้พฤติกรรมเดิม
+        if (e.target !== lbImg && !(pdfInLightbox && (e.target === pdfCanvas || e.target === pdfStage))) return; // ปุ่ม/พื้นหลังใช้พฤติกรรมเดิม
         imgDownOnImage = true;
         imgPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         if (imgPointers.size >= 2) {
@@ -4498,13 +4498,8 @@
           const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
           const moved = Math.abs(dx) + Math.abs(dy) >= 8;
           const dir = moved ? swipeNavigateFor(dx, dy) : 0;
-          if (dir && pdfInLightbox && pdfDocument) {
-            const nextPage = pdfPageNumber + dir;
-            if (nextPage >= 1 && nextPage <= pdfDocument.numPages) {
-              pdfPageNumber = nextPage;
-              resetImageView();
-              renderPdfPage();
-            }
+          if (dir && pdfInLightbox) {
+            stepPdfPage(dir, true);
           } else if (dir) navigateMedia('image', dir);
           handleImageTap(e.clientX, e.clientY, moved);
         }
@@ -5997,6 +5992,8 @@
         if (pdfCanvas) { pdfCanvas.width = 0; pdfCanvas.height = 0; pdfCanvas.style.transform = ''; }
         if (pdfLoading) pdfLoading.hidden = false;
         if (lightbox) lightbox.removeAttribute('data-viewer');
+        if (typeof lbPrev !== 'undefined' && lbPrev) lbPrev.disabled = false;
+        if (typeof lbNext !== 'undefined' && lbNext) lbNext.disabled = false;
         pdfInLightbox = false;
       }
 
@@ -6012,13 +6009,64 @@
         return pdfLibraryPromise;
       }
 
+      function updatePdfNavState() {
+        const total = pdfDocument && pdfDocument.numPages ? pdfDocument.numPages : 0;
+        if (pdfPageCount) pdfPageCount.textContent = total ? (pdfPageNumber + ' / ' + total) : '…';
+        const prevBtn = document.getElementById('pdfPrev');
+        const nextBtn = document.getElementById('pdfNext');
+        const atStart = !total || pdfPageNumber <= 1;
+        const atEnd = !total || pdfPageNumber >= total;
+        const hasSiblingMedia = pdfInLightbox && typeof filesWrap !== 'undefined' && filesWrap && mediaList('image').length > 1;
+        if (prevBtn) prevBtn.disabled = atStart && !hasSiblingMedia;
+        if (nextBtn) nextBtn.disabled = atEnd && !hasSiblingMedia;
+        if (pdfInLightbox) {
+          if (typeof lbPrev !== 'undefined' && lbPrev) lbPrev.disabled = atStart && !hasSiblingMedia;
+          if (typeof lbNext !== 'undefined' && lbNext) lbNext.disabled = atEnd && !hasSiblingMedia;
+        }
+      }
+
+      function stepPdfPage(dir, allowMediaFallback) {
+        if (!pdfInLightbox) return false;
+        if (pdfDocument && pdfDocument.numPages) {
+          const nextPage = pdfPageNumber + dir;
+          if (nextPage >= 1 && nextPage <= pdfDocument.numPages) {
+            pdfPageNumber = nextPage;
+            if (pdfStage) pdfStage.scrollTop = 0;
+            resetImageView();
+            updatePdfNavState();
+            renderPdfPage();
+            return true;
+          }
+        }
+        if (allowMediaFallback && typeof filesWrap !== 'undefined' && filesWrap && mediaList('image').length > 1) {
+          navigateMedia('image', dir);
+          return true;
+        }
+        return false;
+      }
+
       async function renderPdfPage() {
         if (!pdfDocument || !pdfStage || pdfStage.hidden) return;
         const renderVersion = ++pdfRenderVersion;
-        if (pdfRenderTask) { try { pdfRenderTask.cancel(); } catch (_) {} pdfRenderTask = null; }
+        const targetPage = pdfPageNumber;
+        updatePdfNavState();
+        while (pdfRenderTask) {
+          const prevTask = pdfRenderTask;
+          try { prevTask.cancel(); } catch (_) {}
+          try { await prevTask.promise; } catch (_) {}
+          if (pdfRenderTask === prevTask) pdfRenderTask = null;
+          if (renderVersion !== pdfRenderVersion || !pdfDocument || !pdfStage || pdfStage.hidden) return;
+        }
+        let renderTask = null;
         try {
-          const page = await pdfDocument.getPage(pdfPageNumber);
-          if (renderVersion !== pdfRenderVersion) return;
+          const page = await pdfDocument.getPage(targetPage);
+          while (pdfRenderTask) {
+            const prevTask = pdfRenderTask;
+            try { prevTask.cancel(); } catch (_) {}
+            try { await prevTask.promise; } catch (_) {}
+            if (pdfRenderTask === prevTask) pdfRenderTask = null;
+          }
+          if (renderVersion !== pdfRenderVersion || !pdfDocument || !pdfStage || pdfStage.hidden) return;
           const baseViewport = page.getViewport({ scale: 1 });
           const stageStyle = window.getComputedStyle(pdfStage);
           const width = Math.max(1, pdfStage.clientWidth - parseFloat(stageStyle.paddingLeft) - parseFloat(stageStyle.paddingRight));
@@ -6038,20 +6086,21 @@
           const context = pdfCanvas.getContext('2d', { alpha: false });
           context.fillStyle = '#fff';
           context.fillRect(0, 0, pdfCanvas.width, pdfCanvas.height);
-          pdfRenderTask = page.render({ canvasContext: context, viewport: renderViewport });
-          await pdfRenderTask.promise;
+          renderTask = page.render({ canvasContext: context, viewport: renderViewport });
+          pdfRenderTask = renderTask;
+          await renderTask.promise;
           if (renderVersion === pdfRenderVersion) {
-            pdfPageCount.textContent = pdfPageNumber + ' / ' + pdfDocument.numPages;
-            document.getElementById('pdfPrev').disabled = pdfPageNumber <= 1;
-            document.getElementById('pdfNext').disabled = pdfPageNumber >= pdfDocument.numPages;
+            updatePdfNavState();
           }
         } catch (error) {
-          if (error && error.name !== 'RenderingCancelledException') {
-            console.warn('PDF page render failed', error);
-            if (pdfInLightbox && lightbox.classList.contains('show')) fallbackPdfToDrive(lbImg.dataset.fid, vidTitle.textContent);
+          if (renderVersion !== pdfRenderVersion) return;
+          if (error && (error.name === 'RenderingCancelledException' || /cancelled|multiple render/i.test(error.message || ''))) return;
+          console.warn('PDF page render failed', error);
+          if (pdfInLightbox && lightbox.classList.contains('show') && targetPage === 1 && !pdfCanvas.width) {
+            fallbackPdfToDrive(lbImg.dataset.fid, vidTitle.textContent);
           }
         } finally {
-          if (renderVersion === pdfRenderVersion) pdfRenderTask = null;
+          if (renderTask && pdfRenderTask === renderTask) pdfRenderTask = null;
         }
       }
 
@@ -6067,10 +6116,13 @@
         try {
           const pdfjs = await loadPdfLibrary();
           if (session !== mediaSession || !lightbox.classList.contains('show')) return;
-          const loadingTask = pdfjs.getDocument({ url: currentDocUrl });
+          const docSource = blob && typeof blob.arrayBuffer === 'function' ? { data: await blob.arrayBuffer() } : { url: currentDocUrl };
+          if (session !== mediaSession || !lightbox.classList.contains('show')) return;
+          const loadingTask = pdfjs.getDocument(docSource);
           const loadedDocument = await loadingTask.promise;
           if (session !== mediaSession || !lightbox.classList.contains('show')) { Promise.resolve(loadedDocument.destroy()).catch(function () {}); return; }
           pdfDocument = loadedDocument;
+          updatePdfNavState();
           pdfLoadingState(false);
           await renderPdfPage();
         } catch (error) {
@@ -6107,10 +6159,10 @@
         });
       }
       document.getElementById('pdfPrev').addEventListener('click', function () {
-        if (pdfDocument && pdfPageNumber > 1) { pdfPageNumber--; pdfStage.scrollTop = 0; resetImageView(); renderPdfPage(); }
+        stepPdfPage(-1, true);
       });
       document.getElementById('pdfNext').addEventListener('click', function () {
-        if (pdfDocument && pdfPageNumber < pdfDocument.numPages) { pdfPageNumber++; pdfStage.scrollTop = 0; resetImageView(); renderPdfPage(); }
+        stepPdfPage(1, true);
       });
       document.getElementById('pdfZoomIn').addEventListener('click', function () { zoomPdf(1.2); });
       document.getElementById('pdfZoomOut').addEventListener('click', function () { zoomPdf(1 / 1.2); });
@@ -6151,7 +6203,8 @@
         pdfPageNumber = 1;
         pdfFitMode = 'page';
         pdfLoadingState(true, 'กำลังโหลด PDF…');
-        pdfPageCount.textContent = '…';
+        updatePdfNavState();
+        updateLbCount();
         if (auth.mode === 'none') { fallbackPdfToDrive(id, name); return; }
         const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
@@ -6223,6 +6276,9 @@
         vidFrame.setAttribute('allowfullscreen', '');
         const session = mediaSession;
         vidCurrentId = null;
+        lbImg.dataset.fid = id;
+        currentMediaIndex = -1;
+        currentMediaKind = "pdf";
         document.body.style.overflow = "hidden";
 
         vidTitle.textContent = name || "เอกสาร";
@@ -6321,8 +6377,12 @@
       document.addEventListener("keydown", function (e) {
         if (lightbox.classList.contains("show")) {
           if (pdfInLightbox) {
-            if (e.key === 'ArrowLeft' || e.key === 'PageUp') { document.getElementById('pdfPrev').click(); return; }
-            if (e.key === 'ArrowRight' || e.key === 'PageDown') { document.getElementById('pdfNext').click(); return; }
+            if (e.shiftKey && e.key === 'ArrowLeft') { navigateMedia('image', -1); return; }
+            if (e.shiftKey && e.key === 'ArrowRight') { navigateMedia('image', 1); return; }
+            if (e.key === 'ArrowLeft') { stepPdfPage(-1, true); return; }
+            if (e.key === 'ArrowRight') { stepPdfPage(1, true); return; }
+            if (e.key === 'PageUp') { stepPdfPage(-1, false); return; }
+            if (e.key === 'PageDown') { stepPdfPage(1, false); return; }
             if (e.key === '+' || e.key === '=') { zoomPdf(1.2); return; }
             if (e.key === '-') { zoomPdf(1 / 1.2); return; }
             if (e.key === 'r' || e.key === 'R' || e.key === '0') { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); return; }
@@ -6333,8 +6393,9 @@
           if (e.key === "r" || e.key === "R" || e.key === "0") { resetImageView(); return; }
         }
         if (videoModal.classList.contains("show")) {
-          if (e.shiftKey && e.key === "ArrowLeft") { navigateMedia("video", -1); return; }
-          if (e.shiftKey && e.key === "ArrowRight") { navigateMedia("video", 1); return; }
+          if (!vidCurrentId && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { navigateMedia("image", e.key === "ArrowLeft" ? -1 : 1); return; }
+          if (e.shiftKey && e.key === "ArrowLeft") { window._gdvMediaNav.navigateVideo(-1); return; }
+          if (e.shiftKey && e.key === "ArrowRight") { window._gdvMediaNav.navigateVideo(1); return; }
         }
         if (e.key !== "Escape") return;
 
@@ -6883,8 +6944,6 @@
           el.style.color= dead ? "var(--danger)" : "var(--success)";
         })();
 
-        renderChips(); render();
-
 
 
         function statusBadge(provider,dead){
@@ -6920,8 +6979,8 @@
             return;
           }
           if(extId){
-            // push navStack? ให้ listFolder จัดการ breadcrumb เอง
-            navStack.push({id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()});
+            // รีเซ็ต navStack เป็นระดับบนสุด (ไม่ซ้อนทับเหมือนโฟลเดอร์ย่อยเมื่อกดเปิดจากคลังหรือปุ่มสุ่ม)
+            navStack = [{id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()}];
             pushHash(extId);
             openFolderAndReveal(extId);
           }

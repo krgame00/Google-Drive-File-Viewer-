@@ -108,6 +108,30 @@ vm.runInContext(html.slice(tagStart, tagEnd), tagCtx);
   // 7. No zero-offset chromatic glow on --shadow-glow
   assert(!html.includes('--shadow-glow: 0 0 24px'), '--shadow-glow uses directional elevation instead of zero-offset glow');
 
+  // Bug 3: openCollectionItem ต้องรีเซ็ต navStack เป็นระดับบนสุด 1 รายการ ไม่ใช่ push ซ้อนกันเหมือนโฟลเดอร์ย่อย
+  const openCollStart = html.indexOf('        function openCollectionItem(');
+  const openCollEnd = html.indexOf('        function randomPick(', openCollStart);
+  assert(openCollStart >= 0 && openCollEnd > openCollStart, 'openCollectionItem exists');
+  const openCollCtx = {
+    driveLink: { value: '' },
+    extractId(u) { const m = String(u).match(/folders\/([A-Za-z0-9_-]+)/); return m ? m[1] : null; },
+    handleFileClick() {},
+    window: { open() {} },
+    navStack: [{ id: 'old-root', name: 'Old Root' }, { id: 'old-sub', name: 'Old Sub' }],
+    pushHash() {},
+    openFolderAndReveal() {}
+  };
+  vm.createContext(openCollCtx);
+  vm.runInContext(html.slice(openCollStart, openCollEnd), openCollCtx);
+  openCollCtx.openCollectionItem({ url: 'https://drive.google.com/drive/folders/folderA', kind: 'folder', date: '1.5.69', title: '📌 อีเวนต์ A' });
+  openCollCtx.openCollectionItem({ url: 'https://drive.google.com/drive/folders/folderB', kind: 'folder', date: '2.5.69', title: 'อีเวนต์ B' });
+  assert.equal(openCollCtx.navStack.length, 1, 'opening a top-level collection folder resets navStack to 1 root entry');
+  assert.deepEqual(JSON.parse(JSON.stringify(openCollCtx.navStack[0])), { id: 'folderB', name: '2.5.69 - อีเวนต์ B' });
+
+  // Bug 4: ไม่เรนเดอร์คลังซ้ำซ้อน 2 รอบตอนเริ่มต้นหน้าเว็บ (ต้องไม่เรียก renderChips(); render(); ต่อท้าย Status banner ก่อนประกาศ statusBadge/ตั้งค่าตัวกรอง)
+  const beforeStatusBadge = html.slice(html.indexOf('// Status banner'), html.indexOf('function statusBadge('));
+  assert(!/renderChips\(\);\s*render\(\);/.test(beforeStatusBadge), 'renderChips(); render(); must not be called prematurely before filter initialization');
+
   console.log('PASS collection search normalize and check-time constant');
 })().catch(err => { console.error(err); process.exit(1); });
 

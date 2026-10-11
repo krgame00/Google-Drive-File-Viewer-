@@ -24,4 +24,73 @@ assert(nat('abc','abd')<0,'letters still compare');
 assert(html.includes('return naturalCompare(va, vb);'),'cmpSort name branch uses naturalCompare');
 assert(html.includes('{numeric:true}'),'collection sort keeps numeric collation');
 
+// Bug 1: การเรียงตาม "ชนิด" (sortKey === "kind") ใน applySort() ต้องส่ง data-mime จาก .file-card เข้า cmpSort จริง
+assert(html.includes('data-mime="'), 'renderFiles stores data-mime attribute on .file-card');
+const cmpStart = html.indexOf('function cmpSort(');
+const applySortStart = html.indexOf('function applySort(');
+const applySortEnd = html.indexOf('function cycleSort(', applySortStart);
+assert(cmpStart >= 0 && applySortStart > cmpStart && applySortEnd > applySortStart, 'cmpSort and applySort exist');
+
+const sortCards = [
+  { dataset: { id: 'f1', kind: 'video', type: 'video', mime: 'video/mp4', name: 'A.mp4', size: '100', date: '2026-01-01' } },
+  { dataset: { id: 'f2', kind: 'file', type: 'doc', mime: 'application/pdf', name: 'B', size: '100', date: '2026-01-01' } },
+  { dataset: { id: 'f3', kind: 'image', type: 'image', mime: 'image/jpeg', name: 'C.jpg', size: '100', date: '2026-01-01' } },
+  { dataset: { id: 'dir1', kind: 'folder', type: 'folder', mime: 'application/vnd.google-apps.folder', name: 'Z Folder', size: '', date: '' } }
+];
+const appendedIds = [];
+const sortCtx = {
+  sortKey: 'kind',
+  SORT_OPTIONS: [{ key: 'name', label: 'ชื่อ' }, { key: 'size', label: 'ขนาด' }, { key: 'date', label: 'วันที่' }, { key: 'kind', label: 'ชนิด' }],
+  sortLabel: { textContent: '' },
+  naturalCompare: nat,
+  document: {
+    getElementById(id) {
+      if (id === 'filesGrid') {
+        return {
+          querySelectorAll() { return sortCards; },
+          appendChild(card) { appendedIds.push(card.dataset.id); }
+        };
+      }
+      return null;
+    }
+  }
+};
+vm.createContext(sortCtx);
+vm.runInContext(html.slice(cmpStart, applySortEnd), sortCtx);
+sortCtx.applySort();
+assert.deepEqual(
+  appendedIds,
+  ['dir1', 'f2', 'f3', 'f1'],
+  'applySort with sortKey="kind" keeps folders first and sorts files by mimeType (application/pdf < image/jpeg < video/mp4)'
+);
+
+// Bug 2: คลิกการ์ดไฟล์ในโฟลเดอร์ต้องส่ง card.dataset.mime เข้า handleFileClick เพื่อให้ PDF ที่ไม่มีนามสกุล .pdf เปิดใน Lightbox ได้
+assert.match(
+  html,
+  /handleFileClick\(\s*card\.dataset\.id\s*,\s*card\.dataset\.kind\s*,\s*card\.dataset\.name\s*,\s*card\.dataset\.mime\s*\)/,
+  'file-card click handler forwards card.dataset.mime to handleFileClick'
+);
+
+// Bug 5: ค้นหาไฟล์ในโฟลเดอร์ (applyFilter) ต้อง normalize("NFC") ทั้งคำค้นและชื่อไฟล์ภาษาไทย
+const filterStart = html.indexOf('function applyFilter()');
+const filterEnd = html.indexOf('\n                }', filterStart);
+assert(filterStart >= 0 && filterEnd > filterStart, 'applyFilter exists');
+const fileCards = [
+  { dataset: { name: 'ไฟล์น้ำพุ่ง'.normalize('NFD'), type: 'video' }, style: { display: '' } },
+  { dataset: { name: 'เอกสารทั่วไป'.normalize('NFC'), type: 'doc' }, style: { display: '' } }
+];
+const filterCtx = {
+  searchInput: { value: 'น้ำพุ่ง'.normalize('NFC') },
+  filesWrap: { querySelectorAll() { return fileCards; } },
+  activeType: 'all',
+  searchClear: { style: { display: '' } },
+  filesCountEl: { textContent: '' }
+};
+vm.createContext(filterCtx);
+vm.runInContext(html.slice(filterStart, filterEnd + 18), filterCtx);
+filterCtx.applyFilter();
+assert.equal(fileCards[0].style.display, '', 'NFC search query matches NFD Thai filename in folder search');
+assert.equal(fileCards[1].style.display, 'none', 'non-matching file is hidden in folder search');
+
 console.log('PASS natural name sorting in file browser');
+

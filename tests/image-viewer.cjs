@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync('index.html','utf8');
-function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,'missing function: '+name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
+function fn(name){const re=new RegExp('\\n([ \\t]+)(?:async\\s+)?function\\s+'+name+'\\s*\\(');const m=re.exec(html);assert(m,'missing function: '+name);const indent=m[1],start=m.index+1,endRe=new RegExp('\\r?\\n'+indent+'\\}','g');endRe.lastIndex=start;const end=endRe.exec(html);assert(end,'missing end of function: '+name);return html.slice(start,end.index+end[0].length);}
 function setup(){
   const els={};let timers=new Map(),seq=0;const timerMs=new Map();const navCalls=[];const uiEls=[];
   const el=id=>{ const node={id,style:{},textContent:'',hidden:false,clientWidth:800,clientHeight:600,className:'lb-ui',setAttribute(n,v){node.attrs=node.attrs||{};node.attrs[n]=v},src:'',dataset:{}}; node.classList={_log:[],add(c){node.classList._log.push('+ '+c)},remove(c){node.classList._log.push('- '+c)},toggle(c,f){node.classList._log.push((f?'+ ':'- ')+c);return !!f},contains(c){return (' '+node.className+' ').indexOf(' '+c+' ')!==-1}}; return els[id]||(els[id]=node); };
@@ -115,5 +115,120 @@ test('CSS: ซ่อนแบบไม่รับ Tab + reduced-motion',()=>{
   const flat=html.replace(/\s+/g,' ');
   assert(/@media \(prefers-reduced-motion: reduce\) \{ \.lb-ui \{ transition: none/.test(flat),'เคารพ prefers-reduced-motion');
 });
-console.log('image-viewer phase 3+4:',failures? 'FAILED':'PASS');
-process.exitCode=failures?1:0;
+test('PDF: ปุ่มข้างจอ (#lbPrev/#lbNext) ไม่ถูกซ่อนในโหมด PDF และกดข้ามไปหน้า/รูปถัดไปได้',()=>{
+  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbPrev[^{]*\{[^}]*display:\s*none/.test(html),'ไม่ซ่อน #lbPrev ในโหมด PDF');
+  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbNext[^{]*\{[^}]*display:\s*none/.test(html),'ไม่ซ่อน #lbNext ในโหมด PDF');
+  assert(html.includes('function stepPdfPage('),'มีฟังก์ชัน stepPdfPage สำหรับเปลี่ยนหน้า/ข้ามรูป');
+});
+const pending=[];
+function asyncTest(name,run){
+  pending.push(Promise.resolve().then(run).then(()=>console.log('PASS',name)).catch(e=>{failures++;console.error('FAIL',name,e.message)}));
+}
+asyncTest('PDF: กดข้ามหน้ารัวๆ (rapid skip) รอ cancel render เดิมก่อนวาดใหม่ ไม่พังและไม่เด้งไป fallbackPdfToDrive',async()=>{
+  const {ctx,els}=setup();
+  let fallbacks=0,canvasInUse=false;
+  const renderedPages=[];
+  ctx.window={devicePixelRatio:1,getComputedStyle:()=>({paddingLeft:'0',paddingRight:'0',paddingTop:'0',paddingBottom:'0'})};
+  ctx.lightbox=els.lightbox=ctx.document.getElementById('lightbox');
+  ctx.lightbox.classList.contains=c=>c==='show';
+  ctx.vidTitle=ctx.document.getElementById('vidTitle');
+  ctx.pdfStage=ctx.document.getElementById('pdfStage');
+  ctx.pdfStage.hidden=false;ctx.pdfStage.clientWidth=800;ctx.pdfStage.clientHeight=600;
+  ctx.pdfControls=ctx.document.getElementById('pdfControls');
+  ctx.pdfPageCount=ctx.document.getElementById('pdfPageCount');
+  ctx.lbPrev=ctx.document.getElementById('lbPrev');
+  ctx.lbNext=ctx.document.getElementById('lbNext');
+  ctx.pdfCanvas.getContext=()=>({fillStyle:'',fillRect(){}});
+  ctx.pdfInLightbox=true;
+  ctx.pdfPageNumber=1;
+  ctx.pdfFitMode='page';
+  ctx.pdfScale=1;
+  ctx.pdfRenderVersion=0;
+  ctx.pdfRenderTask=null;
+  ctx.fallbackPdfToDrive=()=>{fallbacks++;};
+  ctx.filesWrap={querySelectorAll:()=>[]};
+  ctx.pdfDocument={
+    numPages:5,
+    async getPage(num){
+      await Promise.resolve();
+      return {
+        getViewport:({scale})=>({width:600*scale,height:800*scale}),
+        render(){
+          if(canvasInUse) throw new Error('Cannot use the same canvas during multiple render() operations.');
+          canvasInUse=true;
+          let rejectRender,resolveRender;
+          const promise=new Promise((res,rej)=>{resolveRender=res;rejectRender=rej;});
+          return {
+            promise,
+            cancel(){
+              Promise.resolve().then(()=>{
+                canvasInUse=false;
+                const err=new Error('Rendering cancelled');
+                err.name='RenderingCancelledException';
+                rejectRender(err);
+              });
+            },
+            _finish(){
+              canvasInUse=false;
+              renderedPages.push(num);
+              resolveRender();
+            }
+          };
+        }
+      };
+    }
+  };
+  for(const name of ['mediaList','updatePdfNavState','stepPdfPage','renderPdfPage'])
+    if(html.includes('function '+name+'(')) vm.runInContext(fn(name),ctx);
+  assert.equal(typeof ctx.stepPdfPage,'function','ต้องมี stepPdfPage');
+  // เริ่มเรนเดอร์หน้า 1 แล้วกดข้ามรัวๆ ไปหน้า 2 -> 3 -> 4 ก่อนที่หน้า 1 จะวาดเสร็จ
+  const p1=ctx.renderPdfPage();
+  await new Promise(r=>setImmediate(r));
+  assert.ok(ctx.pdfRenderTask,'หน้า 1 กำลังเรนเดอร์อยู่');
+  ctx.stepPdfPage(1,true); // -> หน้า 2
+  ctx.stepPdfPage(1,true); // -> หน้า 3
+  ctx.stepPdfPage(1,true); // -> หน้า 4
+  assert.equal(ctx.pdfPageNumber,4,'เลขหน้าขยับไปหน้า 4 ทันที');
+  assert.equal(ctx.pdfPageCount.textContent,'4 / 5','ตัวนับหน้าอัปเดตเป็น 4 / 5 ทันทีโดยไม่ต้องรอเรนเดอร์จบ');
+  await new Promise(r=>setImmediate(r));
+  if(ctx.pdfRenderTask && ctx.pdfRenderTask._finish) ctx.pdfRenderTask._finish();
+  await p1;
+  await new Promise(r=>setImmediate(r));
+  assert.equal(fallbacks,0,'ห้ามเด้งไป fallbackPdfToDrive เมื่อกดข้ามหน้ารัวๆ');
+  assert.deepEqual(renderedPages,[4],'เรนเดอร์จบที่หน้า 4 โดยไม่ชน canvas lock');
+});
+test('PDF: เมื่ออยู่หน้าสุดท้ายของ PDF หรือกดข้ามไฟล์ สามารถเลื่อนไปดูรูปถัดไปในโฟลเดอร์ได้',()=>{
+  const {ctx,els}=setup();
+  const opened=[];
+  ctx.filesWrap={querySelectorAll:()=>[
+    {offsetParent:{},dataset:{id:'pdf1',kind:'file',type:'pdf',name:'book.pdf'}},
+    {offsetParent:{},dataset:{id:'img1',kind:'image',type:'image',name:'photo1.jpg'}},
+    {offsetParent:{},dataset:{id:'img2',kind:'image',type:'image',name:'photo2.jpg'}}
+  ]};
+  ctx.currentMediaIndex=-1;
+  ctx.currentMediaKind='pdf';
+  ctx.lbImg.dataset.fid='pdf1';
+  ctx.pdfInLightbox=true;
+  ctx.pdfDocument={numPages:2};
+  ctx.pdfPageNumber=2;
+  ctx.pdfStage=ctx.document.getElementById('pdfStage');
+  ctx.pdfPageCount=ctx.document.getElementById('pdfPageCount');
+  ctx.lbPrev=ctx.document.getElementById('lbPrev');
+  ctx.lbNext=ctx.document.getElementById('lbNext');
+  ctx.openLightbox=id=>{opened.push(['image',id]);ctx.lbImg.dataset.fid=id;ctx.pdfInLightbox=false;};
+  ctx.openPdfDocument=(id,name)=>{opened.push(['pdf',id,name]);ctx.lbImg.dataset.fid=id;ctx.pdfInLightbox=true;};
+  ctx.renderPdfPage=()=>{};
+  for(const name of ['mediaList','navigateMedia','updatePdfNavState','stepPdfPage'])
+    if(html.includes('function '+name+'(')) vm.runInContext(fn(name),ctx);
+  // อยู่หน้า 2/2 ของ pdf1 แล้วกดถัดไป -> ต้องข้ามไปเปิดรูปถัดไป (img1)
+  assert.equal(ctx.stepPdfPage(1,true),true);
+  assert.deepEqual(opened,[['image','img1']]);
+  // กดย้อนกลับจาก img1 -> กลับไปเปิด pdf1
+  ctx.navigateMedia('image',-1);
+  assert.deepEqual(opened,[['image','img1'],['pdf','pdf1','book.pdf']]);
+});
+Promise.all(pending).then(()=>{
+  console.log('image-viewer phase 3+4:',failures? 'FAILED':'PASS');
+  process.exitCode=failures?1:0;
+});
+

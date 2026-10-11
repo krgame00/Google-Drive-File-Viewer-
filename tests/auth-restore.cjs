@@ -18,5 +18,40 @@ assert.equal(requests.length,before+1,'401 retry must request a fresh token even
 assert.equal(ctx.accessToken,null,'rejected token must not remain usable');
 config.callback({access_token:'renewed',expires_in:3600});assert.equal(await renewed,'renewed');
 ctx.tokenExpiry=0;const denied=ctx.ensureToken();config.callback({error:'access_denied'});assert.equal(await denied,null);assert.equal(ctx.accessToken,null);assert.equal(ctx.tokenResolver,null);
+
+// Bug 6a: เมื่อกดออกจากระบบ (Sign out) ต้องปิด Lightbox (ถ้าเปิดรูป/PDF ส่วนตัวค้างอยู่) และล้าง MEDIA_CACHE (gdv-media-v1) ด้วย
+const signOutStart = html.indexOf('      authBtn.addEventListener("click"');
+const signOutEnd = html.indexOf('      // ===== Extract ID =====', signOutStart);
+assert(signOutStart >= 0 && signOutEnd > signOutStart, 'authBtn click listener exists');
+let authClickHandler = null, lightboxClosed = 0, videoClosed = 0;
+const deletedCaches = [];
+const signOutCtx = {
+  MEDIA_CACHE: 'gdv-media-v1',
+  authBtn: { addEventListener(ev, fn) { if (ev === 'click') authClickHandler = fn; } },
+  accessToken: 'private-token',
+  tokenExpiry: Date.now() + 3600000,
+  userProfile: { email: 'user@example.com' },
+  window: { google: { accounts: { oauth2: { revoke() {} } } } },
+  google: { accounts: { oauth2: { revoke() {} } } },
+  videoCache: { clear() { return Promise.resolve(); } },
+  refreshVideoCacheUI() {},
+  caches: { delete(name) { deletedCaches.push(name); return Promise.resolve(true); } },
+  lsRemove(k) { store.delete(k); },
+  videoModal: { classList: { contains: c => c === 'show' } },
+  lightbox: { classList: { contains: c => c === 'show' } },
+  closeVideo() { videoClosed++; },
+  closeLightbox() { lightboxClosed++; },
+  refreshAuthUI() {},
+  showToast() {}
+};
+vm.createContext(signOutCtx);
+vm.runInContext(html.slice(signOutStart, signOutEnd), signOutCtx);
+authClickHandler();
+assert.equal(signOutCtx.accessToken, null, 'accessToken cleared on sign out');
+assert.equal(videoClosed, 1, 'videoModal closed on sign out');
+assert.equal(lightboxClosed, 1, 'lightbox closed on sign out so private image/PDF is not left on screen');
+assert.deepEqual(deletedCaches, ['gdv-media-v1'], 'MEDIA_CACHE deleted on sign out so private cached blobs do not persist');
+
 console.log('PASS restore once, popup fallback, reuse consent, memory-only token and error cleanup');
 })().catch(e=>{console.error(e);process.exitCode=1});
+

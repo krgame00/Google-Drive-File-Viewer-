@@ -138,3 +138,19 @@ test('chunks after a length-bearing answer stream four parallel sub-intervals in
  assert.equal(ranges.length,9,'the read-ahead prefetches the next chunk as four parallel sub-intervals');
  assert.deepEqual(ranges.slice(5),['bytes=16777216-18874367','bytes=18874368-20971519','bytes=20971520-23068671','bytes=23068672-25165823']);
 });
+test('a truncated intermediate sub-interval falls back to a single bounded fetch instead of stitching a byte gap',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  const range=opts.headers.get('Range');ranges.push(range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  if(ranges.length===1){const body=new Uint8Array(Number(m[2])-Number(m[1])+1);return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999','Content-Length':String(body.length)}});}
+  if(ranges.length===6) return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+(Number(m[1])+3)+'/999999999999','Content-Length':'4'}});
+  if(ranges.length>=7&&ranges.length<=9) return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999','Content-Length':'4'}});
+  return new Response(range,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ });
+ await app.fetch(request('w16'));
+ const res=await app.fetch(new Request('https://worker.test/?id=w16',{headers:{Range:'bytes=999999999-'}}));
+ assert.equal(res.status,206);
+ assert.equal(await res.text(),'bytes=999999999-1008388606','truncated intermediate sub-interval must not be stitched into a corrupted stream');
+});
+

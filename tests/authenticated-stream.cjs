@@ -168,6 +168,22 @@ test('a sub-answer that is not partial falls back to a single bounded fetch',asy
  assert.equal(res.status,206);assert.equal(await res.text(),'bytes=999999999-1016777214');
  assert.deepEqual(calls,['bytes=0-16777215',...fourSubs(16777216,33554431),...fourSubs(999999999,1016777214),'bytes=999999999-1016777214',...fourSubs(1016777215,1033554430)]);
 });
+test('a truncated intermediate sub-interval falls back to a single bounded fetch instead of stitching a byte gap',async()=>{
+ const {request,ctx,streamBody}=setup();const calls=[];
+ ctx.fetch=async(url,options)=>{
+  const range=options.headers.get('Range');calls.push(range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  if(calls.length===1){const body=new Uint8Array(Number(m[2])-Number(m[1])+1);return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999','Content-Length':String(body.length)}});}
+  // Sub-interval 0 of the seek returns a truncated 4-byte 206 range (leaving a gap before sub-interval 1)
+  if(calls.length===6) return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+(Number(m[1])+3)+'/999999999999','Content-Length':'4'}});
+  if(calls.length>=7&&calls.length<=9) return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999','Content-Length':'4'}});
+  return new Response(streamBody(range),{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999999'}});
+ };
+ await request('__drive_stream?id=file1','GET','tab-1','bytes=0-');
+ const res=await request('__drive_stream?id=file1','GET','tab-1','bytes=999999999-');
+ assert.equal(res.status,206);
+ assert.equal(await res.text(),'bytes=999999999-1016777214','truncated intermediate sub-interval must not be stitched into a corrupted stream');
+});
 
 test('missing login or client never fetches a private file',async()=>{
   for(const options of [{token:null},{client:false}]){const {request,calls}=setup(options);assert.equal((await request()).status,401);assert.equal(calls.length,0)}

@@ -50,7 +50,9 @@ async function fetchParallelChunk(id, start, end, token, signal) {
   for (let i = 0; i < responses.length; i++) {
     const res = responses[i];
     const actual = res.ok && res.status === 206 ? (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i) : null;
-    if (!actual || BigInt(actual[1]) !== ranges[i][0] || BigInt(actual[2]) > ranges[i][1]) {
+    const actualStart = actual ? BigInt(actual[1]) : -1n;
+    const actualEnd = actual ? BigInt(actual[2]) : -1n;
+    if (!actual || actualStart !== ranges[i][0] || actualEnd < actualStart || actualEnd > ranges[i][1] || (i < ranges.length - 1 && actualEnd !== ranges[i][1])) {
       for (const other of responses) if (other.body) other.body.cancel().catch(function () {});
       return null;
     }
