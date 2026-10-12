@@ -124,3 +124,15 @@
   - รัน `node tools/collection_data.js extract` และ `node tools/collection_data.js check`: ตรงกันครบ **335 รายการ**
   - รัน `node --test tests/*.cjs`: ผ่านครบ **132/132 PASS (0 fail)**
 
+### 10. แก้ปัญหาระบบสุ่ม (`🎲 สุ่ม` / `#collRandom`) สุ่มได้รายการเดิมซ้ำ (`index.html`, `tests/collection-random.cjs`)
+- **สถานะ:** `VERIFIED WORKING`
+- **สาเหตุ (Root Cause — 4 จุด):**
+  1. **เก็บ `randomSeen` และ `lastRandomId` ไว้ใน RAM เท่านั้น (`var randomSeen = new Set()`):** เมื่อรีเฟรชหน้าเว็บ ปิด-เปิดแท็บใหม่ หรือกลับมาจากลิงก์ภายนอก ความจำของรายการที่เคยสุ่มไปแล้วถูกล้างเป็นศูนย์ทั้งหมด ทำให้สุ่มเจอโฟลเดอร์ที่เพิ่งดูไปซ้ำได้ทันที
+  2. **การกดเปิดโฟลเดอร์จากการ์ดโดยตรง (`openCollectionItem`) หรือเปิดค้างไว้ใน `navStack` / URL Hash ไม่ได้ถูกบันทึกเข้า `randomSeen`:** ระบบสุ่มไม่รู้ว่าผู้ใช้กำลังเปิดโฟลเดอร์ใดอยู่ จึงมีโอกาสสุ่มหยิบโฟลเดอร์เดียวกับที่เปิดอยู่ตรงหน้าซ้ำได้
+  3. **ตอนวนครบรอบ (`!unseen.length`) หรือกด `สุ่มก่อนหน้า` (`#collRandomBack`) ระบบล้าง `randomSeen` ทั้งหมดแล้วกันซ้ำแค่ตัวสุดท้ายตัวเดียว (`lastRandomId`):** ทำให้จังหวะขึ้นรอบใหม่สุ่มเจอรายการรองสุดท้ายที่เพิ่งดูไปเมื่อ 1–2 ครั้งก่อนหน้า หรือสุ่มกลับไปเจอรายการที่เพิ่งกด `สุ่มก่อนหน้า` หนีออกมาซ้ำทันที
+  4. **ชิปกรองวันที่ (`activeDate` ใน `gdv_coll_date`) ค้างอยู่ใน `localStorage`:** หากผู้ใช้เคยคลิกเลือกชิปวันที่ไว้ (ซึ่งแต่ละวันมีเพียง 1–2 โฟลเดอร์) การกด `🎲 สุ่ม` จะถูกขังอยู่ในวันนั้นและได้โฟลเดอร์เดิมซ้ำไปมา
+- **การแก้ไขและหลักฐานการตรวจสอบ (Verification Evidence):**
+  - บันทึก `randomSeen` (`gdv_coll_random_seen`), `randomRecentIds` (`gdv_coll_random_recent`), และ `lastRandomId` (`gdv_coll_random_last`) ลง `localStorage` และบันทึกทุกครั้งที่เปิดการ์ดผ่าน `openCollectionItem` รวมถึงตรวจ `currentOpenFolderId()` จาก `navStack[0].id` / URL Hash เสมอ
+  - อัปเกรด `randomPick(pool, avoidId)` ให้รองรับทั้ง ID เดี่ยวและ Array/Set ของรายการล่าสุด (`avoidIds`) พร้อมใช้ `crypto.getRandomValues` และเมื่อวนครบรอบจะคงรายการที่เพิ่งดูล่าสุดครึ่งวง (`Math.min(Math.max(1, Math.floor(candidates.length / 2)), 20)`) บวกกับ `lastBackedOutId` ไว้ใน `randomSeen` เพื่อไม่ให้รายการท้ายรอบเก่ามาโผล่ซ้ำตอนต้นรอบใหม่
+  - หากชิปวันที่เฉพาะวัน (`activeDate !== "all"`) ถูกสุ่มจนครบแล้ว จะปลดล็อกเป็น `"all"` อัตโนมัติพร้อมแจ้ง Toast เพื่อไม่ให้ติดลูปซ้ำในวันเดียว และปรับ `effSq(c)` ให้เช็ก `c.prev_id` คู่กับ `c.id`
+  - เพิ่มชุดทดสอบ TDD ใน `tests/collection-random.cjs` และรัน `node --test tests/*.cjs` ผ่านครบ **132/132 PASS (0 fail)**

@@ -6774,7 +6774,7 @@
         function tagLoad(){ try { return JSON.parse(localStorage.getItem(TAG_LS)||"{}")||{}; } catch(_){ return {}; } }
         function tagSave(){ try { localStorage.setItem(TAG_LS, JSON.stringify(tagOverrides)); } catch(_){} }
         var tagOverrides = tagLoad();
-        function effSq(c){ var o=tagOverrides[c.id]; if(o) return !!o.s; return !!c.squirting; }
+        function effSq(c){ var o=tagOverrides[c.id]||(c.prev_id&&tagOverrides[c.prev_id]); if(o) return !!o.s; return !!c.squirting; }
         var tagPushTimer=null, tagFileId=localStorage.getItem(TAG_FILE_LS)||null, tagLastToken=null, tagBusy=false;
         function tagStatus(t){ var el=document.getElementById("collTagSyncStatus"); if(el) el.textContent=t; }
         function tagMerge(remote){
@@ -6966,6 +6966,7 @@
           return hay.indexOf(q)!==-1;
         }
         function openCollectionItem(item){
+          if(typeof recordRandomVisit==="function" && item && item.id) recordRandomVisit(item.id);
           // ใช้ flow เดิมของ viewer
           driveLink.value = item.url;
           var extId = extractId(item.url);
@@ -6988,10 +6989,19 @@
         function randomPick(pool, avoidId){
           if(!pool || !pool.length) return null;
           if(pool.length>1 && avoidId!=null){
-            var notAvoid = pool.filter(function(c){ return c.id!==avoidId; });
-            if(notAvoid.length) pool = notAvoid;
+            var avoidList = Array.isArray(avoidId) ? avoidId : (avoidId instanceof Set ? Array.from(avoidId) : [avoidId]);
+            var avoidSet = new Set(avoidList.filter(function(x){ return x!=null; }));
+            if(avoidSet.size){
+              var notAvoid = pool.filter(function(c){ return !avoidSet.has(c.id); });
+              if(notAvoid.length) pool = notAvoid;
+              else if(avoidList[0]!=null){
+                var notPrimary = pool.filter(function(c){ return c.id!==avoidList[0]; });
+                if(notPrimary.length) pool = notPrimary;
+              }
+            }
           }
-          return pool[Math.floor(Math.random()*pool.length)];
+          var rand = (typeof crypto!=="undefined" && crypto.getRandomValues) ? (crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296) : Math.random();
+          return pool[Math.floor(rand*pool.length)];
         }
         function render(){
 
@@ -7200,34 +7210,85 @@
           lsSet('gdv_coll_view', list ? 'list' : 'cards');
         });
         var randomBtn=document.getElementById("collRandom");
-        var lastRandomId=null;
-        var randomSeen=new Set(), randomHistory=[];
+        var RANDOM_SEEN_LS="gdv_coll_random_seen", RANDOM_RECENT_LS="gdv_coll_random_recent", RANDOM_LAST_LS="gdv_coll_random_last";
+        var lastRandomId=lsGet(RANDOM_LAST_LS)||null;
+        var lastBackedOutId=null;
+        var randomSeen=new Set((function(){ try{ var a=JSON.parse(lsGet(RANDOM_SEEN_LS)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } })());
+        var randomRecentIds=(function(){ try{ var a=JSON.parse(lsGet(RANDOM_RECENT_LS)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } })();
+        var randomHistory=[];
         var randomBack=document.getElementById('collRandomBack');
+        function saveRandomState(){
+          lsSet(RANDOM_LAST_LS, lastRandomId||"");
+          lsSet(RANDOM_SEEN_LS, JSON.stringify(Array.from(randomSeen).slice(-400)));
+          lsSet(RANDOM_RECENT_LS, JSON.stringify(randomRecentIds.slice(0,50)));
+        }
+        function recordRandomVisit(id){
+          if(!id) return;
+          lastRandomId=id;
+          randomSeen.add(id);
+          randomRecentIds=[id].concat(randomRecentIds.filter(function(x){return x!==id;})).slice(0,50);
+          saveRandomState();
+        }
+        function currentOpenFolderId(){
+          if(typeof navStack!=="undefined" && Array.isArray(navStack) && navStack.length && navStack[0] && navStack[0].id) return navStack[0].id;
+          var m=(location.hash||"").match(/^#\/f\/([a-zA-Z0-9_-]+)/);
+          return m ? m[1] : null;
+        }
         function openRandomItem(pick) {
           if(pick.dead) {
+            recordRandomVisit(pick.id);
             var alt=(pick.mega_url&&!pick.mega_dead) ? pick.mega_url : (pick.od_url||pick.mf_url);
             if(alt) window.open(alt,'_blank','noopener');
           } else openCollectionItem(pick);
         }
         if(randomBack) randomBack.addEventListener('click', function(){
           if(randomHistory.length<2) return;
-          randomHistory.pop();
+          var popped=randomHistory.pop();
+          if(popped && popped.id) lastBackedOutId=popped.id;
           var previous=randomHistory[randomHistory.length-1];
           lastRandomId=previous.id;
+          saveRandomState();
           randomBack.disabled=randomHistory.length<2;
           openRandomItem(previous);
         });
         if(randomBtn) randomBtn.addEventListener("click", function(){
-          var pool = XBEP_COLLECTION.filter(collMatches);
-          var openable = pool.filter(function(c){ return !c.dead; });
-          var fallback = pool.filter(function(c){ return c.dead && ((c.mega_url&&!c.mega_dead)||!!c.od_url||!!c.mf_url); });
-          var candidates=openable.length ? openable : fallback;
-          var unseen=candidates.filter(function(c){return !randomSeen.has(c.id);});
-          if(!unseen.length) { candidates.forEach(function(c){randomSeen.delete(c.id);}); unseen=candidates; }
-          var pick = randomPick(unseen, lastRandomId);
+          var curOpenId=currentOpenFolderId();
+          if(curOpenId) randomSeen.add(curOpenId);
+          function buildCandidates(){
+            var pool = XBEP_COLLECTION.filter(collMatches);
+            var openable = pool.filter(function(c){ return !c.dead; });
+            var fallback = pool.filter(function(c){ return c.dead && ((c.mega_url&&!c.mega_dead)||!!c.od_url||!!c.mf_url); });
+            return openable.length ? openable : fallback;
+          }
+          var candidates = buildCandidates();
+          var unseen = candidates.filter(function(c){ return !randomSeen.has(c.id) && c.id!==curOpenId; });
+          // หากผู้ใช้เผลอค้างชิปเลือกวันที่เฉพาะวันไว้ แล้วสุ่มในวันนั้นครบแล้ว ให้ปลดเป็น "ทั้งหมด" อัตโนมัติเพื่อไม่ให้วนซ้ำแค่วันเดิม
+          if(!unseen.length && activeDate!=="all"){
+            activeDate="all";
+            localStorage.setItem("gdv_coll_date","all");
+            renderChips(); render();
+            candidates = buildCandidates();
+            unseen = candidates.filter(function(c){ return !randomSeen.has(c.id) && c.id!==curOpenId; });
+            if(typeof showToast==="function") showToast("สุ่มครบวันเดิมแล้ว — สลับเป็นสุ่มจากทุกวันในคลัง");
+          }
+          var keepRecentCount = Math.min(Math.max(1, Math.floor(candidates.length / 2)), 20);
+          var avoidIds = [curOpenId, lastRandomId, lastBackedOutId].concat(randomRecentIds.slice(0, keepRecentCount)).filter(Boolean);
+          if(!unseen.length){
+            candidates.forEach(function(c){ randomSeen.delete(c.id); });
+            // กันรายการที่เพิ่งเปิดล่าสุดครึ่งวงไม่ให้ถูกสุ่มซ้ำทันทีตอนขึ้นรอบใหม่
+            var keepSet = new Set(avoidIds);
+            var fresh = candidates.filter(function(c){ return !keepSet.has(c.id); });
+            if(fresh.length){
+              keepSet.forEach(function(id){ randomSeen.add(id); });
+              unseen = fresh;
+            } else {
+              unseen = candidates;
+            }
+          }
+          var pick = randomPick(unseen, avoidIds);
           if(!pick) return;
-          lastRandomId = pick.id;
-          randomSeen.add(pick.id);
+          lastBackedOutId = null;
+          recordRandomVisit(pick.id);
           randomHistory.push(pick);
           if(randomHistory.length>100) randomHistory.shift();
           if(randomBack) randomBack.disabled=randomHistory.length<2;
