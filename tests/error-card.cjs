@@ -1,5 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
+const css=fs.existsSync('styles.css')?fs.readFileSync('styles.css','utf8'):'';
+const src=html+'\n'+css;
 
 // ดึง classifyApiError (pure function) มารันใน vm
 const start=html.indexOf('      function classifyApiError(');
@@ -39,7 +42,7 @@ assert(html.includes('failure.reason ='),'listFolder attaches API reason to thro
 assert(html.includes('id="errSignIn"'),'sign-in-and-retry button exists');
 assert(html.includes('id="errSwitchAccount"'),'switch-account button exists');
 assert(html.includes('ลงชื่อเข้าใช้และลองใหม่'),'sign-in button label present');
-assert(html.includes('error-state.signedout')&&html.includes('error-state.quota'),'CSS covers new error categories');
+assert(src.includes('error-state.signedout')&&src.includes('error-state.quota'),'CSS covers new error categories');
 assert(html.includes('function folderRecovery'),'folderRecovery helper is defined (was a ReferenceError since 8d3786e)');
 assert(html.includes('id="emptyBackHome"'),'empty-folder recovery box has back-to-collection button');
 

@@ -209,7 +209,8 @@ test('fetch failure reports a safe connection diagnostic bound to attempt',async
 });
 
 function playerSetup() {
-  const html=fs.readFileSync('index.html','utf8');
+  const {loadAppSource}=require('./helpers/load-app-source.cjs');
+  const html=loadAppSource();
   const start=html.indexOf('      function tryStreamDirect(');
   const end=html.indexOf('\n      }',start);
   let ready;const sources=[],fallbacks=[],errors=[];

@@ -1,12 +1,14 @@
 import pathlib, re, json, time, sys
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import _appsources as app
 import urllib.request, urllib.error
 
-IDX = (ROOT / "index.html")
-API_KEY = re.search(r'DEFAULT_APIKEY\s*=\s*"([^"]+)"', IDX.read_text(encoding="utf-8")).group(1)
+DATA_FILE = ROOT / "collections-data.js"
+API_KEY = app.default_api_key()
 MEGA_MAP = json.loads((ROOT / "reports/drive_mega_map.json").read_text(encoding="utf-8")) if (ROOT / "reports/drive_mega_map.json").exists() else {}
 
-m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", IDX.read_text(encoding="utf-8"), flags=re.DOTALL)
+m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", DATA_FILE.read_text(encoding="utf-8"), flags=re.DOTALL)
 COLL = json.loads(m.group(1))
 IDS = [c["id"] for c in COLL]
 print(f"Drive check {len(IDS)} ids key {API_KEY[:12]}...")

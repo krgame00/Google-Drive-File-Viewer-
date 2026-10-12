@@ -1,7 +1,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
 function setup(mobile=true){
   const attrs=new Map([['allowfullscreen','']]);const calls=[];

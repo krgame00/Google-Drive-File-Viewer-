@@ -106,11 +106,11 @@ for ent in new_entries:
 (ROOT / "collections_merged.json").write_text(json.dumps(old, ensure_ascii=False, indent=1), encoding='utf-8')
 (ROOT / "reports/drive_mega_map.json").write_text(json.dumps(megamap, ensure_ascii=False, indent=1), encoding='utf-8')
 
-# patch index.html XBEP_COLLECTION: replace old array with new
-p = (ROOT / "index.html")
+# patch collections-data.js XBEP_COLLECTION: replace old array with new
+p = (ROOT / "collections-data.js")
 s = p.read_text(encoding='utf-8')
 m = re.search(r'(const XBEP_COLLECTION = )\[.*?\];', s, flags=re.DOTALL)
-assert m, 'XBEP const not found'
+assert m, 'XBEP const not found in collections-data.js'
 new_js = m.group(1) + json.dumps(old, ensure_ascii=False) + ';'
 s = s[:m.start()] + new_js + s[m.end():]
 p.write_text(s, encoding='utf-8')

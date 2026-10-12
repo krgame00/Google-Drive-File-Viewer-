@@ -2,8 +2,8 @@ import pathlib, re, json, time, urllib.request, urllib.error
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 import concurrent.futures
 
-IDX = (ROOT / "index.html")
-m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", IDX.read_text(encoding="utf-8"), flags=re.DOTALL)
+DATA_FILE = ROOT / "collections-data.js"
+m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", DATA_FILE.read_text(encoding="utf-8"), flags=re.DOTALL)
 coll = json.loads(m.group(1))
 targets = [(c["id"], c.get("mega_url"), c.get("date","ไม่ระบุ"), c.get("title","")) for c in coll if c.get("mega_url")]
 print(f"MEGA check {len(targets)} links")

@@ -1,5 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0);return html.slice(start,html.indexOf('\n      }',start)+8)}
 function setup(){const sources=[],failures=[],previews=[];const ctx={preferredPlaybackRoute:()=>null,apiKey:'public-test-key',mediaSession:1,videoAttempt:1,vidCurrentId:'file1',videoModal:{classList:{contains:()=>true}},probePublicStreamError:async()=>null,vidPlayer:{style:{},removeAttribute(){}},revokeCurrentVideo(){},authParams:()=>({mode:'key'}),tryVideoSrc:(url,fail)=>sources.push({url,fail}),showStreamFailure:m=>failures.push(m),fallbackIframe:id=>previews.push(id)};vm.createContext(ctx);vm.runInContext(fn('tryPublicStream'),ctx);return {ctx,sources,failures,previews}}
 test('failed public sources show an error instead of automatically switching players',async()=>{

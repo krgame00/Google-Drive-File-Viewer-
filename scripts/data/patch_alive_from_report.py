@@ -1,11 +1,11 @@
 import pathlib, re, json
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-IDX = (ROOT / "index.html")
+DATA_FILE = (ROOT / "collections-data.js")
 REPORT = (ROOT / "reports/drive_alive_report.json")
 if not REPORT.exists():
     print("no report"); raise SystemExit(1)
 rep = json.loads(REPORT.read_text(encoding="utf-8"))
-s = IDX.read_text(encoding="utf-8")
+s = DATA_FILE.read_text(encoding="utf-8")
 m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", s, flags=re.DOTALL)
 coll = json.loads(m.group(1))
 changed=0
@@ -34,7 +34,7 @@ for c in coll:
 # write back
 new_full = "const XBEP_COLLECTION = " + json.dumps(coll, ensure_ascii=False) + ";"
 s2 = s[:m.start()] + new_full + s[m.end():]
-# อัปเดตป้ายวันตรวจสถานะที่การ์ดคลังแสดง (COLL_CHECKED_AT ใน index.html)
+# อัปเดตป้ายวันตรวจสถานะที่การ์ดคลังแสดง (COLL_CHECKED_AT ใน collections-data.js)
 import datetime
 now = datetime.datetime.now()
 THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."]
@@ -44,7 +44,7 @@ if nsub == 1:
     print(f"check time -> {stamp}")
 else:
     print(f"WARN: COLL_CHECKED_AT not updated (found {nsub})")
-IDX.write_text(s2, encoding="utf-8")
+DATA_FILE.write_text(s2, encoding="utf-8")
 print(f"patched {changed} changed, total {len(coll)} dead {sum(1 for c in coll if c.get('dead'))} alive {sum(1 for c in coll if not c.get('dead'))}")
 # also save summary
 alive=sum(1 for c in coll if not c.get("dead"))

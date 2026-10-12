@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Scan filenames inside collection folders (missing from deep-scan cache) + keyword match for น้ำพุ่ง."""
-import json, pathlib, urllib.request, urllib.parse, time, re, sys
+import json, pathlib, sys, urllib.request, urllib.parse, time, re
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-IDX = ROOT / "index.html"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import _appsources as app
+
 CACHE = ROOT / "reports" / "drive_deep_scan_cache.json"
 COLLECTIONS = ROOT / "collections_merged.json"
 
-key = re.search(r'DEFAULT_APIKEY\s*=\s*"([^"]+)"', IDX.read_text(encoding="utf-8")).group(1)
+key = app.default_api_key()
 merged = json.loads(COLLECTIONS.read_text(encoding="utf-8"))
 cache = json.loads(CACHE.read_text(encoding="utf-8"))
 

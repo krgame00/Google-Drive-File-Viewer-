@@ -1,5 +1,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
+const viewerJs=fs.existsSync('collection-viewer.js')?fs.readFileSync('collection-viewer.js','utf8'):'';
+const src=html+'\n'+viewerJs;
 
 // ดึง naturalCompare (pure function) มารันใน vm
 const start=html.indexOf('function naturalCompare(');
@@ -22,7 +25,7 @@ assert(nat('abc','abd')<0,'letters still compare');
 
 // การ์ดเรียงไฟล์ใช้ naturalCompare และคลังยังคง numeric:true
 assert(html.includes('return naturalCompare(va, vb);'),'cmpSort name branch uses naturalCompare');
-assert(html.includes('{numeric:true}'),'collection sort keeps numeric collation');
+assert(src.includes('{numeric:true}'),'collection sort keeps numeric collation');
 
 // Bug 1: การเรียงตาม "ชนิด" (sortKey === "kind") ใน applySort() ต้องส่ง data-mime จาก .file-card เข้า cmpSort จริง
 assert(html.includes('data-mime="'), 'renderFiles stores data-mime attribute on .file-card');

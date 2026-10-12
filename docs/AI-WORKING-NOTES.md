@@ -10,8 +10,8 @@
 | **Public Stream Worker (`cloudflare-drive-worker.mjs`)** | `VERIFIED WORKING` | สตรีมสาธารณะผ่าน Cloudflare Worker, แปลง Range ปลายเปิดเป็นช่วง 8 MiB, รองรับการลดขนาดช่วงเมื่อติด `downloadQuotaExceeded` และทำ Parallel Sub-intervals (`node --test tests/public-worker.cjs` — PASS) |
 | **Completed Video Cache (`video-cache.js`)** | `VERIFIED WORKING` | แคชคลิปที่โหลดจบลง Cache Storage แยกตาม Scope บัญชี, จำกัดขนาดแบบ LRU, ป้องกัน Race Condition ด้วย `navigator.locks` และ `generation` epoch (`node --test tests/video-cache.cjs` — PASS) |
 | **Image & PDF Lightbox Viewer (`index.html`)** | `VERIFIED WORKING` | รองรับการซูม/ลาก (Pinch/Pan/Double-tap) ทั้งภาพปกติ (`lbImg`) และเอกสาร PDF (`pdfCanvas` ผ่าน PDF.js), แสดงปุ่ม `#lbPrev`/`#lbNext` ในโหมด PDF ให้กดข้ามไปดูรูปถัดไปในโฟลเดอร์ได้ทันที, รอ `await prevTask.promise` หลัง `cancel()` ป้องกัน Canvas Lock ตอนกดข้ามหน้ารัวๆ และเชื่อมลำดับมีเดียระหว่าง PDF กับรูปภาพในโฟลเดอร์ (`node tests/image-viewer.cjs` & `node tests/media-lifecycle.cjs` — PASS) |
-| **Collection Search & Tag Sync (`index.html`, `ADR-0001`)** | `VERIFIED WORKING` | ค้นหาชื่อไทยแบบ NFC/NFD normalize, กรองแท็ก `💦 น้ำพุ่ง` (`squirting`), ซิงก์ `gdv-tags.json` ขึ้น Drive `appDataFolder` แบบรอผล `await tagPushMerged` จริงก่อนแสดง `"บันทึกแล้ว ✓"` และตรวจ `COLL_CHECKED_AT` แบบไดนามิกไม่พังเมื่อสคริปต์รายวันอัปเดตเวลา (`node tests/collection-search.cjs` — PASS) |
-| **Collection Data Sync (`tools/collection_data.js`)** | `VERIFIED WORKING` | ซิงก์ข้อมูลระหว่าง `collections_merged.json` และ `index.html` ตรงกันทั้งสองฝั่ง (`node tools/collection_data.js check` — 335 รายการตรงกัน) |
+| **Collection Search & Tag Sync (`collection-viewer.js`, `ADR-0001`)** | `VERIFIED WORKING` | ค้นหาชื่อไทยแบบ NFC/NFD normalize, กรองแท็ก `💦 น้ำพุ่ง` (`squirting`), ซิงก์ `gdv-tags.json` ขึ้น Drive `appDataFolder` แบบรอผล `await tagPushMerged` จริงก่อนแสดง `"บันทึกแล้ว ✓"` และตรวจ `COLL_CHECKED_AT` แบบไดนามิกไม่พังเมื่อสคริปต์รายวันอัปเดตเวลา (`node tests/collection-search.cjs` — PASS) |
+| **Collection Data Sync (`tools/collection_data.js`)** | `VERIFIED WORKING` | ซิงก์ข้อมูลระหว่าง `collections_merged.json` และ `collections-data.js` ตรงกันทั้งสองฝั่ง (`node tools/collection_data.js check`) |
 | **UI/UX Typography, WCAG Contrast, Light Theme, Toolbar & P2 Polish (`index.html`)** | `VERIFIED WORKING` | เปิดใช้งานฟอนต์ `"Noto Sans Thai"` ใน `body`, ปรับลำดับขั้นขนาดหัวข้อ (`≥ 1.25x` Modular Type Scale), แยก `--accent-hover` (`#4e5ac0`, คอนทราสต์ `5.41:1` ผ่าน WCAG AA) กับ `--accent-text`, เพิ่ม CSS Variables สำหรับโหมดสว่าง (`html[data-theme="light"]`), จัดระเบียบแถบเครื่องมือ `#collectionsCard` ด้วย `<details class="coll-filter-drawer" id="collFilterDrawer">`, เพิ่มป้ายชื่อไฟล์ `#lbTitle` ใน Lightbox, ปรับ `.vid-progress-bar` และ `--shadow-glow` ให้ผ่านเกณฑ์ GPU/Elevation และลบกฎ CSS ที่ซ้ำซ้อน (`impeccable detect --json index.html` — `[]` 0 warnings & `node --test tests/*.cjs` — 132/132 PASS) |
 
 ---
@@ -136,3 +136,28 @@
   - อัปเกรด `randomPick(pool, avoidId)` ให้รองรับทั้ง ID เดี่ยวและ Array/Set ของรายการล่าสุด (`avoidIds`) พร้อมใช้ `crypto.getRandomValues` และเมื่อวนครบรอบจะคงรายการที่เพิ่งดูล่าสุดครึ่งวง (`Math.min(Math.max(1, Math.floor(candidates.length / 2)), 20)`) บวกกับ `lastBackedOutId` ไว้ใน `randomSeen` เพื่อไม่ให้รายการท้ายรอบเก่ามาโผล่ซ้ำตอนต้นรอบใหม่
   - หากชิปวันที่เฉพาะวัน (`activeDate !== "all"`) ถูกสุ่มจนครบแล้ว จะปลดล็อกเป็น `"all"` อัตโนมัติพร้อมแจ้ง Toast เพื่อไม่ให้ติดลูปซ้ำในวันเดียว และปรับ `effSq(c)` ให้เช็ก `c.prev_id` คู่กับ `c.id`
   - เพิ่มชุดทดสอบ TDD ใน `tests/collection-random.cjs` และรัน `node --test tests/*.cjs` ผ่านครบ **132/132 PASS (0 fail)**
+
+### 11. Modularize `index.html` — Phase 1–3 CSS, Data, Collection Viewer, Video Player (`2026-10-12`)
+- **สถานะ:** `VERIFIED WORKING`
+- **Root Cause (แรงจูงใจ):** ไฟล์ `index.html` มีขนาด 7,418 บรรทัด (~567 KB) ทำให้ Python daily-check scripts ต้องทำ regex ค้นหาใน HTML โดยตรง, test suite ต้อง slice ฟังก์ชันออกจาก HTML ด้วย `html.indexOf(...)`, และการแก้ไขใด ๆ เสี่ยงทำให้โครงสร้างพัง
+- **ไฟล์ที่สร้างใหม่ (Extracted):**
+  | ไฟล์ | บรรทัด | ขนาด | เนื้อหา |
+  |------|---------|------|---------|
+  | `styles.css` | 1,764 | 66 KB | CSS ทั้งหมดจากบล็อก `<style>` |
+  | `collections-data.js` | 9 | 305 KB | `COLL_CHECKED_AT` + `XBEP_COLLECTION` (335 รายการ) |
+  | `collection-viewer.js` | 591 | 34 KB | Collection Viewer IIFE พร้อม `GDVCollectionApi` bridge |
+  | `video-player.js` | 1,209 | — | Video/Stream Player พร้อม `GDVVideoApi` bridge |
+  | `tests/helpers/load-app-source.cjs` | — | — | Helper concat แหล่ง JS ทุกโมดูลให้ tests |
+  | `scripts/checks/_appsources.py` | — | — | Python shared helper สำหรับ daily check scripts |
+- **`index.html` หลังการแยก:** 4,141 บรรทัด (~182 KB) (ลดจาก 7,418 บรรทัด)
+- **การแก้ไข Python scripts และ tools:**
+  - `tools/collection_data.js` — อัปเดตให้ extract/inject/check จาก `collections-data.js` เป็น primary แทน inline ใน HTML (backward compat กับ index.html ยังคงอยู่)
+  - `scripts/data/patch_alive_from_report.py`, `scripts/checks/check_drive_alive.py` ฯลฯ — ใช้ `_appsources.py` helper เพื่ออ่านจากไฟล์โมดูลแทน HTML
+- **Tests:** อัปเดต `tests/collection-search.cjs`, `tests/collection-random.cjs` และทุกไฟล์ test ให้ใช้ `tests/helpers/load-app-source.cjs` concat แหล่งจากทุกโมดูล
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - `node tools/collection_data.js check` → `สองฝั่งตรงกัน (335 รายการ)` ✅
+  - `node --test tests/*.cjs` → **134/134 PASS (0 fail)** ✅ (เพิ่มจาก 132 เป็น 134 เพราะเพิ่ม test module ใหม่)
+- **งานที่ยังค้าง (Phase 4 Backlog):**
+  - `drive-explorer.js` (1,614 บรรทัด) — เขียนครบแล้วแต่ยังไม่ wire `GDVExplorerApi` bridge เข้า index.html (decision: delete หรือ wire)
+  - `media-lightbox.js` — extraction ถูก revert กลาง ๆ ต้องทำใหม่แบบ all-or-nothing
+  - Phase 4: switch tests จาก `loadAppSource` ไปใช้ `require()` per module โดยตรง

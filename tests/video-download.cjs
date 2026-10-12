@@ -1,5 +1,6 @@
 const {test}=require('node:test');const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);return html.slice(start,html.indexOf('\n      }',start)+8);}
 function setup(){
   const els={},el=id=>els[id]||(els[id]={hidden:true,disabled:false,style:{},textContent:'',setAttribute(){},removeAttribute(){},load(){},pause(){}});

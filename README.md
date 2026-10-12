@@ -16,13 +16,16 @@ py -m http.server 8000
 
 | ตำแหน่ง | หน้าที่ |
 | --- | --- |
-| `index.html` | หน้าเว็บหลัก สไตล์ และ JavaScript รวมถึงข้อมูลคลังที่ฝังในหน้า |
+| `index.html` | โครงหน้าและตรรกะหลักของเว็บ |
+| `styles.css` | สไตล์หน้าเว็บและตัวดูสื่อ |
+| `collections-data.js` | ข้อมูลคลัง XBep ที่หน้าเว็บโหลด |
+| `collection-viewer.js` | ค้นหา กรอง สุ่ม และแสดงผลรายการคลัง |
 | `drive-stream-sw.js` | Service Worker สำหรับสตรีมผ่านบัญชี Google |
 | `cloudflare-drive-worker.mjs` | ซอร์ส Worker สำหรับสตรีมสาธารณะ ต้อง Deploy แยก |
-| `collections_merged.json` | ข้อมูลคลัง ใช้คู่กับข้อมูลที่ฝังในหน้าเว็บ |
+| `collections_merged.json` | สำเนาข้อมูลคลังสำหรับเครื่องมือซิงก์และบำรุงรักษา |
 | `scripts/` | งานตรวจลิงก์ แก้ข้อมูล ดาวน์โหลด ย้ายไฟล์ และติดตามงาน |
 | `scripts/config.example.json` | ค่าเริ่มต้นของเครื่องมือและปลายทาง; ปรับเฉพาะเครื่องใน `config.local.json` |
-| `tools/collection_data.js` | ตรวจและซิงก์ข้อมูลคลังระหว่าง JSON กับ HTML |
+| `tools/collection_data.js` | ตรวจและซิงก์ข้อมูลคลังระหว่าง JSON กับ `collections-data.js` |
 | `tests/` | ชุดทดสอบด้วย Node.js |
 | `reports/` | ผลตรวจและข้อมูลประกอบสคริปต์ ดูรายการใน `reports/README.md` |
 | `docs/` | คู่มือสตรีม แผนงาน และรายงานทดสอบ |

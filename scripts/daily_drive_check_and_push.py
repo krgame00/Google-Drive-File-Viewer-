@@ -1,7 +1,7 @@
 import pathlib, re, json, sys, subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-IDX = ROOT / "index.html"
+DATA_FILE = ROOT / "collections-data.js"
 REPORT = ROOT / "reports" / "drive_alive_report.json"
 CHECK = ROOT / "scripts" / "checks" / "check_drive_alive.py"
 PATCH = ROOT / "scripts" / "data" / "patch_alive_from_report.py"
@@ -20,7 +20,7 @@ print(r2.stdout)
 print(r2.stderr)
 if r2.returncode != 0:
     sys.exit(1)
-# 3. sync collections_merged.json ให้ตรงกับ index.html (source of truth)
+# 3. sync collections_merged.json ให้ตรงกับ collections-data.js
 try:
     r3 = subprocess.run(["node", "tools/collection_data.js", "extract"], capture_output=True, text=True, timeout=30, cwd=str(ROOT))
     print(r3.stdout)
@@ -28,7 +28,7 @@ try:
 except FileNotFoundError:
     print("WARN: node not found — skip collections_merged.json sync")
 # 4. verify
-s = IDX.read_text(encoding="utf-8")
+s = DATA_FILE.read_text(encoding="utf-8")
 m = re.search(r"const XBEP_COLLECTION = (\[.*?\]);", s, flags=re.DOTALL)
 coll = json.loads(m.group(1))
 alive = sum(1 for c in coll if not c.get("dead"))
@@ -39,8 +39,8 @@ import subprocess as sp
 def sh(cmd): return sp.run(cmd, shell=True, capture_output=True, text=True, cwd=str(ROOT))
 r = sh("git status --porcelain")
 print(r.stdout[:500])
-if "index.html" in r.stdout or "drive_alive_report.json" in r.stdout or "M" in r.stdout:
-    sh("git add index.html reports/drive_alive_report.json collections_merged.json")
+if "collections-data.js" in r.stdout or "drive_alive_report.json" in r.stdout or "M" in r.stdout:
+    sh("git add collections-data.js reports/drive_alive_report.json collections_merged.json")
     msg = f"chore: daily Drive alive {alive}/{len(coll)} (dead {dead})"
     r = sh(f'git commit -m "{msg}"')
     print(r.stdout[:500])

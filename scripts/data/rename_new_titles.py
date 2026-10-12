@@ -29,10 +29,10 @@ for x in news:
 
 cj.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding='utf-8')
 
-p = (ROOT / "index.html")
+p = (ROOT / "collections-data.js")
 s = p.read_text(encoding='utf-8')
 m = re.search(r'(const XBEP_COLLECTION = )\[.*?\];', s, flags=re.DOTALL)
-assert m, 'XBEP const not found'
+assert m, 'XBEP const not found in collections-data.js'
 s = s[:m.start()] + m.group(1) + json.dumps(d, ensure_ascii=False) + ';' + s[m.end():]
 p.write_text(s, encoding='utf-8')
 

@@ -1,5 +1,9 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
+const css=fs.existsSync('styles.css')?fs.readFileSync('styles.css','utf8'):'';
+const src=html+'\n'+css;
+
 function fn(name){const re=new RegExp('\\n([ \\t]+)(?:async\\s+)?function\\s+'+name+'\\s*\\(');const m=re.exec(html);assert(m,'missing function: '+name);const indent=m[1],start=m.index+1,endRe=new RegExp('\\r?\\n'+indent+'\\}','g');endRe.lastIndex=start;const end=endRe.exec(html);assert(end,'missing end of function: '+name);return html.slice(start,end.index+end[0].length);}
 function setup(){
   const els={};let timers=new Map(),seq=0;const timerMs=new Map();const navCalls=[];const uiEls=[];
@@ -59,8 +63,8 @@ test('reset เมื่อเปิด/ปิดภาพและ rotate (เ�
   assert(/orientationchange|resize[\s\S]{0,120}resetImageView\(\)/.test(html),'rotation/resize resets image view');
 });
 test('touch-action จำกัดเฉพาะตัวดูภาพ ไม่ใช่ทั้งเว็บ',()=>{
-  assert(/\.lightbox\s*\{[^}]*touch-action:\s*none/.test(html),'touch-action:none บน .lightbox');
-  assert(!/body\s*\{[^}]*touch-action:\s*none/.test(html),'ไม่ล็อก touch-action ทั้ง body');
+  assert(/\.lightbox\s*\{[^}]*touch-action:\s*none/.test(src),'touch-action:none บน .lightbox');
+  assert(!/body\s*\{[^}]*touch-action:\s*none/.test(src),'ไม่ล็อก touch-action ทั้ง body');
 });
 test('ปุ่มคืนขนาดมีให้ทั้งสัมผัสและคีย์บอร์ด',()=>{
   assert(html.includes('id="lbReset"'),'ปุ่ม lbReset มีในหน้า');
@@ -109,15 +113,15 @@ test('เปิด/ปิดภาพแสดงปุ่มและล้า�
   assert(/function closeLightbox\(\)\s*\{[\s\S]{0,400}cancelImageTap\(\)/.test(html),'closeLightbox ยกเลิก tap timer');
 });
 test('CSS: ซ่อนแบบไม่รับ Tab + reduced-motion',()=>{
-  const m=html.match(/\.lightbox\.img-controls-hidden[^{]*\{[^}]*\}/);
+  const m=src.match(/\.lightbox\.img-controls-hidden[^{]*\{[^}]*\}/);
   assert(m,'มีกฎ .img-controls-hidden');
   assert(/visibility:\s*hidden/.test(m[0]),'ซ่อนด้วย visibility (หลุดจาก Tab order)');
-  const flat=html.replace(/\s+/g,' ');
+  const flat=src.replace(/\s+/g,' ');
   assert(/@media \(prefers-reduced-motion: reduce\) \{ \.lb-ui \{ transition: none/.test(flat),'เคารพ prefers-reduced-motion');
 });
 test('PDF: ปุ่มข้างจอ (#lbPrev/#lbNext) ไม่ถูกซ่อนในโหมด PDF และกดข้ามไปหน้า/รูปถัดไปได้',()=>{
-  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbPrev[^{]*\{[^}]*display:\s*none/.test(html),'ไม่ซ่อน #lbPrev ในโหมด PDF');
-  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbNext[^{]*\{[^}]*display:\s*none/.test(html),'ไม่ซ่อน #lbNext ในโหมด PDF');
+  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbPrev[^{]*\{[^}]*display:\s*none/.test(src),'ไม่ซ่อน #lbPrev ในโหมด PDF');
+  assert(!/\.lightbox\[data-viewer="pdf"\][^{]*#lbNext[^{]*\{[^}]*display:\s*none/.test(src),'ไม่ซ่อน #lbNext ในโหมด PDF');
   assert(html.includes('function stepPdfPage('),'มีฟังก์ชัน stepPdfPage สำหรับเปลี่ยนหน้า/ข้ามรูป');
 });
 const pending=[];

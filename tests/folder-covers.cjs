@@ -1,5 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 const start=html.indexOf('      async function findFolderCover(');
 assert(start>=0,'folder cover lookup must exist');
 const end=html.indexOf('\n      }',start);

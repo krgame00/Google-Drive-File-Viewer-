@@ -1,5 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function setup(fetch){const timers=[];const ctx={URL,Uint8Array,AbortController,location:{href:'https://example.test/app/'},fetch,setTimeout:cb=>{timers.push(cb);return timers.length},clearTimeout(){}};vm.createContext(ctx);for(const name of ['streamBlockVerdict','readMp4CodecInfo','probeStreamEndpoint']){const a=html.indexOf('      function '+name+'(');vm.runInContext(html.slice(a,html.indexOf('\n      }',a)+8),ctx)}return {ctx,timers}}
 function box(type,body){const out=new Uint8Array(8+body.length);new DataView(out.buffer).setUint32(0,8+body.length);for(let i=0;i<4;i++)out[4+i]=type.charCodeAt(i);out.set(body,8);return out}
 function merge(parts){let n=0;for(const p of parts)n+=p.length;const out=new Uint8Array(n);let o=0;for(const p of parts){out.set(p,o);o+=p.length}return out}

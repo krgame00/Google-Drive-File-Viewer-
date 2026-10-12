@@ -1,9 +1,13 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const html=fs.readFileSync('index.html','utf8');
-const start=html.indexOf('        function randomPick(');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
+const viewerJs=fs.readFileSync('collection-viewer.js','utf8');
+const dataJs=fs.readFileSync('collections-data.js','utf8');
+const src=html+'\n'+dataJs+'\n'+viewerJs;
+const start=viewerJs.indexOf('function randomPick(');
 assert(start>=0,'randomPick helper exists');
-const end=html.indexOf('\n        }',start);
-const ctx={};vm.createContext(ctx);vm.runInContext(html.slice(start,end+10),ctx);
+const end=viewerJs.indexOf('\n  }',start);
+const ctx={};vm.createContext(ctx);vm.runInContext(viewerJs.slice(start,end+4),ctx);
 const pick=ctx.randomPick;
 const pool=[{id:'a'},{id:'b'},{id:'c'},{id:'d'},{id:'e'}];
 assert.equal(pick([],null),null,'empty pool returns null');
@@ -26,8 +30,8 @@ for(let i=0;i<200;i++){
 }
 
 // End-to-end VM test of #collRandom + #collRandomBack + persistence + single-date auto-unlock
-const blockStart = html.indexOf('        var randomBtn=document.getElementById("collRandom");');
-const blockEnd = html.indexOf('        // Missing days banner', blockStart);
+const blockStart = viewerJs.indexOf('  var randomBtn=document.getElementById("collRandom");');
+const blockEnd = viewerJs.indexOf('  // Missing days banner', blockStart);
 assert(blockStart >= 0 && blockEnd > blockStart, 'random handler block exists');
 
 function createRandomEnv(initialStorage = {}, initialItems = null, initialDate = 'all', initialNav = []) {
@@ -78,8 +82,15 @@ function createRandomEnv(initialStorage = {}, initialItems = null, initialDate =
     showToast(msg) { toasts.push(msg); },
     window: { open() {} }
   };
+  env.window.GDVCollectionApi = {
+    get navStack() { return env.navStack; },
+    set navStack(value) { env.navStack = value; },
+    lsGet: k => env.lsGet(k),
+    lsSet: (k, v) => env.lsSet(k, v),
+    showToast: msg => env.showToast(msg)
+  };
   vm.createContext(env);
-  vm.runInContext(html.slice(blockStart, blockEnd), env);
+  vm.runInContext('const appApi=window.GDVCollectionApi;\n'+viewerJs.slice(blockStart, blockEnd), env);
   return { env, store, opened, toasts, clickRandom: () => randomClickHandler(), clickBack: () => backClickHandler() };
 }
 
@@ -131,8 +142,8 @@ function createRandomEnv(initialStorage = {}, initialItems = null, initialDate =
 }
 
 assert(html.includes('id="collRandom"'),'random button exists');
-assert(html.includes('randomBtn.addEventListener("click"'),'random button handler wired');
-assert(html.includes('function collMatches('),'filter predicate extracted');
-assert(html.includes('function openCollectionItem('),'open flow extracted');
-assert(html.includes('gdv_coll_random_seen'),'random seen state is persisted to localStorage');
+assert(viewerJs.includes('randomBtn.addEventListener("click"'),'random button handler wired');
+assert(viewerJs.includes('function collMatches('),'filter predicate extracted');
+assert(viewerJs.includes('function openCollectionItem('),'open flow extracted');
+assert(viewerJs.includes('gdv_coll_random_seen'),'random seen state is persisted to localStorage');
 console.log('PASS collection random pick');

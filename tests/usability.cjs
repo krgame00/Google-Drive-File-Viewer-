@@ -1,5 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function fn(n){const a=html.indexOf('      function '+n+'(');assert(a>=0,n+' exists');return html.slice(a,html.indexOf('\n      }',a)+8)}
 const ctx={lsGet:()=>'{bad json',lsSet(){},folderPositions:new Map(),displayedFolderId:'parent',window:{scrollY:420},document:{getElementById:()=>({querySelector:()=>null})}};vm.createContext(ctx);
 for(const n of ['loadFavoriteFolders','saveFolderPosition'])vm.runInContext(fn(n),ctx);

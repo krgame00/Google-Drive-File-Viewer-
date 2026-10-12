@@ -1,5 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const html=loadAppSource();
 function fn(n){const a=html.indexOf('      function '+n+'(');assert(a>=0,n+' exists');return html.slice(a,html.indexOf('\n      }',a)+8)}
 const data=new Map();const ctx={lsGet:k=>data.get(k),lsSet:(k,v)=>data.set(k,String(v)),lsRemove:k=>data.delete(k),vidPlayer:{currentTime:42,duration:100,ended:false,style:{display:'block'}},vidCurrentId:'test-id',vidTitle:{textContent:'Test video'},renderContinueWatching(){},pruneVpos(){},Date};vm.createContext(ctx);
 for(const n of ['loadContinueWatching','saveVideoPos'])vm.runInContext(fn(n),ctx);
