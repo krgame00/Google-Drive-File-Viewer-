@@ -311,4 +311,9 @@
   - `node tools/collection_data.js check` ตรงกันทั้งสองฝั่งครบ **335 รายการ**
   - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
   - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker
+  - **Live Cloudflare Worker Deployment Verified:**
+    - ยืนยันผลการ deploy โค้ด `cloudflare-drive-worker.mjs` ขึ้น [Cloudflare Worker จริง](https://google-drive-file-viewer.missnlpp9.workers.dev/):
+    - คำขอ `OPTIONS` ส่ง `X-GDV-Worker-Rev: 2026-10-14-r1` พร้อม `Access-Control-Expose-Headers` ครบถ้วน (HTTP 204 No Content)
+    - คำขอ `GET` ช่วงไบต์ `Range: bytes=0-10` ต่อไฟล์จริงบน Google Drive ได้รับการยืนยันสถานะ `HTTP 206 Partial Content` ส่งกลับ `Content-Range: bytes 0-10/71532734`, `Content-Length: 11`, `Accept-Ranges: bytes` และ `X-GDV-Worker-Rev: 2026-10-14-r1` อย่างสมบูรณ์แบบ
+
 
