@@ -54,3 +54,17 @@ test('a body read failure is unknown, never successful media',async()=>{
  const {api}=setup(async()=>({status:206,body:{getReader(){return {read:async()=>{throw Error('lost connection');},cancel:async()=>{},releaseLock(){}};}}}));
  assert.equal(await api.probeStreamEndpoint('file','probe'),'unknown');
 });
+
+test('an mp4 with moov at EOF probes the tail range and identifies its codec',async()=>{
+ const ranges=[];
+ const head=merge([box('ftyp',new TextEncoder().encode('isom')),box('mdat',new Uint8Array(64))]);
+ const tail=tinyMp4(66).slice(12);
+ const response=(bytes,contentRange)=>({status:206,headers:new Headers({'Content-Range':contentRange}),body:{getReader(){let sent=false;return {read:async()=>{if(sent)return {done:true};sent=true;return {value:bytes,done:false};},cancel:async()=>{},releaseLock(){}};}}});
+ const {api}=setup(async(url,opts)=>{
+  const range=opts.headers.Range;ranges.push(range);
+  if(range==='bytes=0-1048575')return response(head,'bytes 0-1048575/5242880');
+  return response(tail,'bytes 4194304-5242879/5242880');
+ });
+ assert.equal(await api.probeStreamEndpoint('file','probe'),'works');
+ assert.deepEqual(ranges,['bytes=0-1048575','bytes=4194304-5242879']);
+});

@@ -26,6 +26,7 @@ function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 let ahead = null;
 // Files whose source answered with a usable length stream in parallel.
 let parallelOk = null;
+let parallelTotal = null;
 async function fetchParallelChunk(id, start, end, token, signal) {
   // Split one bounded interval into four sub-intervals fetched in parallel
   // and stream them to the player in order; returns the composite 206
@@ -146,17 +147,23 @@ async function streamFile(event, id, attempt) {
     // A chunk prefetched during the previous request may already cover this one.
     let upstream = null;
     const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
-    if (request.method === 'GET' && ahead && ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
-      const hit = ahead;
-      ahead = null;
-      try {
-        const cached = await hit.promise;
-        if (cached && cached.ok) upstream = cached;
-        else if (cached && cached.body) await cached.body.cancel();
-      } catch (_) {}
+    if (request.method === 'GET' && ahead) {
+      if (ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
+        const hit = ahead;
+        ahead = null;
+        try {
+          const cached = await hit.promise;
+          if (cached && cached.ok) upstream = cached;
+          else if (cached && cached.body) await cached.body.cancel();
+        } catch (_) {}
+      } else {
+        ahead.controller.abort();
+        ahead = null;
+      }
     }
+    const reachesKnownEnd = parallelOk === id && parallelTotal !== null && requestedBound && BigInt(requestedBound[2]) >= parallelTotal;
     if (!upstream) {
-      if (request.method === 'GET' && requestedBound && boundedRange !== range && parallelOk === id) {
+      if (request.method === 'GET' && requestedBound && boundedRange !== range && parallelOk === id && !reachesKnownEnd) {
         upstream = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), token, request.signal);
       }
       if (!upstream) {
@@ -185,7 +192,11 @@ async function streamFile(event, id, attempt) {
     }
     // A source that reports usable lengths can be fetched in parallel from
     // the next interval on; lengthless answers keep the single connection.
-    if (upstream && upstream.status === 206 && upstream.headers.get('Content-Length')) parallelOk = id;
+    if (upstream && upstream.status === 206 && upstream.headers.get('Content-Length')) {
+      parallelOk = id;
+      const totalMatch = (upstream.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+      parallelTotal = totalMatch && totalMatch[1] !== '*' ? BigInt(totalMatch[1]) : null;
+    }
     const type = upstream.headers.get('Content-Type') || '';
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
       if (upstream.body) await upstream.body.cancel();
@@ -223,7 +234,8 @@ async function streamFile(event, id, attempt) {
         const entry = {id: id, start: nextStart, controller: controller};
         const guard = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 120000);
         const end = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
-        entry.promise = (parallelOk === id
+        const nextReachesEnd = parallelTotal !== null && end >= parallelTotal;
+        entry.promise = (parallelOk === id && !nextReachesEnd
           ? fetchParallelChunk(id, nextStart, end, token, controller.signal)
           : fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
               method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
