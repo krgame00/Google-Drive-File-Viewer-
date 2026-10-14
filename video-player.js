@@ -72,8 +72,11 @@
 
       function preferredPlaybackRoute(id) {
         const mode = accessToken ? 'signedin' : 'public';
-        const record = playbackRouteRecords().find(function (r) { return r.id === id && r.mode === mode; });
-        return record ? record.route : null;
+        const records = playbackRouteRecords();
+        const record = records.find(function (r) { return r.id === id && r.mode === mode; });
+        if (record) return record.route;
+        const latest = records.slice().reverse().find(function (r) { return r.mode === mode; });
+        return latest ? latest.route : null;
       }
 
       function recordActivePlaybackRoute() {
@@ -473,10 +476,12 @@
       }
 
       function calculatePreviewLayout(width, height, aspect) {
-        // Landscape clips need a smaller virtual viewport so phone controls remain usable.
-        // Keep the existing tall viewport for portrait clips.
+        // Google Drive's Material 3 control bar needs >= 760px virtual width and >= 420px virtual height
+        // so the timeline and control pills stay on a single bottom row without wrapping or clipping.
         const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
-        const frameWidth = Math.max(horizontal ? 480 : 800, width);
+        const minWidth = 800;
+        const minHeight = horizontal && width < 800 ? 420 : 0;
+        const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
       }
@@ -1143,7 +1148,7 @@
         const prior = priorNotes && priorNotes.length ? ' การลองสำรองก่อนหน้า: ' + priorNotes.join(' · ') : '';
         if (!id || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
         const auth = authParams();
-        if (auth.mode === 'none') { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้' + prior); if (onGiveUp) onGiveUp(); return; }
+        if (auth.mode === 'none' && !(Number(fileMetaOf(id) && fileMetaOf(id).size) > 0)) { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้' + prior); if (onGiveUp) onGiveUp(); return; }
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
         const transfer = videoBlobTransfer = {id: id, session: mediaSession, startedAt: Date.now(), controller: new AbortController()};
@@ -1166,7 +1171,7 @@
         const directSource = {note: '', url: directUrl, headers: directHeaders};
         const workerSource = {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}};
         // หากแหล่งตรงเพิ่งติดโควตา ให้ข้ามไปเริ่มดึงผ่าน Worker 6 ช่องขนานทันทีโดยไม่ต้องรอติด 403 ซ้ำ
-        const sources = directBlocked ? [workerSource, directSource] : [directSource, workerSource];
+        const sources = auth.mode === 'none' ? [workerSource] : (directBlocked ? [workerSource, directSource] : [directSource, workerSource]);
         const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
         const loadSingle = function () {
           return fetch(directUrl, { headers: directHeaders, signal: transfer.controller.signal })
@@ -1212,12 +1217,6 @@
         } : loadSingle;
         return load().then(async function (blob) {
             if (!active()) return;
-            if (typeof videoCache !== 'undefined' && videoCache && cacheScope) {
-              setVideoStatus('loading', 'โหลดครบแล้ว กำลังเก็บคลิปไว้เปิดซ้ำ…');
-              await videoCache.put(id, blob, cacheMeta, cacheScope);
-              refreshVideoCacheUI();
-              if (!active()) return;
-            }
             const nextUrl = URL.createObjectURL(blob);
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
@@ -1228,6 +1227,12 @@
             vidPlayer.style.display = 'block';
             tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ' + describeCodecSupport(deviceCodecSupport()) + prior); if (onGiveUp) onGiveUp(); }, 120000);
             setVideoStatus('loading', 'โหลดทั้งไฟล์ครบแล้ว กำลังเตรียมเครื่องเล่น…');
+            if (typeof videoCache !== 'undefined' && videoCache && cacheScope) {
+              try {
+                await videoCache.put(id, blob, cacheMeta, cacheScope);
+                if (typeof refreshVideoCacheUI === 'function') refreshVideoCacheUI();
+              } catch (_) {}
+            }
           })
           .catch(function (err) {
             if (!active()) return;
@@ -1351,9 +1356,30 @@
         return watched;
       }
 
+      const warmedVideoIds = new Set();
+      function warmVideoStream(id) {
+        if (!id || warmedVideoIds.has(id)) return false;
+        warmedVideoIds.add(id);
+        if (typeof accessToken !== 'undefined' && accessToken && typeof prepareStreamWorker === 'function') {
+          try { prepareStreamWorker(); } catch (_) {}
+        }
+        if (typeof fetch === 'function') {
+          try { fetch('https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id), { method: 'HEAD', mode: 'cors' }).catch(function () {}); } catch (_) {}
+        }
+        return true;
+      }
+
       function attachWatchedButtons() {
+        if (typeof accessToken !== 'undefined' && accessToken && typeof prepareStreamWorker === 'function') {
+          try { prepareStreamWorker(); } catch (_) {}
+        }
         const watched = new Set(loadWatchedVideos());
         filesWrap.querySelectorAll('.file-card[data-kind="video"]').forEach(card => {
+          if (card && typeof card.addEventListener === 'function' && card.dataset && card.dataset.id) {
+            const warm = function () { warmVideoStream(card.dataset.id); };
+            card.addEventListener('touchstart', warm, { passive: true, once: true });
+            card.addEventListener('pointerenter', warm, { passive: true, once: true });
+          }
           const button = document.createElement("button");
           button.type = "button";
           button.className = "watched-toggle";

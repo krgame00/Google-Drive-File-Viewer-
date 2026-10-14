@@ -338,6 +338,31 @@
     - คำขอแรกได้ `HTTP 206 Partial Content` (`bytes 0-10/71532734`, `Content-Length: 11`)
     - คำขอที่สองต่อจากนั้นได้ `HTTP 206 Partial Content` (`bytes 11-20/71532734`, `Content-Length: 10`) โดยส่งผ่าน `confirmUrlCache` ดึงต่อได้อย่างรวดเร็วและถูกต้องสมบูรณ์
 
+### 25. Mobile UX & Instant Playback Optimizations (`apply_project_fixes_single (3).zip` — `2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ที่มา:** สคริปต์ `apply_project_fixes.py` ขนาด 112 KB (1,950 บรรทัด) ใน `apply_project_fixes_single (3).zip`
+- **การปรับปรุงและฟีเจอร์ระดับสูง:**
+  1. **Sticky Wrapped Video Toolbar (`styles.css`):**
+     - แถบเครื่องมือ `.video-toolbar` เพิ่ม `position: sticky; top: 0; z-index: 10; flex-wrap: wrap;` ทำให้ปุ่มควบคุม (เต็มจอ, สลับแนว, พรีวิว Google, ปิด) ไม่เลื่อนหลุดสายตาเมื่อเลื่อนหน้าจอดูคลิปแนวตั้งยาวๆ หรืออ่านการ์ดข้อผิดพลาด
+     - บนจอมือถือ (`max-width: 680px`): ปรับขนาดปุ่ม `#vidFullscreen, #vidAspectToggle, #vidQuickPreview` เป็น `min-height: 40px; padding: 6px 10px; font-size: 12px;` เพื่อให้จัดวางได้พอดีในจอแคบ
+  2. **Material 3 Virtual Viewport Adjustment (`video-player.js` & `tests/player-fullscreen.cjs`):**
+     - ปรับ `calculatePreviewLayout` ให้ขยาย Virtual Viewport ขั้นต่ำเป็น `>= 800px` (กว้าง) และ `>= 420px` (สูง สำหรับคลิปแนวนอนบนจอแคบ) ทำให้แถบควบคุม Material 3 ของ Google Drive Preview แสดงปุ่ม Play/Pause, Timeline Scrubber, ปุ่มตั้งค่า และปุ่มเต็มจออยู่บนแถวล่างบรรทัดเดียว ไม่ตกบรรทัดหรือโดนตัดขอบ
+  3. **Instant Playback Before IndexedDB Write (`video-player.js`):**
+     - ในโหมด "โหลดทั้งไฟล์แทน": สั่งเริ่มเล่นวิดีโอ (`tryVideoSrc(...)`) ทันทีที่ดาวน์โหลด Blob ครบ โดยไม่ต้องรอให้การเขียนไฟล์ลงแคช IndexedDB (`videoCache.put`) ขนาดหลายสิบทรงตัวเสร็จสิ้นก่อน และย้ายการเขียนแคชไปทำแบบ background non-blocking
+  4. **Signed-out Whole-File Download via Worker (`video-player.js`):**
+     - ปลดล็อกให้ผู้ใช้ที่ไม่ได้ล็อกอิน Google Account สามารถกด "โหลดทั้งไฟล์แทน" ได้หากไฟล์มีขนาดระบุในลิสต์โฟลเดอร์ โดยระบบจะดึงไฟล์ผ่าน Cloudflare Worker สำรอง 6 ช่องขนานทันที
+  5. **Session-Wide Preferred Route Memory (`video-player.js`):**
+     - ฟังก์ชัน `preferredPlaybackRoute` เพิ่มการ fallback ไปใช้เส้นทางสตรีมล่าสุดที่เคยเล่นสำเร็จในเซสชันเดียวกัน สำหรับคลิปใหม่ที่ยังไม่เคยเปิด ทำให้ไม่ต้องเสียเวลาตรวจค้นหาเส้นทางใหม่
+  6. **Pointerenter & Touchstart Stream Pre-Warming (`video-player.js`):**
+     - เพิ่มฟังก์ชัน `warmVideoStream(id)` ผูกกับอีเวนต์ `pointerenter` (เมาส์ชี้) และ `touchstart` (แตะนิ้ว) บนการ์ดวิดีโอในรายการไฟล์ สั่งเตรียม Service Worker และยิง `HEAD` ไปยัง Worker เพื่อทำ TCP/TLS handshake ล่วงหน้า ทำให้เวลากดคลิกเล่น วิดีโอจะเริ่มเล่นได้เกือบจะในทันที
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านครบทั้ง **160/160 tests PASS (0 failures, duration ~23s)**
+  - `tests/player-fullscreen.cjs` ตรวจสอบ virtual viewport 800x450 สำหรับ Material 3 บนมือถือผ่านฉลุย
+  - `node tools/collection_data.js check` ผ่านครบ **335 รายการตรงกัน**
+  - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
+  - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker ไร้ข้อผิดพลาด
+
+
 
 
 
