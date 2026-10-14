@@ -1147,8 +1147,164 @@
 
     .search-wrap { display: flex; flex-wrap: wrap; position: relative; gap: 6px; align-items: center; flex: 1; min-width: 160px; max-width: 340px; }
     .search-scope { order: 3; flex-basis: 100%; color: var(--muted-soft); font-size: 11px; }
-    .favorite-folders { margin: 16px 0; }
-    .favorite-folders p { color: var(--muted-soft); font-size: 12px; }
+    /* ===== Modern Streaming Resume & Personal Cards ===== */
+    .favorite-folders {
+      margin: 18px 0;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    .favorite-folders h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-strong);
+      margin: 0 0 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .favorite-folders p {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0 0 10px;
+      line-height: 1.5;
+    }
+    .resume-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    @media (max-width: 520px) {
+      .resume-grid { grid-template-columns: 1fr; }
+    }
+    .resume-card {
+      display: flex !important;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px 10px;
+      transition: transform .18s cubic-bezier(0.2, 0, 0, 1), border-color .18s, box-shadow .18s;
+      position: relative;
+      overflow: hidden;
+      margin: 0 !important;
+      max-width: 100%;
+    }
+    .resume-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+      transform: translateY(-2px);
+    }
+    .resume-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 0;
+      background: none;
+      border: none;
+      padding: 4px 2px;
+      text-align: left;
+      cursor: pointer;
+      color: inherit;
+      font: inherit;
+      min-height: 48px;
+      border-radius: 8px;
+    }
+    .resume-btn:focus-visible {
+      outline: 2px solid var(--accent-text);
+      outline-offset: 2px;
+    }
+    .resume-thumb-box {
+      position: relative;
+      width: 58px;
+      height: 44px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(99, 102, 241, 0.32));
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .resume-thumb-box.is-img {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(59, 130, 246, 0.32));
+    }
+    .resume-thumb-box.is-folder {
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(234, 88, 12, 0.32));
+    }
+    .resume-play-glyph {
+      font-size: 15px;
+      color: #fff;
+      opacity: 0.9;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+    }
+    .resume-progress-track {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3.5px;
+      background: rgba(255,255,255,0.2);
+    }
+    .resume-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #ef4444, #f87171);
+      box-shadow: 0 0 8px rgba(239,68,68,0.85);
+      border-radius: 0 2px 2px 0;
+    }
+    .resume-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+      gap: 3px;
+    }
+    .resume-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-strong);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.35;
+    }
+    .resume-time-tag {
+      font-size: 11.5px;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      line-height: 1.2;
+    }
+    .favorite-remove-btn {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s, transform .15s;
+      margin-left: 4px;
+    }
+    .favorite-remove-btn:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.3);
+      transform: scale(1.1);
+    }
     .favorite-folder { display: inline-flex; max-width: 100%; margin: 4px; }
     .favorite-folder button { min-height: 44px; overflow-wrap: anywhere; white-space: normal; }
     .cover-status { position: absolute; bottom: 8px; left: 8px; right: 8px; z-index: 3; border: 0; border-radius: 6px; padding: 8px; background: #18181be6; color: #eee; font: inherit; font-size: 12px; text-align: center; }
@@ -1465,13 +1621,32 @@
 
 
     /* Collection readability and narrow-screen layout */
-    .coll-card { min-width:0; }
+    .coll-card {
+      min-width:0;
+      border-radius:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.12);
+      transition:transform .18s cubic-bezier(0.2, 0, 0, 1), border-color .18s, box-shadow .18s;
+    }
+    .coll-card:hover {
+      transform:translateY(-2px);
+      box-shadow:0 6px 18px rgba(0,0,0,0.25);
+      border-color:var(--border-hover);
+    }
     .coll-card.dead { opacity:1; }
     .coll-id { color:var(--muted);font-family:inherit;font-size:13px;line-height:1.6;overflow-wrap:anywhere; }
     .coll-title { font-size:14px;line-height:1.6;overflow-wrap:anywhere; }
     .coll-actions { flex-wrap:wrap; }
     .coll-actions .btn-primary,.coll-actions .btn-ghost { min-height:44px;flex:1 1 90px; }
-    #collMissing { color:var(--text)!important;font-size:13px;line-height:1.7;background:var(--bg-elevated)!important;border-color:var(--border)!important; }
+    #collMissing { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:12px; }
+    .coll-stat-chip {
+      display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:500;
+      padding:3px 9px; border-radius:999px; background:var(--bg-elevated);
+      border:1px solid var(--border); color:var(--text); line-height:1.4;
+    }
+    .coll-stat-chip b { color:var(--text-strong); font-weight:700; }
+    .coll-stat-chip.is-avail { border-color:rgba(16,185,129,0.3); background:rgba(16,185,129,0.08); color:var(--success); }
+    .coll-stat-chip.is-dead { border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.08); color:var(--danger); }
+    .coll-stat-chip.is-unknown { border-color:var(--border); color:var(--muted); }
     #collSearch { padding-right:36px!important;max-width:100%; }
     #collSearch::placeholder { color:var(--muted);opacity:1; }
     #collectionsCard :focus-visible { outline:2px solid var(--accent-text);outline-offset:3px; }
@@ -1513,9 +1688,14 @@
     }
     #collSort {min-height:40px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-elevated);color:var(--text);font:inherit;}
     .coll-status {display:flex;flex-wrap:wrap;gap:6px;font-size:12px;line-height:1.5;}
-    .source-status {padding:4px 7px;border:1px solid var(--border);border-radius:6px;color:var(--muted);}
-    .source-status.available {color:var(--text);}
-    .source-status.unavailable {color:var(--danger);}
+    .source-status {
+      display:inline-flex; align-items:center; gap:4px;
+      padding:3px 8px; border:1px solid var(--border);
+      border-radius:6px; color:var(--muted); font-size:11.5px; line-height:1.3;
+    }
+    .source-status.available { border-color:rgba(16,185,129,0.25); background:rgba(16,185,129,0.08); color:#34d399; }
+    .source-status.unavailable { border-color:rgba(239,68,68,0.25); background:rgba(239,68,68,0.08); color:#f87171; }
+    .source-status.unknown { border-color:var(--border); background:rgba(255,255,255,0.03); color:var(--muted); }
     .card:has(#authRow) {padding:10px 14px;margin-bottom:12px;}
     #authRow {padding:0;border:0;background:none;gap:8px;}
     .card:has(#viewerForm) {padding:14px;margin-bottom:14px;}

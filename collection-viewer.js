@@ -1,4 +1,4 @@
-﻿// collection-viewer.js — Collection Viewer IIFE
+// collection-viewer.js — Collection Viewer IIFE
 // Depends on: collections-data.js (COLL_CHECKED_AT, XBEP_COLLECTION)
 // Depends on: window.GDVCollectionApi (the explicit boundary to the main app)
 (function(){
@@ -228,19 +228,27 @@
     var alive=XBEP_COLLECTION.length-dead;
     var dismissed = localStorage.getItem("gdv_coll_banner_dismiss")==="1";
     if(dismissed){ el.style.display="none"; return; }
-    el.textContent = "ทั้งหมด "+XBEP_COLLECTION.length+" รายการ · Drive ใช้ได้ตามข้อมูล "+XBEP_COLLECTION.filter(c=>c.dead===false).length+" · ใช้ไม่ได้ "+XBEP_COLLECTION.filter(c=>c.dead===true).length+" · ยังไม่ทราบสถานะ "+XBEP_COLLECTION.filter(c=>c.dead!==true && c.dead!==false).length;
+    var totalCount = XBEP_COLLECTION.length;
+    var driveOk = XBEP_COLLECTION.filter(c=>c.dead===false).length;
+    var driveDead = XBEP_COLLECTION.filter(c=>c.dead===true).length;
+    var driveUnknown = XBEP_COLLECTION.filter(c=>c.dead!==true && c.dead!==false).length;
+    el.innerHTML = '<span class="coll-stat-chip">📦 ทั้งหมด <b>' + totalCount + '</b></span>' +
+                   '<span class="coll-stat-chip is-avail">🟢 Drive พร้อม <b>' + driveOk + '</b></span>' +
+                   (driveDead ? '<span class="coll-stat-chip is-dead">🔴 ย้าย/เสีย <b>' + driveDead + '</b></span>' : '') +
+                   (driveUnknown ? '<span class="coll-stat-chip is-unknown">⚪ ยังไม่ตรวจ <b>' + driveUnknown + '</b></span>' : '');
     el.style.display="flex";
-    el.style.background= dead ? "rgba(255,77,77,.06)" : "rgba(16,185,129,.06)";
-    el.style.border= dead ? "1px solid rgba(255,77,77,.15)" : "1px solid rgba(16,185,129,.15)";
-    el.style.color= dead ? "var(--danger)" : "var(--success)";
+    el.style.background="transparent";
+    el.style.border="none";
+    el.style.padding="4px 0";
   })();
 
 
 
   function statusBadge(provider,dead){
     var state=dead===true ? 'unavailable' : dead===false ? 'available' : 'unknown';
-    var label=dead===true ? 'ใช้ไม่ได้' : dead===false ? 'ใช้ได้ตามข้อมูล' : 'ยังไม่ตรวจ';
-    return '<span class="source-status '+state+'">'+provider+': '+label+'</span>';
+    var dot=dead===true ? '🔴 ' : dead===false ? '🟢 ' : '⚪ ';
+    var label=dead===true ? 'เสีย' : dead===false ? 'พร้อม' : 'ยังไม่ตรวจ';
+    return '<span class="source-status '+state+'">'+dot+provider+' '+label+'</span>';
   }
   function collMatches(c){
     var driveAlive = !c.dead;

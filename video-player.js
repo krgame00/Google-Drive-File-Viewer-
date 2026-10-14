@@ -1398,33 +1398,50 @@
           const empty = document.createElement("p");
           empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
           section.appendChild(empty);
+          return;
         }
+        const grid = document.createElement("div");
+        grid.className = "resume-grid";
         items.forEach(item => {
-          const row = document.createElement("span");
-          row.className = "favorite-folder";
+          const row = document.createElement("div");
+          row.className = "favorite-folder resume-card";
           const button = document.createElement("button");
           button.type = "button";
-          button.className = "btn-ghost";
+          button.className = "resume-btn";
           const minutes = Math.floor(item.position / 60);
           const seconds = String(item.position % 60).padStart(2, "0");
-          button.textContent = "▶ " + item.name + " · ดูต่อ " + minutes + ":" + seconds;
+          const progressPercent = Math.min(96, Math.max(8, Math.round((item.position / (item.duration || (item.position + 120))) * 100)));
+          const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+
+          button.innerHTML = `
+            <div class="resume-thumb-box" aria-hidden="true">
+              <span class="resume-play-glyph">▶</span>
+              <div class="resume-progress-track"><div class="resume-progress-bar" style="width:${progressPercent}%"></div></div>
+            </div>
+            <div class="resume-info">
+              <span class="resume-title" title="${safeName}">${safeName}</span>
+              <span class="resume-time-tag">⏱ ดูต่อ ${minutes}:${seconds}</span>
+            </div>
+          `;
           button.onclick = () => {
             lsSet("gdv_vpos_" + item.id, item.position);
             openVideo(item.id, item.name);
           };
           const remove = document.createElement("button");
           remove.type = "button";
-          remove.className = "btn-ghost";
+          remove.className = "favorite-remove-btn";
           remove.textContent = "×";
           remove.setAttribute("aria-label", "ลบ " + item.name + " จากรายการดูต่อ");
-          remove.onclick = () => {
+          remove.onclick = (e) => {
+            e.stopPropagation();
             lsSet("gdv_continue", JSON.stringify(loadContinueWatching().filter(x => x.id !== item.id)));
             lsRemove("gdv_vpos_" + item.id);
             renderContinueWatching();
           };
           row.append(button, remove);
-          section.appendChild(row);
+          grid.appendChild(row);
         });
+        section.appendChild(grid);
       }
 
       function revokeCurrentVideo() {

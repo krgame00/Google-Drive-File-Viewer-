@@ -499,3 +499,46 @@
     - *iPhone 14 Portrait (390x844px):* กล่องวิดีโอ 16:9 (374x210.4px) และ 9:16 (360.8x641.4px) สัดส่วนแม่นยำ ไม่ล้นจอ
     - *iPad Mini Portrait (768x1024px) & Landscape (1024x768px):* แสดงผลเต็มพื้นที่ 16:9 พอดี ไร้ Scrollbar
     - *Desktop (1920x1080px):* ขนาด 921.6x518.4px สัดส่วน 16:9 คมชัดตรงกลางหน้าจอ
+
+### 30. UI Redesign: Modern Streaming Aesthetic for Personal Library and Collections (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาเดิมก่อนปรับปรุง:**
+  1. **Personal Library (ดูต่อจากครั้งล่าสุด, ดูภายหลัง, ★ รายการโปรด):**
+     - แสดงผลเป็นกล่องข้อความทึบดิบ (`.favorite-folder button`) ที่มีชื่อไฟล์ยาวเหยียดและข้อความกำกับยาวเทอะทะ
+     - ขาด Thumbnail พรีวิว, ขาดแถบ Progress Bar แสดงตำแหน่งที่ดูค้างไว้ ทำให้ดูไม่ออกว่าดูไปถึงไหนแล้ว
+     - ปุ่มลบเป็นปุ่มสี่เหลี่ยมติดกัน ไม่มีความสวยงามระดับแอปสตรีมมิ่งชั้นนำ
+  2. **คลัง XBep:**
+     - Status Banner ด้านบน (`#collMissing`) แสดงเป็นข้อความพารากราฟสีเทาทึบยาวเหยียด อ่านยากและเปลืองพื้นที่แนวตั้ง
+     - สถานะของแต่ละการ์ดใช้คำพรรณนายาว เช่น `Drive: ใช้ได้ตามข้อมูล` กว้างจนกินพื้นที่หลายบรรทัด
+     - ตัวการ์ดขาดความลึก มิติ และความนุ่มนวล
+- **การเปลี่ยนแปลงที่ดำเนินการ (Implementation Details):**
+  1. **ยกเครื่องโครงสร้าง Personal Library เป็น Modern Streaming Cards:**
+     - **`video-player.js` (`renderContinueWatching`):**
+       - สร้างการ์ด `.resume-card` พร้อมกล่อง Thumbnail จำลอง `.resume-thumb-box` ที่มี Play Glyph และ **Glowing Progress Bar** (`.resume-progress-bar`) คำนวณเปอร์เซ็นต์ตามตำแหน่งจริง
+       - ชื่อเรื่อง `.resume-title` ตัด Ellipsis นุ่มนวล ไม่ดันความกว้างการ์ด
+       - มี Badge เวลา `.resume-time-tag` แสดง `⏱ ดูต่อ M:SS`
+       - ปุ่มลบ `.favorite-remove-btn` แบบวงกลมมินิมอล มี Hover Micro-animation (สีแดงอ่อน + ขยาย 1.1x)
+     - **`app-core.js` (`renderPersonalLibrary`):**
+       - ปรับรายการ "ดูภายหลัง" ให้ใช้ `.resume-card` ร่วมกับ Grid Layout
+       - แยก Icon ตามประเภทอย่างชัดเจน: `▶` สำหรับวิดีโอ (Gradient สีแดง-ม่วง) และ `🖼` สำหรับรูปภาพ (Gradient สีเขียว-ฟ้า) พร้อมป้ายบอกประเภท
+     - **`drive-explorer.js` (`renderFavoriteFolders`):**
+       - ปรับรายการ "★ รายการโปรด" ให้ใช้ `.resume-card` พร้อมกล่องไอคอน `📁` สีส้ม-อำพัน และป้าย `★ โฟลเดอร์โปรด`
+  2. **ปรับโฉมคลัง XBep ให้กะทัดรัดและคลีนพรีเมียม:**
+     - **`collection-viewer.js` (`statusBadge` & Status Banner):**
+       - ปรับ Status Banner ให้เป็น **Dashboard Pill Chips** สไตล์โมเดิร์น: `📦 ทั้งหมด 335`, `🟢 Drive พร้อม 173`, `🔴 ย้าย/เสีย 162` ลดความสูงแนวตั้งและอ่านง่ายทันที
+       - ปรับ `statusBadge` ให้เป็น Dot Status Badge กระชับ: `🟢 Drive พร้อม`, `🔴 Drive เสีย`, `⚪ MEGA ยังไม่ตรวจ` ประหยัดพื้นที่การ์ดได้กว่า 50%
+  3. **ขัดเกลา CSS สไตล์ Modern Streaming (`styles.css`):**
+     - เพิ่มชุดคลาส `.resume-card`, `.resume-btn`, `.resume-thumb-box`, `.resume-progress-bar`, `.favorite-remove-btn`
+     - ปรับ `.coll-card` ให้มุมโค้ง 12px พร้อม Soft Shadow และ Hover Lift (`transform: translateY(-2px)`)
+     - รองรับ Responsive แบบ Grid อัตโนมัติ (`minmax(280px, 1fr)`) และเปลี่ยนเป็น Single Column อัตโนมัติบนจอมือถือ (<520px)
+  4. **อัปเดต Cache Busting เป็น `?v=20261014-r6` (`index.html`):**
+     - อัปเดต version query string ทั้งใน `styles.css` และ 7 สคริปต์ ให้ผู้ใช้ได้รับเวอร์ชันใหม่ทันทีโดยไม่ต้องเคลียร์แคชเอง
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures)**
+  - **Data Integrity:** `node tools/collection_data.js check` ถูกต้องครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Visual & Accessibility Inspection ผ่าน Chrome DevTools MCP:**
+    - ตรวจสอบ Accessibility Tree บน Mobile Viewport (390x844px): ทุกปุ่มมี Accessible Name และ ARIA Label ครบถ้วน
+    - ตรวจสอบการ์ดคลัง XBep: Dot Status Pill แสดงผลคมชัด กะทัดรัด ไม่เบียดกัน
+    - Dashboard Pill Chips: แสดงผล `📦 ทั้งหมด 335`, `🟢 Drive พร้อม 173`, `🔴 ย้าย/เสีย 162` ชัดเจน สวยงาม
+

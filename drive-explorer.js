@@ -279,13 +279,28 @@
           document.getElementById("browserCard").before(section);
         }
         section.innerHTML = '<h3>★ รายการโปรด</h3><p>บันทึกในเบราว์เซอร์นี้ · เปิดโฟลเดอร์แล้วกด ☆ เพื่อเพิ่ม</p>';
-        loadFavoriteFolders().forEach(item => {
-          const row = document.createElement("span");
-          row.className = "favorite-folder";
+        const favs = loadFavoriteFolders();
+        if (!favs.length) {
+          return;
+        }
+        const grid = document.createElement("div");
+        grid.className = "resume-grid";
+        favs.forEach(item => {
+          const row = document.createElement("div");
+          row.className = "favorite-folder resume-card";
           const open = document.createElement("button");
           open.type = "button";
-          open.className = "btn-ghost";
-          open.textContent = item.name;
+          open.className = "resume-btn";
+          const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+          open.innerHTML = `
+            <div class="resume-thumb-box is-folder" aria-hidden="true">
+              <span class="resume-play-glyph">📁</span>
+            </div>
+            <div class="resume-info">
+              <span class="resume-title" title="${safeName}">${safeName}</span>
+              <span class="resume-time-tag">★ โฟลเดอร์โปรด</span>
+            </div>
+          `;
           open.onclick = () => {
             navStack = [{ id: item.id, name: item.name }];
             pushHash(item.id);
@@ -293,17 +308,19 @@
           };
           const remove = document.createElement("button");
           remove.type = "button";
-          remove.className = "btn-ghost";
+          remove.className = "favorite-remove-btn";
           remove.textContent = "×";
           remove.setAttribute("aria-label", "ลบ " + item.name + " จากรายการโปรด");
-          remove.onclick = () => {
+          remove.onclick = (e) => {
+            e.stopPropagation();
             lsSet("gdv_favorites", JSON.stringify(loadFavoriteFolders().filter(x => x.id !== item.id)));
             renderFavoriteFolders();
             renderBreadcrumb();
           };
           row.append(open, remove);
-          section.appendChild(row);
+          grid.appendChild(row);
         });
+        section.appendChild(grid);
       }
 
       function showFolderCoverStatus(target, failed) {

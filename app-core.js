@@ -1291,15 +1291,32 @@
         section.innerHTML = '<h3>ดูภายหลัง</h3><p>เก็บรูปและวิดีโอไว้เปิดภายหลังในเบราว์เซอร์นี้</p><div class="later-items"></div><details><summary>สำรองข้อมูลและตั้งค่าปก</summary><div class="personal-tools"></div></details>';
         section.querySelector("details").open = settingsOpen;
         const items = section.querySelector(".later-items");
-        if (!data.watchLater.length) items.textContent = "กด + ดูภายหลัง บนรูปหรือวิดีโอเพื่อเพิ่มรายการ";
+        if (!data.watchLater.length) {
+          items.textContent = "กด + ดูภายหลัง บนรูปหรือวิดีโอเพื่อเพิ่มรายการ";
+        } else {
+          items.classList.add("resume-grid");
+        }
         data.watchLater.forEach(item => {
-          const row = document.createElement("span"); row.className = "favorite-folder";
-          const open = document.createElement("button"); open.type = "button"; open.className = "btn-ghost";
-          open.textContent = (item.kind === "video" ? "▶ " : "▧ ") + item.name;
+          const row = document.createElement("div"); row.className = "favorite-folder resume-card";
+          const open = document.createElement("button"); open.type = "button"; open.className = "resume-btn";
+          const isVid = item.kind === "video";
+          const icon = isVid ? "▶" : "🖼";
+          const kindLabel = isVid ? "🎬 วิดีโอ" : "🖼 รูปภาพ";
+          const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+          open.innerHTML = `
+            <div class="resume-thumb-box ${isVid ? 'is-video' : 'is-img'}" aria-hidden="true">
+              <span class="resume-play-glyph">${icon}</span>
+            </div>
+            <div class="resume-info">
+              <span class="resume-title" title="${safeName}">${safeName}</span>
+              <span class="resume-time-tag">${kindLabel}</span>
+            </div>
+          `;
           open.onclick = () => handleFileClick(item.id, item.kind, item.name);
-          const remove = document.createElement("button"); remove.type = "button"; remove.className = "btn-ghost"; remove.textContent = "×";
+          const remove = document.createElement("button"); remove.type = "button"; remove.className = "favorite-remove-btn"; remove.textContent = "×";
           remove.setAttribute("aria-label", "ลบ " + item.name + " จากดูภายหลัง");
-          remove.onclick = () => {
+          remove.onclick = (e) => {
+            e.stopPropagation();
             if (updatePersonalData(state => { state.watchLater = state.watchLater.filter(x => x.id !== item.id); })) { renderPersonalLibrary(); attachPersonalButtons(); }
           };
           row.append(open, remove); items.appendChild(row);
