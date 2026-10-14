@@ -334,28 +334,19 @@
         if (!videoModal.classList.contains("show") || vidCurrentId !== id) return;
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
-
         vidPlayer.oncanplay = null;
-
         vidPlayer.onerror = null;
-
         vidPlayer.pause();
-
         vidPlayer.removeAttribute("src");
         vidPlayer.load();
-
         vidPlayer.style.display = "none";
-
         configurePreviewFullscreen();
         vidFrame.setAttribute('data-video-preview', 'true');
-        setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน');
-
         vidFrame.style.display = "block";
         fitVideoPreview();
         applyPreviewAspect(id);
-
+        setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน · หากขึ้นกำลังประมวลผลหรือดูไม่ได้ กด “โหลดทั้งไฟล์แทน” หรือ “เปิดใน VLC / แอปนอก” ด้านล่าง');
         vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
-
       }
 
       function resetPdfViewer() {

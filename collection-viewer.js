@@ -21,6 +21,17 @@
   const countEl = document.getElementById("collCount");
 
   if(!grid) return;
+  if(typeof XBEP_COLLECTION === "undefined"){
+    var dataScript = document.createElement("script");
+    dataScript.src = "collections-data.js";
+    dataScript.onload = function(){
+      var viewerScript = document.createElement("script");
+      viewerScript.src = "collection-viewer.js";
+      document.body.appendChild(viewerScript);
+    };
+    document.body.appendChild(dataScript);
+    return;
+  }
 
   // group dates for chips
 
@@ -178,7 +189,7 @@
 
   if(toggleBtn) toggleBtn.addEventListener("click", function(){
 
-    collapsed=!collapsed; localStorage.setItem("gdv_coll_collapsed", collapsed?"1":"0"); applyCollapsed(); if(!collapsed) render();
+    collapsed=!collapsed; localStorage.setItem("gdv_coll_collapsed", collapsed?"1":"0"); applyCollapsed(); if(!collapsed){ renderChips(); render(); }
 
   });
 
@@ -186,7 +197,7 @@
 
   var chipsExpanded = localStorage.getItem("gdv_coll_chips_exp")==="1";
   function renderChips(){
-    if(!chipsWrap) return;
+    if(!chipsWrap || collapsed) return;
     chipsWrap.innerHTML="";
     chipsWrap.className = "filter-chips" + (chipsExpanded ? "" : " collapsed");
     chipList.forEach(function(c){

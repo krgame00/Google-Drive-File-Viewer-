@@ -289,3 +289,26 @@
   - `node tools/collection_data.js check` ข้อมูลสองฝั่งตรงกันครบ **335 รายการ**
   - `py -B tests/test_patch_alive_sync.py` ผ่านฉลุย
   - `node --check` ผ่านหมดทุกไฟล์ JS/MJS
+
+### 23. Extended 8-Feature Patch (`apply_project_fixes_single (1).zip` — `2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ที่มา:** ไฟล์อัปเดตสคริปต์ `apply_project_fixes.py` ขนาด 84 KB (1,508 บรรทัด) ใน `apply_project_fixes_single (1).zip`
+- **ฟีเจอร์ใหม่และจุดปรับปรุงทั้ง 8 ข้อ:**
+  1. **ปุ่มพรีวิว Google ด่วน (`#vidQuickPreview`):** เพิ่มบนแถบควบคุม `.video-toolbar` ให้สลับไปใช้พรีวิว Google ได้ทันทีโดยไม่ต้องรอให้ระบบสตรีมล้มเหลว
+  2. **สตรีมออกเครื่องเล่นภายนอก (`#vidExternalPlayer`):** เพิ่มปุ่ม "เปิดใน VLC / แอปนอก" เชื่อม `openInExternalPlayer(id)` สร้างโปรโตคอล `vlc://https://...` และคัดลอกลิงก์สตรีมลงคลิปบอร์ด สำหรับไฟล์ Codec พิเศษ (MKV, HEVC, 10-bit Hi10P)
+  3. **ทำสำเนาเข้า Google Drive แก้โควตา (`#vidCopyDrive`):** เพิ่มปุ่ม "สำเนาเข้า Drive ของฉัน" เชื่อม `copyVideoToMyDrive(id)` ยิง Google Drive API `files.copy` พร้อม `supportsAllDrives=true` เพื่อโคลนไฟล์ที่ติด `downloadQuotaExceeded` ไปยัง Drive ส่วนตัวและสลับมาเปิดเล่นไฟล์สำเนาทันที
+  4. **Deferred Collection Data:** ใส่แอตทริบิวต์ `defer` บน `<script src="collections-data.js">` และ `<script src="collection-viewer.js">` เพื่อเร่ง First Contentful Paint พร้อมระบบ On-Demand fallback ใน `collection-viewer.js` หากข้อมูลยังไม่พร้อม
+  5. **Collection Collapsed Skip:** ข้ามการวาด DOM filter chips และ items หากผู้ใช้พับการแสดงผลคอลเลกชันไว้ (`gdv_coll_collapsed=1`)
+  6. **Parallel Files Map (LRU Cache 10 ไฟล์):** ปรับปรุง `cloudflare-drive-worker.mjs` และ `drive-stream-sw.js` โดยเปลี่ยนจากการจำสถานะขนานไฟล์เดียว (`parallelOk = id`) เป็น `parallelFiles = new Map()` เก็บประวัติ 10 ไฟล์ล่าสุดแบบ LRU ทำให้สตรีม 4-way parallel ต่อเนื่องแม้มีการสลับไฟล์ไปมา
+  7. **ตรวจจับ Codec ไม่รองรับและสลับพรีวิวอัตโนมัติ:** เมื่อ probe พบ `codec:...` ที่เบราว์เซอร์เล่นไม่ได้ ระบบจะเรียก `fallbackIframe(id)` ให้ทันทีพร้อมขึ้นคำแนะนำทางเลือกเปิดใน VLC
+  8. **แคชสัดส่วนคลิปใน `localStorage` (`gdv_video_aspects`):** ฟังก์ชัน `saveCachedVideoAspect` / `loadCachedVideoAspect` บันทึกสัดส่วนวิดีโอ (จำกัด 100 รายการ) ทำให้เมื่อกลับมาเปิดคลิปเดิม กรอบพรีวิวจะปรับเป็น 9:16 หรือ 16:9 ได้ทันที
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านครบทั้ง **159/159 tests PASS (0 failures, duration ~23s)**
+  - เพิ่ม 3 ชุดทดสอบใหม่:
+    - Multi-file parallel LRU ใน `tests/public-worker.cjs`
+    - VLC external player launch ใน `tests/video-layout.cjs`
+    - Drive API copy file quota workaround ใน `tests/video-layout.cjs`
+  - `node tools/collection_data.js check` ตรงกันทั้งสองฝั่งครบ **335 รายการ**
+  - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
+  - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker
+

@@ -1711,7 +1711,7 @@
     .video-toolbar { display: flex; gap: 8px; padding: 8px; flex: 0 0 auto; background: #111; }
     .video-toolbar .lb-close, .video-toolbar .media-nav { position: static; transform: none; width: 44px; height: 44px; flex: 0 0 44px; font-size: 26px; }
     .video-toolbar .lb-close { order: 3; margin-left: auto; }
-    #vidFullscreen, #vidAspectToggle { min-height: 44px; padding: 8px 12px; margin-left: 4px; }
+    #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 44px; padding: 8px 12px; margin-left: 4px; }
     .video-box:fullscreen { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden; }
     .video-box:fullscreen .ratio, .video-box:fullscreen .ratio[data-orientation="portrait"] { flex: 1 1 0; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; }
     .video-box:fullscreen .video-footer { display: none; }

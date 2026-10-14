@@ -98,7 +98,7 @@
         if (info && (state === 'closed' || state === 'connecting')) info.open = false;
         if (status) status.setAttribute('data-preview-note', state === 'preview' ? 'true' : 'false');
         if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
-        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } if (state === 'error' && prev !== 'error' && help) help.open = true; }
+        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } if (((state === 'error' && prev !== 'error') || (state === 'preview' && prev !== 'preview')) && help) help.open = true; }
         else if (state === 'closed') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
         else { vidLoading.classList.add('show'); if (status) status.hidden = true; if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…'); }
         return videoStatus;
@@ -438,6 +438,31 @@
                     } catch (_) {}
                   }
                 }
+                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
+                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
+                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
+                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
+                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
+                    try {
+                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
+                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
+                        reader = tailRes.body.getReader();
+                        let tail = new Uint8Array(0), tailLen = 0;
+                        while (!settled && tailLen < cap) {
+                          const part = await reader.read();
+                          if (settled || part.done) break;
+                          const next = new Uint8Array(tailLen + part.value.byteLength);
+                          next.set(tail); next.set(part.value, tailLen);
+                          tail = next; tailLen = tail.length;
+                          const info = readMp4CodecInfo(tail);
+                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
+                        }
+                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
+                        await tailRes.body.cancel();
+                      }
+                    } catch (_) {}
+                  }
+                }
                 const webm = length >= 4 && head[0] === 26 && head[1] === 69 && head[2] === 223 && head[3] === 163;
                 const text = Array.from(head.subarray(0, Math.min(length, 16))).map(function (x) { return String.fromCharCode(x); }).join('').trim();
                 done(mp4 || webm ? 'works' : /^[<{\[]/.test(text) ? 'invalid' : 'unknown');
@@ -472,6 +497,27 @@
         return Math.min(2.2, Math.max(0.45, ratio));
       }
 
+      function loadCachedVideoAspect(id) {
+        if (!id || typeof lsGet !== 'function') return null;
+        try {
+          const items = JSON.parse(lsGet('gdv_video_aspects') || '[]');
+          if (!Array.isArray(items)) return null;
+          const found = items.find(function (x) { return x && x.id === id && Number.isFinite(x.aspect) && x.aspect >= 0.45 && x.aspect <= 2.2; });
+          return found ? Number(found.aspect) : null;
+        } catch (_) { return null; }
+      }
+
+      function saveCachedVideoAspect(id, aspect) {
+        const val = Number(aspect);
+        if (!id || typeof lsGet !== 'function' || typeof lsSet !== 'function' || !Number.isFinite(val) || val < 0.45 || val > 2.2) return;
+        try {
+          const raw = JSON.parse(lsGet('gdv_video_aspects') || '[]');
+          const list = Array.isArray(raw) ? raw.filter(function (x) { return x && typeof x.id === 'string' && x.id !== id && Number.isFinite(x.aspect); }) : [];
+          list.push({ id: id, aspect: val, at: Date.now() });
+          lsSet('gdv_video_aspects', JSON.stringify(list.slice(-100)));
+        } catch (_) {}
+      }
+
       function applyPreviewAspect(id) {
         // ปรับกรอบพรีวิวให้ตรงสัดส่วนวิดีโอจริง ไม่ล็อก 16:9 (วิดีโอแนวตั้งจะได้กรอบสูง ไม่เป็นแถบเล็ก ๆ กลางจอ)
         const ratioEl = vidFrame.parentElement;
@@ -483,7 +529,15 @@
         const cw = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.width);
         const ch = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.height);
         if (cw > 0 && ch > 0) {
-          previewAspect = { id: id, value: clampPreviewAspect(cw, ch) };
+          const val = clampPreviewAspect(cw, ch);
+          previewAspect = { id: id, value: val };
+          if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
+          applyVideoAspect();
+          return;
+        }
+        const remembered = typeof loadCachedVideoAspect === 'function' ? loadCachedVideoAspect(id) : null;
+        if (remembered) {
+          previewAspect = { id: id, value: remembered };
           applyVideoAspect();
           return;
         }
@@ -495,7 +549,9 @@
             if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const tw = Number(img.naturalWidth || img.width), th = Number(img.naturalHeight || img.height);
             if (tw > 0 && th > 0) {
-              previewAspect = { id: id, value: clampPreviewAspect(tw, th) };
+              const val = clampPreviewAspect(tw, th);
+              previewAspect = { id: id, value: val };
+              if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
               applyVideoAspect();
             } else {
               fitVideoPreview();
@@ -516,7 +572,9 @@
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
             if (!w || !h) { probeThumb(meta && meta.thumbnailLink); return; }
-            previewAspect = { id: id, value: clampPreviewAspect(w, h) };
+            const val = clampPreviewAspect(w, h);
+            previewAspect = { id: id, value: val };
+            if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
             applyVideoAspect();
           })
           .catch(function () { probeThumb(); });
@@ -592,8 +650,76 @@
         const next = current && current < 1 ? 16 / 9 : 9 / 16;
         previewAspect = { id: vidCurrentId, value: next };
         vidPlayer.playerAspect = next;
+        if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(vidCurrentId, next);
         applyVideoAspect();
         return next;
+      }
+
+      function openInExternalPlayer(id) {
+        const targetId = id || vidCurrentId;
+        if (!targetId) return null;
+        const streamUrl = 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(targetId);
+        const vlcUrl = 'vlc://' + streamUrl;
+        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          Promise.resolve(navigator.clipboard.writeText(streamUrl)).catch(function () {});
+        }
+        if (typeof showToast === 'function') {
+          showToast('กำลังส่งสตรีมเข้าแอป VLC… (คัดลอกลิงก์สตรีมให้แล้วหากต้องการวางในแอปอื่น)');
+        }
+        try {
+          if (typeof document !== 'undefined' && document.createElement) {
+            const a = document.createElement('a');
+            a.href = vlcUrl;
+            a.rel = 'noopener';
+            if (typeof a.click === 'function') a.click();
+          } else if (typeof window !== 'undefined' && window.location) {
+            window.location.href = vlcUrl;
+          }
+        } catch (_) {}
+        return vlcUrl;
+      }
+
+      function copyVideoToMyDrive(id) {
+        const targetId = id || vidCurrentId;
+        if (!targetId) return Promise.resolve(null);
+        const session = mediaSession;
+        const runCopy = function (token) {
+          if (!token) {
+            if (typeof showToast === 'function') showToast('กรุณาเชื่อมต่อบัญชี Google ก่อนทำสำเนาเข้า Drive ของคุณ');
+            return Promise.resolve(null);
+          }
+          if (typeof showToast === 'function') showToast('กำลังทำสำเนาไฟล์เข้า Google Drive ของคุณ…');
+          const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(targetId) + '/copy?supportsAllDrives=true&fields=id,name,mimeType,size,videoMediaMetadata(width,height)';
+          return fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+          }).then(function (res) {
+            if (!res || !res.ok) throw new Error('copy-failed-' + (res ? res.status : 0));
+            return res.json();
+          }).then(function (copied) {
+            if (!copied || !copied.id) throw new Error('copy-invalid');
+            if (session !== mediaSession || !videoModal.classList.contains('show')) return copied;
+            if (typeof showToast === 'function') showToast('ทำสำเนาเข้า Drive สำเร็จ กำลังเปิดเล่นไฟล์สำเนา…');
+            try {
+              const titleText = copied.name || (typeof vidTitle !== 'undefined' && vidTitle && vidTitle.textContent) || 'วิดีโอ (สำเนา)';
+              if (typeof appApi !== 'undefined' && appApi && typeof appApi.openVideo === 'function') appApi.openVideo(copied.id, titleText);
+              else openVideo(copied.id, titleText);
+            } catch (_) {}
+            return copied;
+          }).catch(function () {
+            if (typeof showToast === 'function') showToast('ทำสำเนาเข้า Drive ไม่สำเร็จ (ตรวจสอบพื้นที่ Drive หรือสิทธิ์บัญชี)');
+            return null;
+          });
+        };
+        if (accessToken) return runCopy(accessToken);
+        if (typeof ensureToken === 'function') {
+          return Promise.resolve(ensureToken(true)).then(runCopy).catch(function () { return runCopy(null); });
+        }
+        return runCopy(null);
       }
 
       function applyNativeVideoAspect() {
@@ -601,6 +727,9 @@
         const aspect = Number(vidPlayer.videoWidth) / Number(vidPlayer.videoHeight);
         if (!Number.isFinite(aspect) || aspect <= 0) return;
         vidPlayer.playerAspect = aspect;
+        if (vidCurrentId && typeof saveCachedVideoAspect === 'function' && typeof clampPreviewAspect === 'function') {
+          saveCachedVideoAspect(vidCurrentId, clampPreviewAspect(vidPlayer.videoWidth, vidPlayer.videoHeight));
+        }
         applyVideoAspect();
       }
 
@@ -694,6 +823,12 @@
                     if (session !== mediaSession || failedAttempt !== videoAttempt || !videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
                     const status = document.getElementById('vidErrorStatus');
                     if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(MEDIA_STREAM_FAIL_MSG) !== 0) return;
+                    if (String(verdict).indexOf('codec:') === 0 && typeof fallbackIframe === 'function') {
+                      const codecLabel = String(verdict).slice(6);
+                      fallbackIframe(id);
+                      setVideoStatus('preview', 'สลับมาใช้พรีวิว Google อัตโนมัติ (ไฟล์ใช้การเข้ารหัส ' + codecLabel + ' ซึ่งเบราว์เซอร์ถอดรหัสไม่ได้) · หากพรีวิวดูไม่ได้ กด “เปิดใน VLC / แอปนอก” ด้านล่าง');
+                      return;
+                    }
                     setVideoStatus('error', verdict === 'auth'
                       ? 'Google ปฏิเสธการดาวน์โหลดไฟล์นี้ (สิทธิ์หรือโควตา) — ใช้พรีวิว Google หรือเปิดใน Drive'
                       : String(verdict).indexOf('codec:') === 0
@@ -1355,6 +1490,8 @@
     calculatePreviewLayout,
     fitVideoPreview,
     clampPreviewAspect,
+    loadCachedVideoAspect,
+    saveCachedVideoAspect,
     applyPreviewAspect,
     configurePreviewFullscreen,
     lockHorizontalPlayerOrientation,
@@ -1362,6 +1499,8 @@
     releasePlayerOrientation,
     applyVideoAspect,
     togglePreviewAspect,
+    openInExternalPlayer,
+    copyVideoToMyDrive,
     applyNativeVideoAspect,
     togglePlayerFullscreen,
     prepareStreamWorker,

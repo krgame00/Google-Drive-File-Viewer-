@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {loadVideoPlayerApi}=require('./helpers/load-video-player-api.cjs');
 
 function setup(){
-  const calls=[],box={},ratioAttrs=new Map(),attrs=new Map();
+  const calls=[],box={},ratioAttrs=new Map(),attrs=new Map(),store={};
   const ratio={
     style:{},
     getBoundingClientRect:()=>({width:390,height:220}),
@@ -13,6 +13,7 @@ function setup(){
   };
   const aspectBtn={textContent:'สลับแนว ↕↔'};
   const player={videoWidth:1920,videoHeight:1080,style:{display:'block'}};
+  const toasts=[],opened=[];
   const bridge={
     vidPlayer:player,
     previewAspect:null,
@@ -20,16 +21,25 @@ function setup(){
     vidCurrentId:'fileA',
     accessToken:'test-token',
     mediaThumbs:{},
+    vidTitle:{textContent:'คลิปทดสอบ.mp4'},
+    lsGet:k=>(k in store?store[k]:null),
+    lsSet:(k,v)=>{store[k]=String(v);},
+    showToast:msg=>toasts.push(msg),
+    openVideo:(id,name)=>opened.push({id,name}),
     fileMetaOf:()=>null,
     vidFrame:{parentElement:ratio,getAttribute:key=>attrs.get(key),style:{setProperty(){}}},
     videoModal:{querySelector:()=>box,classList:{contains:()=>true}},
-    document:{fullscreenElement:null,getElementById:id=>id==='vidAspectToggle'?aspectBtn:null},
+    document:{
+      fullscreenElement:null,
+      getElementById:id=>id==='vidAspectToggle'?aspectBtn:null,
+      createElement:()=>({click(){calls.push('vlc-click');}})
+    },
     window:{screen:{orientation:{lock:value=>{calls.push(value);return Promise.resolve();},unlock:()=>calls.push('unlock')}}},
     fetch:async()=>({ok:true,json:async()=>({})}),
     authParams:()=>({mode:'bearer'})
   };
   const api=loadVideoPlayerApi(bridge);
-  return {api,bridge,calls,box,ratio,ratioAttrs,attrs,player,aspectBtn};
+  return {api,bridge,calls,box,ratio,ratioAttrs,attrs,player,aspectBtn,store,toasts,opened};
 }
 
 test('native portrait and ultrawide clips use their actual dimensions',()=>{
@@ -114,7 +124,7 @@ test('applyPreviewAspect falls back to thumbnail dimensions when signed out or m
   assert.equal(ratioAttrs.get('data-orientation'),'portrait');
 });
 
-test('togglePreviewAspect flips between portrait 9:16 and landscape 16:9 and updates button label',()=>{
+test('togglePreviewAspect flips between portrait 9:16 and landscape 16:9 and persists aspect across sessions',()=>{
   const {api,bridge,ratio,ratioAttrs,attrs,aspectBtn}=setup();
   attrs.set('data-video-preview','true');
   bridge.previewAspect={id:'fileA',value:9/16};
@@ -131,4 +141,28 @@ test('togglePreviewAspect flips between portrait 9:16 and landscape 16:9 and upd
   assert.equal(Number(ratio.style.aspectRatio),9/16);
   assert.equal(ratioAttrs.get('data-orientation'),'portrait');
   assert.equal(aspectBtn.textContent,'แนวตั้ง ↕');
+  assert.equal(api.loadCachedVideoAspect('fileA'),9/16);
+});
+
+test('openInExternalPlayer builds vlc:// stream URL for Cloudflare Worker and triggers link',()=>{
+  const {api,calls,toasts}=setup();
+  const url=api.openInExternalPlayer('fileVLC');
+  assert.equal(url,'vlc://https://google-drive-file-viewer.missnlpp9.workers.dev/?id=fileVLC');
+  assert(calls.includes('vlc-click'));
+  assert.equal(toasts.length,1);
+});
+
+test('copyVideoToMyDrive copies file via Drive API and opens the new copy when quota blocked',async()=>{
+  const {api,bridge,toasts,opened}=setup();
+  let calledUrl=null,calledMethod=null;
+  bridge.fetch=async(url,opts)=>{
+    calledUrl=url;calledMethod=opts.method;
+    return {ok:true,json:async()=>({id:'copiedFile123',name:'สำเนาคลิป.mp4'})};
+  };
+  const res=await api.copyVideoToMyDrive('fileOrig');
+  assert.match(calledUrl,/files\/fileOrig\/copy\?supportsAllDrives=true/);
+  assert.equal(calledMethod,'POST');
+  assert.equal(res.id,'copiedFile123');
+  assert.deepEqual(opened,[{id:'copiedFile123',name:'สำเนาคลิป.mp4'}]);
+  assert(toasts.some(t=>t.includes('ทำสำเนาเข้า Drive สำเร็จ')));
 });

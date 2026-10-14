@@ -21,9 +21,17 @@ export function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 }
 // One prefetched chunk for the next media request; lost if the isolate restarts.
 let ahead = null;
-// Files whose source answered with a usable length stream in parallel.
+// Files whose source answered with a usable length stream in parallel (LRU up to 10 files).
 let parallelOk = null;
 let parallelTotal = null;
+const parallelFiles = new Map();
+function rememberParallelFile(id, total) {
+  parallelOk = id;
+  parallelTotal = total;
+  if (parallelFiles.has(id)) parallelFiles.delete(id);
+  parallelFiles.set(id, total);
+  if (parallelFiles.size > 10) parallelFiles.delete(parallelFiles.keys().next().value);
+}
 async function fetchParallelChunk(id, start, end, signal, fetchImpl) {
   // Split one bounded interval into four sub-intervals fetched in parallel
   // through the confirmation flow and stream them in order; returns
@@ -238,8 +246,10 @@ export function createDriveWorker(fetchImpl = fetch) {
           ahead = null;
         }
       }
-      const reachesKnownEnd = parallelOk === id && parallelTotal !== null && requestedBound && BigInt(requestedBound[2]) >= parallelTotal;
-      if (!result && request.method === 'GET' && requestedBound && boundedMediaRange(range) !== range && parallelOk === id && !reachesKnownEnd) {
+      const canParallel = parallelOk === id || parallelFiles.has(id);
+      const knownTotal = parallelFiles.has(id) ? parallelFiles.get(id) : (parallelOk === id ? parallelTotal : null);
+      const reachesKnownEnd = canParallel && knownTotal !== null && requestedBound && BigInt(requestedBound[2]) >= knownTotal;
+      if (!result && request.method === 'GET' && requestedBound && boundedMediaRange(range) !== range && canParallel && !reachesKnownEnd) {
         result = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), abort.signal, fetchImpl);
       }
       if (!result) result = await fetchMediaChunk(id, range, abort.signal, fetchImpl);
@@ -248,9 +258,8 @@ export function createDriveWorker(fetchImpl = fetch) {
       // A source that reports usable lengths can be fetched in parallel from
       // the next interval on; lengthless answers keep the single connection.
       if (res.status === 206 && res.headers.get('Content-Length')) {
-        parallelOk = id;
         const totalMatch = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
-        parallelTotal = totalMatch && totalMatch[1] !== '*' ? BigInt(totalMatch[1]) : null;
+        rememberParallelFile(id, totalMatch && totalMatch[1] !== '*' ? BigInt(totalMatch[1]) : (parallelFiles.get(id) || null));
       }
       // A capped request must return a partial 206, never a full-file 200.
       // A readable interval header must match the request; when Google hides
@@ -296,8 +305,10 @@ export function createDriveWorker(fetchImpl = fetch) {
           const controller = new AbortController();
           const entry = {id: id, start: nextStart, controller: controller};
           const nextEnd = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
-          const nextReachesEnd = parallelTotal !== null && nextEnd >= parallelTotal;
-          entry.promise = (parallelOk === id && !nextReachesEnd
+          const activeParallel = parallelOk === id || parallelFiles.has(id);
+          const activeTotal = parallelFiles.has(id) ? parallelFiles.get(id) : (parallelOk === id ? parallelTotal : null);
+          const nextReachesEnd = activeTotal !== null && nextEnd >= activeTotal;
+          entry.promise = (activeParallel && !nextReachesEnd
             ? fetchParallelChunk(id, nextStart, nextEnd, controller.signal, fetchImpl)
             : fetchMediaChunk(id, 'bytes=' + nextStart + '-' + nextEnd, controller.signal, fetchImpl)
           ).then(function (outcome) { clearTimeout(timer); return outcome; }).catch(function () { clearTimeout(timer); return null; });

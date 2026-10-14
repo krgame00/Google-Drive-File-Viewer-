@@ -202,3 +202,21 @@ test('tail open-ended request reaching known EOF aborts stale prefetch immediate
  assert.equal(ranges.length,6,'tail request reaching known EOF uses a single bounded fetch instead of 4 parallel sub-intervals past EOF');
  assert.equal(ranges[5],'bytes=19500000-27888607');
 });
+
+test('parallelFiles LRU retains parallel capability when switching between multiple video files',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  const id=new URL(url).searchParams.get('id');
+  const range=opts.headers.get('Range');ranges.push(id+':'+range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  const start=Number(m[1]),end=Number(m[2]);
+  const body=new Uint8Array(4);
+  return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+start+'-'+end+'/90000000','Content-Length':'4'}});
+ });
+ await app.fetch(new Request('https://worker.test/?id=fileA',{headers:{Range:'bytes=0-'}}));
+ await app.fetch(new Request('https://worker.test/?id=fileB',{headers:{Range:'bytes=0-'}}));
+ ranges.length=0;
+ const seekA=await app.fetch(new Request('https://worker.test/?id=fileA',{headers:{Range:'bytes=16777216-'}}));
+ assert.equal(seekA.status,206);
+ assert.ok(ranges.filter(r=>r.startsWith('fileA:')).length>=4,'fileA still streams in 4 parallel sub-intervals after fileB was opened');
+});

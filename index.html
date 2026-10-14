@@ -338,6 +338,7 @@
       <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
       <button type="button" class="btn-ghost btn-sm" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น">เต็มจอ</button>
       <button type="button" class="btn-ghost btn-sm" id="vidAspectToggle" aria-label="สลับสัดส่วนแนวตั้งและแนวนอน">สลับแนว ↕↔</button>
+      <button type="button" class="btn-ghost btn-sm" id="vidQuickPreview" aria-label="สลับไปใช้พรีวิว Google">พรีวิว Google</button>
       </div>
 
       <div class="ratio">
@@ -376,6 +377,8 @@
         <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
         <button type="button" class="btn-ghost btn-sm" id="vidBlob" title="ดาวน์โหลดไฟล์เต็มด้วยบัญชีที่เชื่อมต่อ แล้วเล่นจากไฟล์ในเครื่อง — ทางแก้เมื่อเบราว์เซอร์บล็อกการสตรีมผ่าน service worker (ใช้เน็ตตามขนาดไฟล์)">โหลดทั้งไฟล์แทน</button>
         <button type="button" class="btn-ghost btn-sm" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">ใช้พรีวิว Google</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidExternalPlayer" title="ส่งลิงก์สตรีมเข้าแอป VLC หรือเครื่องเล่นภายนอก เพื่อดูไฟล์ MKV/HEVC/Hi10P โดยไม่ต้องรอโหลดทั้งไฟล์">เปิดใน VLC / แอปนอก</button>
+        <button type="button" class="btn-ghost btn-sm" id="vidCopyDrive" title="ทำสำเนาไฟล์นี้เข้า Google Drive ของคุณเพื่อแก้ปัญหาติดโควตา (downloadQuotaExceeded) แล้วเล่นทันที">สำเนาเข้า Drive ของฉัน</button>
         <button type="button" class="btn-ghost btn-sm" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">เชื่อมต่อ Google ใหม่</button>
           </div>
         </details>
@@ -431,8 +434,8 @@
   <script src="video-player.js"></script>
   <script src="drive-explorer.js"></script>
   <script src="media-lightbox.js"></script>
-  <script src="collections-data.js"></script>
-  <script src="collection-viewer.js"></script>
+  <script src="collections-data.js" defer></script>
+  <script src="collection-viewer.js" defer></script>
 
 </body>
 

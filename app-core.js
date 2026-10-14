@@ -1116,9 +1116,23 @@
       const applyNativeVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyNativeVideoAspect(...args) : undefined;
       const togglePlayerFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePlayerFullscreen(...args) : undefined;
       const togglePreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePreviewAspect(...args) : undefined;
+      const openInExternalPlayer = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openInExternalPlayer(...args) : undefined;
+      const copyVideoToMyDrive = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.copyVideoToMyDrive(...args) : undefined;
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
       const vidAspectToggleBtn = document.getElementById('vidAspectToggle');
       if (vidAspectToggleBtn) vidAspectToggleBtn.addEventListener('click', togglePreviewAspect);
+      const vidQuickPreviewBtn = document.getElementById('vidQuickPreview');
+      if (vidQuickPreviewBtn) vidQuickPreviewBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
+      });
+      const vidExternalPlayerBtn = document.getElementById('vidExternalPlayer');
+      if (vidExternalPlayerBtn) vidExternalPlayerBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+      });
+      const vidCopyDriveBtn = document.getElementById('vidCopyDrive');
+      if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
+      });
       document.addEventListener('fullscreenchange', function () {
         const box = videoModal.querySelector('.video-box');
         const active = document.fullscreenElement === box;
@@ -2033,7 +2047,9 @@
         videoCacheScope,
         resetPdfViewer,
         revokeCurrentDoc,
-        pruneVpos
+        pruneVpos,
+        fallbackIframe,
+        ensureToken
       };
 
       window.GDVExplorerApi = {
