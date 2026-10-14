@@ -57,17 +57,17 @@ test('preview fitting applies only to video previews and ignores zero-sized layo
   const {bridge,api,props,ratio}=setup();
   api.fitVideoPreview();assert.equal(props.size,0);
   bridge.vidFrame.getAttribute=key=>key==='data-video-preview'?'true':null;
-  api.fitVideoPreview();assert.equal(props.get('--preview-width'),'800px');
+  api.fitVideoPreview();assert.equal(props.get('--preview-width'),'480px');
   const oldScale=props.get('--preview-scale');
   ratio.getBoundingClientRect=()=>({width:844,height:330});api.fitVideoPreview();assert.equal(props.get('--preview-scale'),'1');
   assert.notEqual(oldScale,props.get('--preview-scale'));
   props.clear();ratio.getBoundingClientRect=()=>({width:0,height:330});api.fitVideoPreview();assert.equal(props.size,0);
 });
 
-test('horizontal preview gives Google Material 3 controls a full 800x450 virtual viewport on phones without wrapping or clipping',()=>{
+test('horizontal preview keeps controls larger on phones while portrait fitting is preserved',()=>{
   const {api}=setup();
-  const wide=api.calculatePreviewLayout(390,390*9/16);assert.equal(wide.width,800);assert.equal(wide.height,450);assert(wide.scale>=0.48);
-  const ultrawide=api.calculatePreviewLayout(390,177,2.2);assert(ultrawide.height>=420);assert(ultrawide.width>=800);
+  const wide=api.calculatePreviewLayout(390,390*9/16);assert.equal(wide.width,480);assert(wide.scale>=0.8);
+  const ultrawide=api.calculatePreviewLayout(390,177,2.2);assert.equal(ultrawide.width,480);assert(ultrawide.scale>=0.8);
   const tall=api.calculatePreviewLayout(390,730);assert.equal(tall.width,800);assert.equal(tall.height*tall.scale,730);
   assert.equal(api.calculatePreviewLayout(700,240,9/16).width,800);
 });

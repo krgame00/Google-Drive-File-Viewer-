@@ -1,4 +1,4 @@
-﻿*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 
 
@@ -1711,7 +1711,7 @@
     .video-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; flex: 0 0 auto; background: #111; position: sticky; top: 0; z-index: 10; }
     .video-toolbar .lb-close, .video-toolbar .media-nav { position: static; transform: none; width: 44px; height: 44px; flex: 0 0 44px; font-size: 26px; }
     .video-toolbar .lb-close { order: 3; margin-left: auto; }
-    #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 44px; padding: 8px 12px; margin-left: 4px; }
+    #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 44px; padding: 8px 12px; margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
     .video-box:fullscreen { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden; }
     .video-box:fullscreen .ratio, .video-box:fullscreen .ratio[data-orientation="portrait"] { flex: 1 1 0; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; }
     .video-box:fullscreen .video-footer { display: none; }
@@ -1741,10 +1741,13 @@
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
+      .video-toolbar { gap: 4px; padding: 6px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .video-toolbar::-webkit-scrollbar { display: none; }
+      .video-toolbar .lb-close, .video-toolbar .media-nav { width: 38px; height: 38px; flex: 0 0 38px; font-size: 22px; }
       .pdf-controls.lb-pdf-controls { max-width: calc(100vw - 16px); gap: 2px; padding: 4px; }
       .pdf-controls.lb-pdf-controls button { min-width: 40px; min-height: 44px; padding: 4px; }
       .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
-      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 40px; padding: 6px 10px; font-size: 12px; margin-left: 2px; }
+      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 38px; padding: 6px 8px; font-size: 12px; margin-left: 0; white-space: nowrap; flex-shrink: 0; }
       .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
       .video-box .ratio[data-orientation="portrait"],
       .video-box .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) { aspect-ratio: 9 / 16; width: 100%; height: auto; max-height: 76dvh; }

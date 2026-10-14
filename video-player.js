@@ -391,81 +391,6 @@
                     } catch (_) {}
                   }
                 }
-                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
-                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
-                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
-                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
-                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
-                    try {
-                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
-                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
-                        reader = tailRes.body.getReader();
-                        let tail = new Uint8Array(0), tailLen = 0;
-                        while (!settled && tailLen < cap) {
-                          const part = await reader.read();
-                          if (settled || part.done) break;
-                          const next = new Uint8Array(tailLen + part.value.byteLength);
-                          next.set(tail); next.set(part.value, tailLen);
-                          tail = next; tailLen = tail.length;
-                          const info = readMp4CodecInfo(tail);
-                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
-                        }
-                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
-                        await tailRes.body.cancel();
-                      }
-                    } catch (_) {}
-                  }
-                }
-                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
-                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
-                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
-                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
-                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
-                    try {
-                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
-                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
-                        reader = tailRes.body.getReader();
-                        let tail = new Uint8Array(0), tailLen = 0;
-                        while (!settled && tailLen < cap) {
-                          const part = await reader.read();
-                          if (settled || part.done) break;
-                          const next = new Uint8Array(tailLen + part.value.byteLength);
-                          next.set(tail); next.set(part.value, tailLen);
-                          tail = next; tailLen = tail.length;
-                          const info = readMp4CodecInfo(tail);
-                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
-                        }
-                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
-                        await tailRes.body.cancel();
-                      }
-                    } catch (_) {}
-                  }
-                }
-                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
-                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
-                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
-                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
-                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
-                    try {
-                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
-                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
-                        reader = tailRes.body.getReader();
-                        let tail = new Uint8Array(0), tailLen = 0;
-                        while (!settled && tailLen < cap) {
-                          const part = await reader.read();
-                          if (settled || part.done) break;
-                          const next = new Uint8Array(tailLen + part.value.byteLength);
-                          next.set(tail); next.set(part.value, tailLen);
-                          tail = next; tailLen = tail.length;
-                          const info = readMp4CodecInfo(tail);
-                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
-                        }
-                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
-                        await tailRes.body.cancel();
-                      }
-                    } catch (_) {}
-                  }
-                }
                 const webm = length >= 4 && head[0] === 26 && head[1] === 69 && head[2] === 223 && head[3] === 163;
                 const text = Array.from(head.subarray(0, Math.min(length, 16))).map(function (x) { return String.fromCharCode(x); }).join('').trim();
                 done(mp4 || webm ? 'works' : /^[<{\[]/.test(text) ? 'invalid' : 'unknown');
@@ -476,12 +401,10 @@
       }
 
       function calculatePreviewLayout(width, height, aspect) {
-        // Google Drive's Material 3 control bar needs >= 760px virtual width and >= 420px virtual height
-        // so the timeline and control pills stay on a single bottom row without wrapping or clipping.
+        // Landscape clips need a smaller virtual viewport so phone controls remain usable.
+        // Keep the existing tall viewport for portrait clips.
         const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
-        const minWidth = 800;
-        const minHeight = horizontal && width < 800 ? 420 : 0;
-        const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
+        const frameWidth = Math.max(horizontal ? 480 : 800, width);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
       }
@@ -644,6 +567,10 @@
         const aspectBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidAspectToggle') : null;
         if (aspectBtn) {
           aspectBtn.textContent = aspect ? (aspect < 1 ? 'แนวตั้ง ↕' : 'แนวนอน ↔') : 'สลับแนว ↕↔';
+          if (typeof aspectBtn.setAttribute === 'function') {
+            aspectBtn.setAttribute('title', aspect ? (aspect < 1 ? 'กำลังแสดงแนวตั้ง (คลิกเพื่อสลับเป็นแนวนอน 16:9)' : 'กำลังแสดงแนวนอน (คลิกเพื่อสลับเป็นแนวตั้ง 9:16)') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
+            aspectBtn.setAttribute('aria-label', aspect ? (aspect < 1 ? 'สลับเป็นแนวนอน' : 'สลับเป็นแนวตั้ง') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
+          }
         }
         fitVideoPreview();
         if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitVideoPreview);

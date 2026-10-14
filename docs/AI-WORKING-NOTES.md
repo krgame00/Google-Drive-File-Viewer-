@@ -362,6 +362,28 @@
   - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
   - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker ไร้ข้อผิดพลาด
 
+### 26. Horizontal Video Mobile Preview Layout & Toolbar Polish (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause):**
+  1. **Google Drive Preview ซ้อนปุ่ม 3 ชั้นบดบังวิดีโอแนวนอนบนมือถือ:** ใน Section 25 มีการกำหนด `minHeight = 420` และ `minWidth = 800` ใน `calculatePreviewLayout` ทำให้คลิปแนวนอน (16:9) บนมือถือ (กว้าง ~390px, สูง ~219px) โดนบีบเสมือนเป็นจอ Desktop กว้าง 800px สูง 450px และใช้ `scale = 0.4675` ส่งผลให้ Google Drive Preview แสดงทั้งแถบควบคุม Desktop ด้านล่าง และปุ่มควบคุมระบบสัมผัส (Touch Pills: แคปซูล Play, ปุ่มกรอเวลา 10 วิ, ปุ่มเสียง/เกียร์) ซ้อนทับกันถึง 3 ชั้น ลอยบังเนื้อหาวิดีโอไปกว่า 60%
+  2. **ข้อความปุ่มโดนตัดขอบ (`แนวนอน ..`):** ปุ่ม `#vidAspectToggle` และปุ่มเครื่องมือบน `.video-toolbar` ไม่มี `white-space: nowrap` และ `flex-shrink: 0` ทำให้บนจอมือถือที่มีปุ่มย้อนกลับ/ถัดไปและปุ่มปิด ข้อความปุ่มถูกบีบจนเป็นจุดไข่ปลา
+  3. **บล็อกโค้ดซ้ำซ้อนใน `video-player.js`:** มีบล็อก `if (mp4 && !settled && res.headers ...)` สำหรับสแกน moov box ซ้ำกัน 4 ชุด
+- **แนวทางการแก้ไข:**
+  1. **ปรับสูตร `calculatePreviewLayout` ให้คลิปแนวนอนไม่โดนบีบความสูงเสมือน:**
+     - สำหรับคลิปแนวนอน (`aspect >= 1`): ใช้ `frameWidth = Math.max(480, width)` โดยไม่ใส่ `minHeight: 420` ทำให้สเกลบนมือถืออยู่ที่ ~0.8125 ซึ่งอยู่ต่ำกว่าจุดตัด Desktop ของ Google Drive (< 600px) ทำให้ Google Drive แสดงผลเครื่องเล่นมือถือแบบสัมผัสที่สะอาดตา ปุ่มควบคุมไม่ซ้อนกัน 3 ชั้น และไม่บังเนื้อหาวิดีโอ
+     - สำหรับคลิปแนวตั้ง (`aspect < 1`): ยังคงความกว้างเสมือน `>= 800px` เพื่อให้แถบควบคุมด้านล่างไม่ตกบรรทัดในกรอบทรงสูง
+  2. **ปรับปรุง CSS แถบเครื่องมือ `.video-toolbar` (`styles.css`):**
+     - กำหนด `white-space: nowrap; flex-shrink: 0;` ให้ปุ่ม `#vidFullscreen, #vidAspectToggle, #vidQuickPreview` ป้องกันข้อความถูกบีบตัดเป็นจุดไข่ปลา
+     - บนจอมือถือ (`max-width: 680px`): ปรับระยะห่าง `gap: 4px; padding: 6px;`, ขนาดปุ่ม `38px` และเปิดให้เลื่อนในแนวนอนได้ (`overflow-x: auto; flex-wrap: nowrap;`) หากจอแคบมาก
+  3. **เพิ่มคำอธิบายปุ่มสลับแนว (Accessibility & Tooltips):** ใน `applyVideoAspect()` เพิ่ม `title` และ `aria-label` อธิบายสัดส่วนที่กำลังเล่นและทิศทางที่จะสลับเมื่อคลิก (เช่น "กำลังแสดงแนวนอน 16:9 (คลิกเพื่อสลับเป็นแนวตั้ง 9:16)")
+  4. **ล้างบล็อกโค้ดสแกน moov ที่ซ้ำซ้อน 3 ชุดใน `video-player.js`** ออกให้สะอาด
+  5. **ปรับชุดทดสอบใน `tests/player-fullscreen.cjs`** ให้ตรงกับพฤติกรรมจริงของเครื่องเล่นบนมือถือ
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านครบทั้ง **160/160 tests PASS (0 failures, duration ~23s)**
+  - `node tools/collection_data.js check` ผ่าน สองฝั่งตรงกันครบ **335 รายการ**
+  - `py tests/test_patch_alive_sync.py` ผ่าน 1/1 test (OK)
+  - `node --check` ผ่านทุกไฟล์ JavaScript / Worker ไร้ syntax error
+
 
 
 
