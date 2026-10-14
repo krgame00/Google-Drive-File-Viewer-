@@ -9,11 +9,24 @@ test('quota failures and unavailable storage never break playback',async()=>{con
 test('HTML and JSON errors are never kept as completed clips',async()=>{const {cache,data}=setup();assert.equal(await cache.put('a',new Blob(['oops'],{type:'text/html'}),{},'public'),false);assert.equal(await cache.put('b',new Blob(['oops'],{type:'application/json'}),{},'public'),false);assert.equal(data.size,0);});
 test('clear invalidates pending saves so logout cannot resurrect a clip',async()=>{const {cache,store,data}=setup();let release;store.put=r=>new Promise(resolve=>{release=()=>{data.set(r.key,r);resolve()}});const save=cache.put('a',new Blob(['aaaa']),{},'public');while(!release)await new Promise(r=>setImmediate(r));const clear=cache.clear();release();await Promise.all([save,clear]);assert.equal(data.size,0);});
 test('failed routes cool down per file and auth mode and manual retry resets them',()=>{let now=100;const routes=createRouteCooldown(()=>now);routes.fail('a','signedin','worker');assert.equal(routes.blocked('a','signedin','worker'),true);assert.equal(routes.blocked('b','signedin','worker'),false);assert.equal(routes.blocked('a','public','worker'),false);routes.clear('a','signedin');assert.equal(routes.blocked('a','signedin','worker'),false);routes.fail('a','signedin','worker');now+=300001;assert.equal(routes.blocked('a','signedin','worker'),false);});
-const {loadAppSource}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-const vm=require('node:vm');
-function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);return html.slice(start,html.indexOf('\n      }',start)+8);}
-function player(){let streams=0;const played=[];const ctx={videoCache:{get:async()=>new Blob(['abcd']),remove:async()=>{}},videoCacheScope:()=> 'public',fileMetaOf:()=>({size:4}),mediaSession:1,videoAttempt:1,vidCurrentId:'a',accessToken:null,videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{},removeAttribute(){}},URL:{createObjectURL:()=> 'blob:cached'},revokeCurrentVideo(){},tryVideoSrc:(url,fail)=>played.push({url,fail}),tryStreamDirect:()=>streams++,setVideoStatus(){},setTimeout,clearTimeout};vm.createContext(ctx);vm.runInContext(fn('startVideoPlayback'),ctx);return {ctx,played,streams:()=>streams};}
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const playerModulePath=require.resolve(path.join(__dirname,'..','video-player.js'));
+const playerSource=fs.readFileSync(playerModulePath,'utf8');
+function fn(name){const start=playerSource.indexOf('      function '+name+'(');assert(start>=0,name);return playerSource.slice(start,playerSource.indexOf('\n      }',start)+8);}
+function player(){let streams=0;const played=[];const ctx={videoCache:{get:async()=>new Blob(['abcd']),remove:async()=>{}},videoCacheScope:()=> 'public',fileMetaOf:()=>({size:4}),mediaSession:1,videoAttempt:1,vidCurrentId:'a',accessToken:null,videoStatus:'closed',videoModal:{classList:{contains:()=>true}},vidPlayer:{style:{},removeAttribute(){}},vidLoading:{classList:{add(){},remove(){}}},document:{getElementById:()=>null},URL:{createObjectURL:()=> 'blob:cached'},revokeCurrentVideo(){},tryVideoSrc:(url,fail)=>played.push({url,fail}),tryStreamDirect:()=>streams++,setVideoStatus(){},setTimeout,clearTimeout};
+  const priorWindow=global.window;
+  try {
+    global.window={GDVVideoApi:ctx};
+    delete require.cache[playerModulePath];
+    const playerApi=require(playerModulePath);
+    assert.equal(typeof playerApi.startVideoPlayback,'function','video-player.js is required directly');
+  } finally {
+    if(priorWindow===undefined)delete global.window;else global.window=priorWindow;
+  }
+  vm.createContext(ctx);
+  vm.runInContext(fn('startVideoPlayback'),ctx);
+  return {ctx,played,streams:()=>streams};
+}
 test('opening a cached clip starts local playback without a network stream',async()=>{const p=player();await p.ctx.startVideoPlayback('a');assert.equal(p.played[0].url,'blob:cached');assert.equal(p.streams(),0);});
 test('late cache lookup after close or file switch cannot play',async()=>{const p=player();let resolve;p.ctx.videoCache.get=()=>new Promise(r=>resolve=r);const pending=p.ctx.startVideoPlayback('a');p.ctx.mediaSession++;resolve(new Blob(['abcd']));await pending;assert.equal(p.played.length,0);assert.equal(p.streams(),0);});
 test('missing or unplayable local clip falls back to streaming',async()=>{const p=player();p.ctx.videoCache.get=async()=>null;await p.ctx.startVideoPlayback('a');assert.equal(p.streams(),1);const q=player();await q.ctx.startVideoPlayback('a');await q.played[0].fail();assert.equal(q.streams(),1);});

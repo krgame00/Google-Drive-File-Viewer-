@@ -1,9 +1,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
+const path = require('node:path');
 
-const html=loadAppSource();
-const viewer = fs.readFileSync('collection-viewer.js', 'utf8');
+// Bridge belongs to app-core.js; viewer code is read from its own module file.
+const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
+const viewer = fs.readFileSync(path.join(__dirname,'..','collection-viewer.js'), 'utf8');
 const exportAt = html.indexOf('window.GDVCollectionApi = {');
 assert(exportAt >= 0, 'main app exposes the collection viewer bridge');
 

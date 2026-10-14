@@ -9,7 +9,7 @@
 | `checks/` | `check_drive_alive.py`, `check_mega_alive.py` | ตรวจสถานะลิงก์และเขียนรายงาน |
 | `checks/` | `check_drive_names.py` | อ่านคลังจากรากโปรเจกต์ ตรวจชื่อ และเขียน `reports/drive_names_report.json` |
 | `checks/` | `calc_sizes.py` | คำนวณขนาดและสรุปรายงาน |
-| `data/` | `patch_alive_from_report.py` | นำรายงาน Drive ไปแก้สถานะใน HTML |
+| `data/` | `patch_alive_from_report.py` | นำรายงาน Drive ไปอัปเดต `collections-data.js` และซิงก์ `collections_merged.json` ให้ตรงกัน |
 | `data/` | `merge_new_posts.py`, `fill_od_links.py`, `rename_new_titles.py` | แก้ข้อมูลคลังจากแหล่งข้อมูลเฉพาะงาน |
 | `download/` | `download_*.ps1` | ดาวน์โหลดตามเดือนหรือรายการไม่ระบุเดือน |
 | `transfer/` | `copy_day.ps1`, `rclone_copy_*.ps1` | คัดลอกไป remote ผ่าน rclone |

@@ -1204,152 +1204,6 @@
 
               }
 
-                function applyFilter() {
-
-                  const q = searchInput.value.trim().normalize("NFC").toLowerCase();
-
-                  const cards = filesWrap.querySelectorAll(".file-card");
-
-                  let shown = 0;
-
-                  cards.forEach(function (card) {
-
-                    const name = (card.dataset.name || "").normalize("NFC").toLowerCase();
-
-                    const matchText = !q || name.indexOf(q) !== -1;
-
-                    const matchType = activeType === "all" || card.dataset.type === activeType;
-
-                    const match = matchText && matchType;
-
-                    card.style.display = match ? "" : "none";
-
-                    if (match) shown++;
-
-                  });
-
-                  if (searchClear) searchClear.style.display = q ? "block" : "none";
-
-                  if (filesCountEl) {
-
-                    filesCountEl.textContent = shown + " จาก " + cards.length + " รายการ" + (q ? " (ค้นหา: \"" + searchInput.value.trim() + "\")" : "");
-
-                  }
-
-                }
-
-                                function setView(mode) {
-
-                                  if (!gridEl) return;
-
-                                  const isList = mode === "list";
-
-                                  gridEl.classList.toggle("list-view", isList);
-
-                                  if (gridBtn) gridBtn.classList.toggle("active", !isList);
-
-                                  if (listBtn) listBtn.classList.toggle("active", isList);
-
-                                  lsSet("gdv_view", mode);
-
-                                }
-
-                                                function naturalCompare(a, b) {
-
-                                                  // เรียงตัวเลขในชื่อแบบธรรมชาติ: "ไฟล์ 2" มาก่อน "ไฟล์ 10" (ไม่ใช่ 1, 10, 2)
-                                                  return String(a).localeCompare(String(b), "th", { numeric: true });
-                                                }
-
-                                                function cmpSort(a, b) {
-
-                                                  // โฟลเดอร์มาก่อนเสมอ
-
-                                                  const af = a.mimeType === "application/vnd.google-apps.folder" ? 0 : 1;
-
-                                                  const bf = b.mimeType === "application/vnd.google-apps.folder" ? 0 : 1;
-
-                                                  if (af !== bf) return af - bf;
-
-                                                  let va, vb;
-
-                                                  if (sortKey === "size") { va = Number(a.size) || 0; vb = Number(b.size) || 0; return vb - va; }
-
-                                                  if (sortKey === "date") { va = String(a.modifiedTime || ""); vb = String(b.modifiedTime || ""); return va < vb ? 1 : va > vb ? -1 : 0; }
-
-                                                  if (sortKey === "kind") { va = a.mimeType || ""; vb = b.mimeType || ""; return va < vb ? -1 : va > vb ? 1 : 0; }
-
-                                                  // name: เรียงไทย/อังกฤษ case-insensitive + ตัวเลขแบบธรรมชาติ (1, 2, 10 ไม่ใช่ 1, 10, 2)
-
-                                                  va = String(a.name || "").toLowerCase(); vb = String(b.name || "").toLowerCase();
-
-                                                  return naturalCompare(va, vb);
-
-                                                }
-
-                                                function applySort() {
-
-                                                  const grid = document.getElementById("filesGrid");
-
-                                                  if (!grid) return;
-
-                                                  const cards = Array.prototype.slice.call(grid.querySelectorAll(".file-card"));
-
-                                                  cards.sort(function (ca, cb) {
-
-                                                    const a = { id: ca.dataset.id, name: ca.dataset.name, mimeType: ca.dataset.mime || (ca.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : ca.dataset.type || ca.dataset.kind || ""), size: ca.dataset.size, modifiedTime: ca.dataset.date };
-
-                                                    const b = { id: cb.dataset.id, name: cb.dataset.name, mimeType: cb.dataset.mime || (cb.dataset.kind === "folder" ? "application/vnd.google-apps.folder" : cb.dataset.type || cb.dataset.kind || ""), size: cb.dataset.size, modifiedTime: cb.dataset.date };
-
-                                                    return cmpSort(a, b);
-
-                                                  });
-
-                                                  cards.forEach(function (card) { grid.appendChild(card); });
-
-                                                  if (sortLabel) sortLabel.textContent = (SORT_OPTIONS.find(function (o) { return o.key === sortKey; }) || {}).label || "ชื่อ";
-
-                                                }
-
-                                                function cycleSort() {
-
-                                                  const idx = SORT_OPTIONS.findIndex(function (o) { return o.key === sortKey; });
-
-                                                  sortKey = SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length].key;
-
-												  lsSet("gdv_sort", sortKey);
-
-                                                  applySort();
-
-                                                }
-
-                function applyDensity() {
-
-                  if (!gridEl) return;
-
-                  gridEl.classList.toggle("density-sm", density === "sm");
-
-                  gridEl.classList.toggle("density-lg", density === "lg");
-
-                  const opt = DENSITY_OPTIONS.find(function (o) { return o.key === density; }) || {};
-
-                  if (densityLabel) densityLabel.textContent = opt.label || "ปกติ";
-
-                  if (densityBtn) densityBtn.title = "ขนาดการ์ด: " + (opt.label || "ปกติ");
-
-                }
-
-                function cycleDensity() {
-
-                  const idx = DENSITY_OPTIONS.findIndex(function (o) { return o.key === density; });
-
-                  density = DENSITY_OPTIONS[(idx + 1) % DENSITY_OPTIONS.length].key;
-
-                  lsSet("gdv_density", density);
-
-                  applyDensity();
-
-                }
-
       function handleFileClick(id, kind, name, mimeType) {
 
               if (kind === "folder") {
@@ -1607,8 +1461,14 @@
   // (it guards on `window.GDVExplorerApi.explorer`). Replay that work now that
   // the API exists: settings status, the favourite-folders sidebar, and the
   // deep-link hash read. Everything else in the app's startup is unaffected.
-  refreshClientIdStatus();
-  refreshKeyStatus();
-  renderFavoriteFolders();
-  if (window.GDVExplorerOpenInitialHash) window.GDVExplorerOpenInitialHash(currentHashId());
+  if (typeof module !== "undefined" && module.exports) {
+    // Node tests import the real module API and supply the bridge state; skip
+    // browser-only startup effects (DOM rendering and initial hash navigation).
+    module.exports = appApi.explorer;
+  } else {
+    refreshClientIdStatus();
+    refreshKeyStatus();
+    renderFavoriteFolders();
+    if (window.GDVExplorerOpenInitialHash) window.GDVExplorerOpenInitialHash(currentHashId());
+  }
 })();

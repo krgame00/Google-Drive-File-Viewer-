@@ -1,9 +1,7 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-const viewerJs=fs.readFileSync('collection-viewer.js','utf8');
-const dataJs=fs.readFileSync('collections-data.js','utf8');
-const src=html+'\n'+dataJs+'\n'+viewerJs;
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+// Unit logic is sourced from collection-viewer.js; only markup checks read the shell.
+const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const viewerJs=fs.readFileSync(path.join(__dirname,'..','collection-viewer.js'),'utf8');
 const start=viewerJs.indexOf('function randomPick(');
 assert(start>=0,'randomPick helper exists');
 const end=viewerJs.indexOf('\n  }',start);

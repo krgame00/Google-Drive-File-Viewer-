@@ -1,7 +1,8 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);return html.slice(start,html.indexOf('\n      }',start)+8)}
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+// Auth functions live in drive-explorer.js; sign-out event wiring lives in app-core.js.
+const driveSource=fs.readFileSync(path.join(__dirname,'..','drive-explorer.js'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
+function fn(name){const start=driveSource.indexOf('      function '+name+'(');assert(start>=0,name);return driveSource.slice(start,driveSource.indexOf('\n      }',start)+8)}
 const store=new Map(),requests=[];let config;
 const ctx={clientId:'client',accessToken:null,tokenExpiry:0,userProfile:null,tokenClient:null,tokenResolver:null,authRestoreAttempted:false,Date,
 lsGet:k=>store.get(k),lsSet:(k,v)=>store.set(k,v),lsRemove:k=>store.delete(k),waitForGis:cb=>cb(),fetchUserProfile(){},refreshAuthUI(){},

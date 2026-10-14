@@ -615,7 +615,18 @@
         });
       }
 
-      function tryPublicStream(id, onFail, googleOnly = false) {
+      // Pure ordering seam: keep source-priority rules independently testable
+      // without extracting the orchestration closure into a synthetic VM.
+      function prioritizePlaybackSource(sources, preferred) {
+        const ordered = sources.slice();
+        const first = ordered.findIndex(function (source) { return source.route === preferred; });
+        if (first > 0) ordered.unshift(ordered.splice(first, 1)[0]);
+        return ordered;
+      }
+
+      function createPublicStreamRunner(deps) {
+        return function tryPublicStream(id, onFail, googleOnly = false) {
+          with (deps) {
         revokeCurrentVideo();
         // Public download sources may not expose CORS headers.
         vidPlayer.removeAttribute('crossorigin');
@@ -648,15 +659,17 @@
           const mode = accessToken ? 'signedin' : 'public';
           for (let i = sources.length - 1; i >= 0; i--) if (routeCooldown.blocked(id, mode, sources[i].route)) { notes.push(sources[i].label + ': เพิ่งเล่นไม่สำเร็จ กดลองเล่นใหม่เพื่อลองอีกครั้ง'); sources.splice(i, 1); }
         }
-        const first = sources.findIndex(function (source) { return source.route === preferred; });
-        if (first > 0) sources.unshift(sources.splice(first, 1)[0]);
+        const orderedSources = prioritizePlaybackSource(sources, preferred);
         function next() {
           if (!active()) return;
-          const source = sources.shift();
+          const source = orderedSources.shift();
           if (!source) { fail(); return; }
           const play = function () {
             if (!active()) return;
-            tryVideoSrc(source.url, function (reason, diagnostic) { note(source.label, reason, diagnostic); next(); }, 12000, source.route);
+            // The Worker may need most of its 60s upstream budget to fetch an 8 MiB range.
+            // Do not let the player abandon that request at the generic 12s source timeout.
+            const timeoutMs = source.route === 'worker' ? 65000 : 12000;
+            tryVideoSrc(source.url, function (reason, diagnostic) { note(source.label, reason, diagnostic); next(); }, timeoutMs, source.route);
           };
           if (source.route !== 'key') { play(); return; }
           // Bounded API probe skips confirmed permission/quota failures before creating a player request.
@@ -668,6 +681,12 @@
           });
         }
         next();
+          }
+        };
+      }
+      const runPublicStream = createPublicStreamRunner(appApi);
+      function tryPublicStream(id, onFail, googleOnly = false) {
+        return runPublicStream(id, onFail, googleOnly);
       }
 
       function readVideoBlobResponse(res, signal, onProgress) {
@@ -825,7 +844,9 @@
         return loadVideoAsBlob(id);
       }
 
-      function loadVideoAsBlob(id, onGiveUp, priorNotes) {
+      function createVideoBlobRunner(deps) {
+        return function loadVideoAsBlob(id, onGiveUp, priorNotes) {
+          with (deps) {
         // ทางแก้เมื่อเบราว์เซอร์ (เช่น Brave) บล็อก fetch ข้ามโดเมนจาก service worker:
         // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง แล้วเล่นจากไฟล์ในเครื่อง (ไม่มี seek ก่อนโหลดครบ)
         // onGiveUp = เรียกเมื่อขั้นโหลดทั้งไฟล์ล้มทุกทาง เพื่อให้ผู้เรียกวินิจฉัยต่อได้
@@ -875,7 +896,13 @@
             const assembled = readVideoBlobRanges(source.url, source.headers, size, transfer.controller.signal, progressBlob,
               temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null, source.rangeOpts);
             return temp
-              ? assembled.then(function () { return temp.done(); })
+              ? assembled.then(function () {
+                  // Do not commit a completed temp file after the player was closed or switched to another file.
+                  if (transfer.controller.signal.aborted || !active()) {
+                    const error = new Error('Cancelled'); error.name = 'AbortError'; throw error;
+                  }
+                  return temp.done();
+                })
                 .catch(function (err) { return Promise.resolve(temp.stop()).catch(function () {}).then(function () { throw err; }); })
               : assembled;
           });
@@ -923,9 +950,17 @@
             if (btn) btn.disabled = false;
             if (onGiveUp) onGiveUp();
           });
+          }
+        };
+      }
+      const runVideoBlob = createVideoBlobRunner(appApi);
+      function loadVideoAsBlob(id, onGiveUp, priorNotes) {
+        return runVideoBlob(id, onGiveUp, priorNotes);
       }
 
-      function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
+      function createVideoSourceRunner(deps) {
+        return function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
+          with (deps) {
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
         vidPlayer.playerAspect = null;
@@ -1005,6 +1040,12 @@
 
         vidPlayer.src = url;
 
+          }
+        };
+      }
+      const runVideoSource = createVideoSourceRunner(appApi);
+      function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
+        return runVideoSource(url, onFail, timeoutMs, route);
       }
 
       function loadWatchedVideos() {
@@ -1185,14 +1226,18 @@
     showStreamFailure,
     tryStreamDirect,
     probePublicStreamError,
+    prioritizePlaybackSource,
+    createPublicStreamRunner,
     tryPublicStream,
     readVideoBlobResponse,
     readVideoBlobRanges,
     openVideoTempWriter,
+    createVideoBlobRunner,
     renderVideoBlobProgress,
     cancelVideoBlobTransfer,
     requestVideoBlob,
     loadVideoAsBlob,
+    createVideoSourceRunner,
     tryVideoSrc,
     loadWatchedVideos,
     toggleWatchedVideo,
@@ -1203,7 +1248,12 @@
     revokeCurrentVideo,
     closeVideo,
   };
-  // The main app skips this at startup (this module is not loaded yet there);
-  // render it now that the player API exists.
-  appApi.video.renderContinueWatching();
+  // In the browser, the main app skips this at startup (this module is not
+  // loaded yet there); render after the API exists. CommonJS tests get the API
+  // directly and do not run browser startup side effects.
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = appApi.video;
+  } else {
+    appApi.video.renderContinueWatching();
+  }
 })();

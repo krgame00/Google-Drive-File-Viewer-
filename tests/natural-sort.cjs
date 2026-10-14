@@ -1,10 +1,12 @@
-const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-const viewerJs=fs.existsSync('collection-viewer.js')?fs.readFileSync('collection-viewer.js','utf8'):'';
-const src=html+'\n'+viewerJs;
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+// File sorting/search functions are owned by drive-explorer.js; page-only
+// markup is read separately from index.html, and collection collation from its module.
+const html=fs.readFileSync(path.join(__dirname,'..','drive-explorer.js'),'utf8');
+const appHtml=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const viewerJs=fs.readFileSync(path.join(__dirname,'..','collection-viewer.js'),'utf8');
+const src=viewerJs;
 
-// ดึง naturalCompare (pure function) มารันใน vm
+// naturalCompare is nested in a browser-shell closure; isolate that pure helper for this focused unit test.
 const start=html.indexOf('function naturalCompare(');
 assert(start>=0,'naturalCompare exists');
 const lineStart=html.lastIndexOf('\n',start)+1;

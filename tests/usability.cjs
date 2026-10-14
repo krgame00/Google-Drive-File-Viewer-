@@ -1,16 +1,19 @@
-const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
+const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict');
+// Explorer helpers are now owned by drive-explorer.js, including navigation and cover UI.
+const html=fs.readFileSync(path.join(__dirname,'..','drive-explorer.js'),'utf8');
 function fn(n){const a=html.indexOf('      function '+n+'(');assert(a>=0,n+' exists');return html.slice(a,html.indexOf('\n      }',a)+8)}
-const ctx={lsGet:()=>'{bad json',lsSet(){},folderPositions:new Map(),displayedFolderId:'parent',window:{scrollY:420},document:{getElementById:()=>({querySelector:()=>null})}};vm.createContext(ctx);
-for(const n of ['loadFavoriteFolders','saveFolderPosition'])vm.runInContext(fn(n),ctx);
-assert.equal(ctx.loadFavoriteFolders().length,0);
-ctx.lsGet=()=>JSON.stringify([{id:'ok',name:'Name'},{id:123},null]);assert.equal(ctx.loadFavoriteFolders().length,1);
-ctx.saveFolderPosition();assert.equal(ctx.folderPositions.get('parent').y,420);
-ctx.displayedFolderId=null;ctx.window.scrollY=0;ctx.saveFolderPosition();assert.equal(ctx.folderPositions.get('parent').y,420);
+const {loadDriveExplorerApi}=require('./helpers/load-drive-explorer-api.cjs');
+const favoritesBridge={lsGet:()=>'{bad json',lsSet(){},folderPositions:new Map(),displayedFolderId:'parent',window:{scrollY:420},document:{getElementById:()=>({querySelector:()=>null})}};
+const explorer=loadDriveExplorerApi(favoritesBridge);
+assert.equal(explorer.loadFavoriteFolders().length,0);
+favoritesBridge.lsGet=()=>JSON.stringify([{id:'ok',name:'Name'},{id:123},null]);assert.equal(explorer.loadFavoriteFolders().length,1);
+explorer.saveFolderPosition();assert.equal(favoritesBridge.folderPositions.get('parent').y,420);
+favoritesBridge.displayedFolderId=null;favoritesBridge.window.scrollY=0;explorer.saveFolderPosition();assert.equal(favoritesBridge.folderPositions.get('parent').y,420);
 console.log('PASS favorite data validation and folder position preservation');
+// Cover status click still needs an isolated DOM/queue seam until the module exposes injectable rendering dependencies.
+const ctx={folderCoverQueue:[],drainFolderCovers(){}};vm.createContext(ctx);
 let queued=0,stopped=0;
-ctx.document.createElement=()=>({});ctx.folderCoverQueue=[];ctx.drainFolderCovers=()=>queued++;
+ctx.document={createElement:()=>({})};ctx.folderCoverQueue=[];ctx.drainFolderCovers=()=>queued++;
 vm.runInContext(fn('showFolderCoverStatus'),ctx);
 const target={isConnected:true,querySelector:()=>null,appendChild(el){this.status=el}};
 ctx.showFolderCoverStatus(target,false);assert.equal(target.status.textContent,'ไม่มีภาพตัวอย่าง');

@@ -147,17 +147,87 @@
   | `collections-data.js` | 9 | 305 KB | `COLL_CHECKED_AT` + `XBEP_COLLECTION` (335 รายการ) |
   | `collection-viewer.js` | 591 | 34 KB | Collection Viewer IIFE พร้อม `GDVCollectionApi` bridge |
   | `video-player.js` | 1,209 | — | Video/Stream Player พร้อม `GDVVideoApi` bridge |
-  | `tests/helpers/load-app-source.cjs` | — | — | Helper concat แหล่ง JS ทุกโมดูลให้ tests |
+  | `tests/helpers/source-functions.cjs` | — | — | Helper สำหรับ slice ฟังก์ชันจากไฟล์เจ้าของโดยตรง (ไม่ concat ไฟล์) เฉพาะ legacy tests ที่ต้องจำลอง global ด้วย VM |
   | `scripts/checks/_appsources.py` | — | — | Python shared helper สำหรับ daily check scripts |
 - **`index.html` หลังการแยก:** 4,141 บรรทัด (~182 KB) (ลดจาก 7,418 บรรทัด)
 - **การแก้ไข Python scripts และ tools:**
-  - `tools/collection_data.js` — อัปเดตให้ extract/inject/check จาก `collections-data.js` เป็น primary แทน inline ใน HTML (backward compat กับ index.html ยังคงอยู่)
+  - `tools/collection_data.js` — ใช้ `collections-data.js` เป็นแหล่งข้อมูลหลัก และ `collections_merged.json` เป็น sidecar สำหรับ extract/inject/check
   - `scripts/data/patch_alive_from_report.py`, `scripts/checks/check_drive_alive.py` ฯลฯ — ใช้ `_appsources.py` helper เพื่ออ่านจากไฟล์โมดูลแทน HTML
-- **Tests:** อัปเดต `tests/collection-search.cjs`, `tests/collection-random.cjs` และทุกไฟล์ test ให้ใช้ `tests/helpers/load-app-source.cjs` concat แหล่งจากทุกโมดูล
+- **Tests:** ชุดทดสอบอ่านแหล่งจากไฟล์เจ้าของแต่ละโมดูลโดยตรง ไม่มี `loadAppSource()` และไม่มีการ concat source หลายไฟล์เข้าด้วยกัน; API smoke tests ใช้ `require()` กับโมดูลที่ export CommonJS ได้ ส่วน legacy tests ที่พึ่ง browser-shell globals ยังใช้ VM isolate ฟังก์ชันจากไฟล์เจ้าของ
 - **หลักฐานการตรวจสอบ (Verification Evidence):**
   - `node tools/collection_data.js check` → `สองฝั่งตรงกัน (335 รายการ)` ✅
-  - `node --test tests/*.cjs` → **134/134 PASS (0 fail)** ✅ (เพิ่มจาก 132 เป็น 134 เพราะเพิ่ม test module ใหม่)
-- **งานที่ยังค้าง (Phase 4 Backlog):**
-  - `drive-explorer.js` (1,614 บรรทัด) — เขียนครบแล้วแต่ยังไม่ wire `GDVExplorerApi` bridge เข้า index.html (decision: delete หรือ wire)
-  - `media-lightbox.js` — extraction ถูก revert กลาง ๆ ต้องทำใหม่แบบ all-or-nothing
-  - Phase 4: switch tests จาก `loadAppSource` ไปใช้ `require()` per module โดยตรง
+  - `node --test tests/*.cjs` → **PASS (exit code 0, 0 failures)** ✅ (verified after per-module source migration)
+- **สถานะ Phase 4:**
+  - `drive-explorer.js` — wired ผ่าน `GDVExplorerApi` bridge ใน `index.html` แล้ว
+  - `media-lightbox.js` — extraction และ `GDVLightboxApi` bridge เสร็จแล้ว
+  - Phase 4 housekeeping (test harness) — **partial**: ไม่มี test เรียก `loadAppSource()` หรือประกอบ source หลายไฟล์แล้ว และมี tests ที่ใช้ `require()` กับ API จริงของโมดูล ส่วน tests ที่ยังตัดฟังก์ชันจาก source ไป run ใน VM เหลือเป็นหนี้งานที่ต้องย้ายทีละส่วนเมื่อแยก dependency/shared state ได้ปลอดภัย จึงยังไม่ถือว่าการย้าย test seam ไป `require()` เสร็จทั้งหมด
+
+
+### 12. App core extraction and test seam follow-up (`2026-10-13`)
+- **สรุปต่อจาก Phase 1–4:** ย้าย JavaScript ก้อนใหญ่เดิมใน `index.html` (ประมาณ 86,078 ตัวอักษร / 2,183 บรรทัด) ไปยัง `app-core.js` โดยคงเนื้อหาเดิมและวาง script tag ในตำแหน่งเดิม เพื่อรักษาลำดับ init/bridge
+- **ลำดับโหลดปัจจุบัน:** `video-cache.js` → `app-core.js` → `collections-data.js` → `video-player.js` → `drive-explorer.js` → `media-lightbox.js` → `collection-viewer.js`; ต้องใช้ static script tags ต่อไปเพื่อรองรับโฮสต์แบบ static/GitHub Pages โดยไม่ต้องมี bundler
+- **ขนาดหลังแยก:** `index.html` เหลือ 441 บรรทัด (~21 KB UTF-8) และไม่มี inline application script ขนาดใหญ่แล้ว; ยังไม่ถึงเป้าประมาณ 260 บรรทัดเดิม เพราะโครง DOM/markup ยังอยู่ในหน้า HTML
+- **Tests ย้ายไปใช้ CommonJS module API เพิ่ม:** `tests/continue-watching.cjs`, `tests/error-card.cjs`, `tests/folder-covers.cjs`, `tests/watched-videos.cjs`; เทสต์ที่ต้องตรวจ markup แยกอ่าน `index.html` ส่วน test seams ที่ทดสอบโค้ดใน `app-core.js` เปลี่ยนไปอ่าน source ไฟล์นั้น
+
+### 13. Follow-up verification — 2026-10-13
+
+- `node --test tests/*.cjs` → **135/135 PASS, 0 fail**.
+- `node tools/collection_data.js check` → ข้อมูลสองฝั่งตรงกันครบ **335 รายการ**.
+- `node --check` ผ่านครบ 9 ไฟล์ JavaScript/Worker และ `git diff --check` ผ่าน.
+- เปิดเว็บผ่าน HTTP ในเครื่อง (`py -m http.server`) แล้วตรวจใน Chrome: `document.readyState === "complete"`, ชื่อหน้าเป็น `Google Drive File Viewer`, สคริปต์ทั้ง 7 โมดูลโหลดครบ และ bridge `GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi` มีอยู่ครบ; DOM แสดงคลัง 335 รายการ. คำขอ `favicon.ico` ได้ 404 แต่ไม่กระทบการโหลดแอป.
+- **ขอบเขตที่ยังไม่ย้ายออกจาก VM:** เหลือบางเทสต์ที่ต้องจำลอง Service Worker/browser globals หรือทดสอบ orchestration ซึ่งผูกกับ closure/state ภายใน เช่น playback routing และ integrated `loadVideoAsBlob`. ยังไม่แทนด้วยการเรียก API แบบผิวเผิน เพราะอาจทำให้ mock ข้าม logic จริงและลดความน่าเชื่อถือของ regression tests. การเผยแพร่จริงบน GitHub Pages ยังไม่ได้ยืนยัน.
+- ไม่มีการ commit หรือ push; working-tree changes เดิมทั้งหมดถูกเก็บไว้.
+- **ผลตรวจสอบรอบล่าสุด:** `node --test tests/*.cjs` → 135/135 PASS (0 fail); `node tools/collection_data.js check` → 335 รายการตรงกัน; `node --check` ผ่านครบสำหรับ `app-core.js`, `drive-explorer.js`, `video-player.js`, `media-lightbox.js`, `collection-viewer.js`, `collections-data.js`, `video-cache.js`, `drive-stream-sw.js` และ `cloudflare-drive-worker.mjs`; `git diff --check` ผ่าน (มีเพียงคำเตือน line ending LF/CRLF จาก Git)
+- **สถานะ Phase 4:** ยังเป็น **partial**; ไม่มี `loadAppSource()` และไม่มีการ concat source หลายโมดูลใน test harness แต่ legacy tests บางไฟล์ยังตัดฟังก์ชันจาก source แล้วรันใน VM เนื่องจากยังพึ่ง state/global ของ classic browser scripts ต้องแยก dependency เป็น API/หน่วยย่อยก่อนทยอยย้ายต่อ
+- **เผยแพร่:** ยังไม่ commit/push และยังไม่ได้ยืนยันการ deploy จริงบน GitHub Pages หลังเพิ่ม `app-core.js`; ต้องรัน full verification และทำ browser/static smoke check ก่อนเผยแพร่
+
+
+### 13. Test seam follow-up — module API coverage (2026-10-13)
+- **เป้าหมาย:** ลดการทดสอบที่ slice function source แล้วประเมินใน node:vm เฉพาะจุดที่โมดูลเผย API ได้อยู่แล้ว โดยไม่เปลี่ยน business logic ของโปรแกรมและไม่แกล้งแทน internal helper ที่อยู่ใน closure
+- **เพิ่ม helpers สำหรับโหลดโมดูล:**
+  - tests/helpers/load-video-player-api.cjs — โหลด video-player.js ด้วย bridge/state object ใหม่ต่อเทสต์
+  - tests/helpers/load-drive-explorer-api.cjs — โหลด drive-explorer.js ด้วย bridge/state object ใหม่ต่อเทสต์
+- **ย้ายไปทดสอบผ่าน CommonJS/module API โดยตรง:**
+  - tests/public-stream-error.cjs — probePublicStreamError (3 เคส)
+  - tests/stream-probe.cjs — probeStreamEndpoint และ codec probing (5 เคส)
+  - tests/video-layout.cjs — sizing/orientation/async preview aspect (6 เคส)
+  - tests/player-fullscreen.cjs — fullscreen, preview fitting และ orientation lock (10 เคส)
+  - tests/playback-loading.cjs — playback route persistence/expiry, progress calculation, active route recording และ invalid storage (6 เคส; เคส request confirmation กับ source assertion ยังใช้ legacy seam/source inspection)
+  - tests/video-download.cjs — module API สำหรับ readVideoBlobResponse, readVideoBlobRanges และ renderVideoBlobProgress; integrated loadVideoAsBlob tests ยังใช้ isolated VM เพราะ internal function calls ผูกกับ module closure
+  - tests/usability.cjs — loadFavoriteFolders และ saveFolderPosition ผ่าน Drive Explorer API; cover status click และ async listFolder ที่ยังพึ่งพา closure state คง test seam แบบ VM
+- **จุดที่พยายามแล้วและตั้งใจไม่ฝืน:** tests/playback-routing.cjs ต้องสังเกต/แทนผลของ internal tryVideoSrc แต่ API จริงเรียก closure function โดยตรง; การ mock property บน bridge ไม่ได้แทน internal function ดังกล่าว จึงคืนเทสต์นี้กลับไปใช้ isolated VM ที่เหมาะกับ dependency seam ปัจจุบัน ไม่ได้ทิ้งเวอร์ชันที่ล้มเหลวไว้
+- **ผล targeted checks:** public-stream-error 3/3, stream-probe 5/5, video-layout 6/6, player-fullscreen 10/10, video-download 23/23, playback-loading 6/6 และ usability ผ่าน
+- **ขอบเขต:** Phase 4 ยังเป็น **partial** เพราะยังมี classic browser-script functions บางส่วนที่พึ่งพา closure/global state ต้องแยก dependency ออกแบบ inject ได้ก่อนจึงจะย้ายเป็น API test ได้อย่างเที่ยงตรง อย่าแก้เพียงเปลี่ยน vm เป็น require() แล้วใช้ mock ที่จริงไม่สามารถ override internal closure ได้
+- **ผล final verification:** `node --test tests/*.cjs` → **135/135 PASS, 0 fail**; `node tools/collection_data.js check` → **335 รายการตรงกัน**; `node --check` ผ่านครบ 9 ไฟล์ JavaScript/Worker และ `git diff --check` ผ่าน (มีเพียงคำเตือน Git เรื่อง LF→CRLF)
+- **เผยแพร่:** ไม่มี commit/push ในรอบนี้ และยังไม่ได้ยืนยัน deploy จริงบน GitHub Pages
+
+### 14. Data pipeline audit — patch Drive status and sync JSON (`2026-10-13`)
+- **ปัญหาที่พบ:** `scripts/data/patch_alive_from_report.py` ปรับ `collections-data.js` เท่านั้น; การอัปเดต `collections_merged.json` เดิมพึ่ง `scripts/daily_drive_check_and_push.py` เรียก `node tools/collection_data.js extract` ต่ออีกทอด ทำให้รัน patch เดี่ยวแล้วสองชุดข้อมูลคลาดกันได้.
+- **การแก้ไข:** หลัง patch แล้วให้สคริปต์เขียน `collections_merged.json` จาก record ชุดเดียวกันทันที โดยเขียนไฟล์ `.tmp`, parse ตรวจ JSON ก่อน แล้วค่อย `replace()` เพื่อหลีกเลี่ยงไฟล์ JSON ที่ถูกเขียนค้าง/ขาดกลางทาง. อัปเดต `scripts/README.md` ให้ระบุผลลัพธ์ใหม่.
+- **Regression test:** เพิ่ม `tests/test_patch_alive_sync.py` ใช้ temporary project fixture และ report จำลองแบบ offline; ตรวจว่า record ที่รายงานว่า alive/dead ถูกอัปเดต, record ที่ไม่มีใน report ไม่เปลี่ยน, และ JSON กับ module ตรงกัน.
+- **ผลตรวจสอบ:** `py -B tests/test_patch_alive_sync.py` ผ่าน; `node tools/collection_data.js check` ผ่านครบ **335 รายการ**; `node --test tests/*.cjs` ผ่านครบ **135/135**; `git diff --check` ผ่าน โดยเหลือเพียงคำเตือน line ending LF/CRLF.
+- **การป้องกัน false-dead:** report ที่ `ok: false` จะ mark dead เฉพาะ code `404`/`410`; กรณี timeout/network error (`code: 0`), quota หรือ permission ที่ยังสรุปไม่ได้ จะเก็บค่าก่อนหน้าและนับใน `uncertain results skipped` เพื่อไม่ให้ผลตรวจชั่วคราวทำให้ลิงก์ถูกปิดผิดพลาด.
+- **Git:** ยังไม่ commit หรือ push; เก็บ working-tree changes ที่มีอยู่ก่อนหน้าไว้ทั้งหมด.
+
+### 15. Task 2 — Playback test seams (`2026-10-13`)
+- **การแยก dependency seam:** เพิ่ม `createPublicStreamRunner(deps)` และ `createVideoSourceRunner(deps)` ใน `video-player.js`; ฟังก์ชัน production `tryPublicStream` / `tryVideoSrc` เรียก runner ที่สร้างจาก bridge `appApi` จริง ส่วนเทสต์สามารถ inject เฉพาะ dependency ของ player, timers, route probes และสถานะ session/file ผ่าน API โดยไม่ slice source. คง `prioritizePlaybackSource(sources, preferred)` เป็น pure helper สำหรับกฎจัดลำดับ route และ export helpers ผ่าน `GDVVideoApi.video` / CommonJS API.
+- **Regression tests:** `tests/playback-source-order.cjs` ทดสอบการจัดลำดับ route; `tests/playback-routing.cjs` เรียก `createPublicStreamRunner` จาก API จริงและ inject dependencies เพื่อทดสอบ fallback, quota, cooldown, ปิดหน้าต่าง และ stale preflight; เพิ่ม `tests/playback-api.cjs` สำหรับ `createVideoSourceRunner` ครอบคลุม canplay, media failure, timeout, ปิดหน้าต่าง และสลับไฟล์.
+- **ย้าย orchestration tests:** `tests/media-lifecycle.cjs` ใช้ `createVideoSourceRunner` / `createPublicStreamRunner` จาก CommonJS API แทนการ slice ฟังก์ชัน `tryVideoSrc` / `tryPublicStream`; tests อื่นที่ยังจำลอง browser globals หรือฟังก์ชันที่พึ่งพา closure คง VM ไว้ตามขอบเขตที่จำเป็น.
+- **ผลตรวจสอบ:** `node --test tests/*.cjs` ผ่านครบ **143/143, 0 fail** หลังแก้ test seam; targeted `node --test tests/playback-api.cjs tests/playback-routing.cjs tests/playback-source-order.cjs` ผ่าน **15/15** และ `node tests/media-lifecycle.cjs` ผ่านครบ. `node --check video-player.js` ผ่าน; ตรวจ `git diff --check` รอบสุดท้ายก่อนจบงาน.
+- **สถานะ Task 2:** dependency seam สำหรับ `tryPublicStream` / `tryVideoSrc` และ orchestration tests สำหรับ lifecycle หลักย้ายมาใช้ API แล้ว. ยังมี VM tests สำหรับส่วนที่ต้องจำลอง browser globals หรือ integrated `loadVideoAsBlob` ซึ่งยังเป็นขอบเขตงานแยกต่างหาก.
+- **Git:** ยังไม่ commit หรือ push; ไม่ได้แตะต้องหรือทิ้ง working-tree changes เดิม.
+
+### 16. Task 3 — Whole-file download dependency seam (`2026-10-13`)
+- **Dependency injection:** เพิ่ม `createVideoBlobRunner(deps)` และให้ production `loadVideoAsBlob` delegate ไปยัง runner ที่สร้างจาก `appApi`; export factory ผ่าน `GDVVideoApi.video` / CommonJS API. runner ใช้ dependency ของ fetch, range loader, progress UI, temporary writer, cache, URL และ player ผ่าน bridge ที่ inject ได้.
+- **Test migration:** ปรับ `tests/video-download.cjs` ให้ integrated `loadVideoAsBlob` tests เรียก `createVideoBlobRunner` ผ่าน API จริง ไม่ตัดฟังก์ชันจาก source และไม่ใช้ VM สำหรับ orchestration.
+- **Coverage retained:** คง 23 เคสทดสอบ response streaming, abort/body-read cancellation, file-size unknown, stale transfer, range assembly, concurrency limit 4, retry, invalid range, single-connection fallback, worker fallback, OPFS commit/abort และ in-memory fallback.
+- **ผล verification:** `node --test tests/video-download.cjs` ผ่าน **23/23, 0 fail**; `node --check video-player.js` ผ่าน; `node --test tests/*.cjs` ผ่านครบ **143/143, 0 fail**; `git diff --check` ผ่าน โดยมีเพียงคำเตือน Git เรื่อง LF→CRLF.
+- **หมายเหตุ:** tests inject temporary-writer dependency เพื่อจำลอง OPFS contract โดยไม่พึ่ง OPFS จริงของเครื่องทดสอบ; behavior ที่ทดสอบคือการเขียนช่วง, commit/abort และ fallback.
+- **Git:** ยังไม่ commit หรือ push; เก็บ working-tree changes ที่มีอยู่เดิมไว้.
+
+### 17. Playback lifecycle follow-up — stale download and OPFS cancellation (`2026-10-13`)
+- **Regression coverage:** เพิ่ม 3 เคสใน `tests/video-download.cjs`: สลับไฟล์ระหว่าง whole-file download, ปิด Player ระหว่าง OPFS write และ retry หลัง whole-file fallback ล้มเหลว โดยตรวจว่าไฟล์เก่าไม่เริ่มเล่น, writer ที่ยกเลิกถูก abort และปุ่ม/สถานะกลับมาพร้อมลองใหม่.
+- **Bug ที่พบและแก้:** หากคำขอ range เสร็จแล้วแต่ OPFS write ยัง pending การปิด Player อาจทำให้ flow เรียก `temp.done()` ต่อ แม้ transfer ถูกยกเลิกแล้ว. เพิ่มการตรวจ `transfer.controller.signal.aborted` และ `active()` ก่อน commit; หาก stale ให้โยน `AbortError` แล้วเดิน cleanup ผ่าน `temp.stop()` แทน.
+- **ผลตรวจสอบ:** `node --check video-player.js` ผ่าน; `node --test tests/*.cjs` ผ่าน **146/146, 0 fail**; `git diff --check` ผ่าน. การทดสอบ OPFS ยังใช้ temporary-writer dependency จำลอง contract ไม่ใช่การทดสอบ OPFS จริงในเบราว์เซอร์.
+- **Browser smoke:** หน้า `http://127.0.0.1:8765/index.html` โหลดครบ (`document.readyState=complete`), title ถูกต้อง และ `GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi` มีครบ. ยังไม่ได้ทดสอบโหลดคลิปจริงผ่านบัญชี Google ในเบราว์เซอร์.
+- **Git:** ยังไม่ commit หรือ push; เก็บ working-tree changes ก่อนหน้านี้ไว้ทั้งหมด.

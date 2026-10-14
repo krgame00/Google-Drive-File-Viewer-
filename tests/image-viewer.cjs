@@ -1,8 +1,11 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-const css=fs.existsSync('styles.css')?fs.readFileSync('styles.css','utf8'):'';
-const src=html+'\n'+css;
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+// Image/PDF implementation now lives in its own file; inspect that module
+// directly instead of concatenating it with the legacy HTML application shell.
+const appHtml=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+const appCore=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'..','media-lightbox.js'),'utf8');
+const css=fs.existsSync(path.join(__dirname,'..','styles.css'))?fs.readFileSync(path.join(__dirname,'..','styles.css'),'utf8'):'';
+const src=appHtml+'\n'+css;
 
 function fn(name){const re=new RegExp('\\n([ \\t]+)(?:async\\s+)?function\\s+'+name+'\\s*\\(');const m=re.exec(html);assert(m,'missing function: '+name);const indent=m[1],start=m.index+1,endRe=new RegExp('\\r?\\n'+indent+'\\}','g');endRe.lastIndex=start;const end=endRe.exec(html);assert(end,'missing end of function: '+name);return html.slice(start,end.index+end[0].length);}
 function setup(){
@@ -60,15 +63,15 @@ test('reset เมื่อเปิด/ปิดภาพและ rotate (เ�
   assert(html.includes('function openLightbox'),'openLightbox exists');
   assert(/openLightbox\(id[^)]*\)\s*\{[\s\S]*?resetImageView\(\)/.test(html),'openLightbox resets image view');
   assert(/function closeLightbox\(\)\s*\{[\s\S]*?resetImageView\(\)/.test(html),'closeLightbox resets image view');
-  assert(/orientationchange|resize[\s\S]{0,120}resetImageView\(\)/.test(html),'rotation/resize resets image view');
+  assert(/orientationchange|resize[\s\S]{0,120}resetImageView\(\)/.test(appCore),'rotation/resize resets image view');
 });
 test('touch-action จำกัดเฉพาะตัวดูภาพ ไม่ใช่ทั้งเว็บ',()=>{
   assert(/\.lightbox\s*\{[^}]*touch-action:\s*none/.test(src),'touch-action:none บน .lightbox');
   assert(!/body\s*\{[^}]*touch-action:\s*none/.test(src),'ไม่ล็อก touch-action ทั้ง body');
 });
 test('ปุ่มคืนขนาดมีให้ทั้งสัมผัสและคีย์บอร์ด',()=>{
-  assert(html.includes('id="lbReset"'),'ปุ่ม lbReset มีในหน้า');
-  assert(/key === "r" [\s\S]{0,80}resetImageView\(\)|key === "0"[\s\S]{0,80}resetImageView\(\)/.test(html),'คีย์บอร์ด r/0 คืนขนาด');
+  assert(appHtml.includes('id="lbReset"'),'ปุ่ม lbReset มีในหน้า');
+  assert(/key === "r" [\s\S]{0,80}resetImageView\(\)|key === "0"[\s\S]{0,80}resetImageView\(\)/.test(appCore),'คีย์บอร์ด r/0 คืนขนาด');
 });
 // ===== ช่วง 4: แตะซ่อน/แสดงปุ่มควบคุม =====
 test('แตะเดี่ยวหน่วง 280ms แล้วสลับปุ่ม',()=>{

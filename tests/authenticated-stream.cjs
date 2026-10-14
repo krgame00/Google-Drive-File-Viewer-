@@ -209,8 +209,9 @@ test('fetch failure reports a safe connection diagnostic bound to attempt',async
 });
 
 function playerSetup() {
-  const {loadAppSource}=require('./helpers/load-app-source.cjs');
-  const html=loadAppSource();
+  const fs=require('node:fs'),path=require('node:path');
+  // Authenticated stream behavior is owned by video-player.js.
+  const html=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');
   const start=html.indexOf('      function tryStreamDirect(');
   const end=html.indexOf('\n      }',start);
   let ready;const sources=[],fallbacks=[],errors=[];

@@ -1,8 +1,14 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const {loadAppSource,sliceFunction}=require('./helpers/load-app-source.cjs');
-const html=loadAppSource();
-function fn(name){const start=html.indexOf('      function '+name+'(');assert(start>=0,name);const end=html.indexOf('\n      }',start);return html.slice(start,end+8);}
-function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={apiKey:"",preferredPlaybackRoute:()=>null,probePublicStreamError:async()=>null,AbortController,Blob,videoBlobTransfer:null,fileMetaOf:()=>({size:0}),document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),pdfStage:el('pdfStage'),pdfControls:el('pdfControls'),pdfCanvas:el('pdfCanvas'),pdfLoading:el('pdfLoading'),pdfRenderVersion:0,pdfRenderTask:null,pdfDocument:null,pdfInLightbox:false,currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,videoStatus:'closed',setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,fitVideoPreview:()=>{},mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['formatSize','readVideoBlobResponse','renderVideoBlobProgress','cancelVideoBlobTransfer','getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation','applyVideoAspect','applyNativeVideoAspect','classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetPdfViewer','resetMediaPlayback','streamBlocked','rememberStreamBlocked','clearStreamBlocked','deviceCodecSupport','describeCodecSupport'])if(html.includes('function '+name+'('))vm.runInContext(fn(name),ctx);vm.runInContext(fn('tryVideoSrc'),ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
+global.window={GDVVideoApi:{}};
+const videoApi=require('../video-player.js');
+const sourceFiles=['drive-explorer.js','video-player.js','collection-viewer.js','collections-data.js','media-lightbox.js','app-core.js','index.html'];
+const sources=sourceFiles.map(name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8'));
+const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
+const pageHtml=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
+function sourceFor(name){return sources.find(source=>source.includes('      function '+name+'(')||source.includes('      async function '+name+'('))||html;}
+function hasPattern(pattern){return sources.some(source=>pattern.test(source));}
+function fn(name){const source=sourceFor(name);const start=source.indexOf('      function '+name+'(');assert(start>=0,name);const end=source.indexOf('\n      }',start);return source.slice(start,end+8);}
+function setup(){let timers=new Map(),seq=0;const els={};const el=id=>els[id]||(els[id]={style:{setProperty(k,v){this[k]=v}},textContent:'',hidden:true,classList:{add(){},remove(){},contains(){return false}},setAttribute(){},getAttribute(){return null},removeAttribute(){},pause(){},load(){},play(){return Promise.resolve()},src:''});const ctx={apiKey:"",preferredPlaybackRoute:()=>null,probePublicStreamError:async()=>null,AbortController,Blob,videoBlobTransfer:null,fileMetaOf:()=>({size:0}),document:{body:{style:{overflow:'hidden'}},getElementById:id=>el(id)},lightbox:el('lightbox'),videoModal:el('videoModal'),vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),vidLoading:el('vidLoading'),vidLoadingText:el('vidLoadingText'),pdfStage:el('pdfStage'),pdfControls:el('pdfControls'),pdfCanvas:el('pdfCanvas'),pdfLoading:el('pdfLoading'),pdfRenderVersion:0,pdfRenderTask:null,pdfDocument:null,pdfInLightbox:false,currentVideoUrl:null,currentDocUrl:null,vidCurrentId:'old',videoResumePos:0,URL,accessToken:null,videoStatus:'closed',setTimeout(cb){timers.set(++seq,cb);return seq},clearTimeout(id){timers.delete(id)},revokeCurrentDoc(){},revokeCurrentVideo(){},saveVideoPos(){},renderContinueWatching(){},videoAttempt:0,mediaSession:0,videoAttemptTimer:null,videoSlowTimer:null,previewAspect:null,fitVideoPreview:()=>{},mediaPreviousOverflow:'',console};vm.createContext(ctx);for(const name of ['formatSize','readVideoBlobResponse','renderVideoBlobProgress','cancelVideoBlobTransfer','getPlayerAspect','releasePlayerOrientation','lockHorizontalPlayerOrientation','applyVideoAspect','applyNativeVideoAspect','classifyApiError','calculatePreviewLayout','cancelVideoAttempt','setVideoStatus','resetPdfViewer','resetMediaPlayback','streamBlocked','rememberStreamBlocked','clearStreamBlocked','prioritizePlaybackSource','deviceCodecSupport','describeCodecSupport'])if(sourceFor(name).includes('function '+name+'('))vm.runInContext(fn(name),ctx);ctx.tryVideoSrc=videoApi.createVideoSourceRunner(ctx);ctx.tryPublicStream=videoApi.createPublicStreamRunner(ctx);vm.runInContext(fn('closeVideo'),ctx);vm.runInContext(fn('showStreamFailure'),ctx);vm.runInContext(fn('handleDriveStreamError'),ctx);return {ctx,timers,els};}
 let failures=0,pending=[];function test(name,run){try{const r=run();if(r&&r.then){pending.push(r.then(()=>console.log('PASS',name)).catch(e=>{failures++;console.error('FAIL',name,e.message)}))}else console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}
 test('range diagnostics show validated categories and reject injected diagnostic values',()=>{
  const {ctx,els}=setup();ctx.videoModal.classList.contains=()=>true;
@@ -155,7 +161,7 @@ test('media error message stays hedged and never claims quota',()=>{
   assert(m,'media failure message constant found');
   assert(!/โควตา|quota/i.test(m[1]),'media error must not claim quota');
   assert(/อาจ|หรือ/.test(m[1]),'media error stays hedged');
-  assert(/showStreamFailure\(reason === 'timeout'[\s\S]{0,200}: MEDIA_STREAM_FAIL_MSG, diagnostic\)/.test(html),'media failure uses the shared message');
+  assert(/showStreamFailure\(reason === 'timeout'[\s\S]{0,200}: MEDIA_STREAM_FAIL_MSG, diagnostic\)/.test(sourceFor('tryVideoSrc')),'media failure uses the shared message');
 });
 test('media failure captures numeric diagnostics before unloading video',()=>{
   const {ctx}=setup();let diagnostic;
@@ -186,7 +192,7 @@ test('public sources clear account-stream CORS mode before setting src',()=>{
   const {ctx}=setup();const steps=[];
   ctx.vidPlayer.removeAttribute=name=>steps.push('remove:'+name);
   ctx.tryVideoSrc=url=>steps.push('source:'+url);
-  vm.runInContext(fn('tryPublicStream'),ctx);
+  ctx.tryPublicStream=videoApi.createPublicStreamRunner(ctx);
   ctx.vidCurrentId='file1';ctx.videoModal.classList.contains=()=>true;ctx.tryPublicStream('file1');
   assert.equal(steps[0],'remove:crossorigin');
   assert.match(steps[1],/^source:https:/);
@@ -204,21 +210,21 @@ test('blob fallback plays the full file through the page fetch (Brave workaround
   ctx.authParams=()=>({mode:'bearer'});
   ctx.fetch=async()=>({ok:true,blob:async()=>'BLOB'});
   ctx.URL={createObjectURL:()=>'blob:loaded',revokeObjectURL(){}};
-  vm.runInContext(fn('loadVideoAsBlob'),ctx);
+  ctx.loadVideoAsBlob=videoApi.createVideoBlobRunner(ctx);
   await ctx.loadVideoAsBlob('fileA');
   await new Promise(r=>setTimeout(r,20));
   assert.match(String(els.vidPlayer.src),/^blob:loaded/,'video plays from the page-fetched blob');
   assert.match(els.vidLoadingText.textContent,/ทั้งไฟล์/,'status explains full-file loading');
 });
 test('blob fallback button exists in the video help actions',()=>{
-  assert(html.includes('id="vidBlob"'),'vidBlob button present');
+  assert(pageHtml.includes('id="vidBlob"'),'vidBlob button present');
   assert(html.includes("getElementById('vidBlob').addEventListener"),'vidBlob is wired');
 });
 test('closing cancels a whole-file download and ignores its late completion',async()=>{
   const {ctx,els}=setup();let finish,plays=0;ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;
   ctx.authParams=()=>({mode:'bearer'});ctx.fetch=()=>new Promise(resolve=>finish=resolve);
   ctx.URL={createObjectURL(){plays++;return 'blob:late'},revokeObjectURL(){}};
-  vm.runInContext(fn('loadVideoAsBlob'),ctx);const load=ctx.loadVideoAsBlob('fileA');
+  ctx.loadVideoAsBlob=videoApi.createVideoBlobRunner(ctx);const load=ctx.loadVideoAsBlob('fileA');
   const transfer=ctx.videoBlobTransfer;ctx.closeVideo();assert.equal(transfer.controller.signal.aborted,true);
   finish({ok:true,blob:async()=>new Blob(['video'])});await load;assert.equal(plays,0);assert.equal(els.vidCancelBlob.hidden,true);
 });
@@ -253,8 +259,8 @@ test('preview aspect ratio clamped to sane bounds',()=>{
   assert.ok(Math.abs(ctx.clampPreviewAspect(0,0)-16/9)<1e-9,'ไม่มีข้อมูล → 16:9');
 });
 test('preview aspect wired in fallbackIframe and reset with the session',()=>{
-  assert(/function fallbackIframe[\s\S]{0,700}applyPreviewAspect\(id\)/.test(html),'fallbackIframe applies preview aspect');
-  assert(/function resetMediaPlayback\(\)\s*\{[\s\S]{0,600}previewAspect = null/.test(html),'resetMediaPlayback clears preview aspect');
+  assert(/function fallbackIframe[\s\S]{0,700}applyPreviewAspect\(id\)/.test(sourceFor('fallbackIframe')),'fallbackIframe applies preview aspect');
+  assert(/function resetMediaPlayback\(\)\s*\{[\s\S]{0,600}previewAspect = null/.test(sourceFor('resetMediaPlayback')),'resetMediaPlayback clears preview aspect');
 });
 
 function makeStore(){const map={};return {getItem(k){return k in map?map[k]:null},setItem(k,v){map[k]=String(v)},removeItem(k){delete map[k]}};}
@@ -343,9 +349,10 @@ test('a works verdict requires real MP4 bytes in the probe answer',async()=>{
   assert.equal(await ctx.probeStreamEndpoint('fileA','probe'),'unknown','HTTP-only success cannot confirm media bytes');
 });
 test('after public sources fail, diagnostics leave whole-file loading as a user choice',()=>{
-  const start=html.indexOf('      function tryStreamDirect(');
-  const end=html.indexOf('\n      }',start);
-  const body=html.slice(start,end);
+  const streamSource=sourceFor('tryStreamDirect');
+  const start=streamSource.indexOf('      function tryStreamDirect(');
+  const end=streamSource.indexOf('\n      }',start);
+  const body=streamSource.slice(start,end);
   assert(!body.includes('loadVideoAsBlob('),'no automatic whole-file download');
   assert(body.includes("probeStreamEndpoint(id, 'probe')"),'bounded diagnostics remain');
 });
@@ -355,7 +362,7 @@ test('public source failures record what was tried',async()=>{
   ctx.vidPlayer.removeAttribute=()=>{};
   ctx.tryVideoSrc=(url,onFail)=>{sources.push(String(url)); onFail('media','M4/N3/R0');};
   ctx.apiKey='KEY';ctx.vidCurrentId='file1';ctx.videoModal.classList.contains=()=>true;
-  vm.runInContext(fn('tryPublicStream'),ctx);
+  ctx.tryPublicStream=videoApi.createPublicStreamRunner(ctx);
   let received=null;
   ctx.tryPublicStream('file1',notes=>{received=notes;},true);
   await Promise.resolve();
@@ -371,7 +378,7 @@ test('blob failure message carries the earlier fallback notes',async()=>{
   ctx.authParams=()=>({mode:'bearer'});
   ctx.fetch=async()=>({ok:true,blob:async()=>'BLOB'});
   ctx.URL={createObjectURL:()=>'blob:loaded',revokeObjectURL(){}};
-  vm.runInContext(fn('loadVideoAsBlob'),ctx);
+  ctx.loadVideoAsBlob=videoApi.createVideoBlobRunner(ctx);
   await ctx.loadVideoAsBlob('fileA',null,['ลิงก์ตรง: M4/N3/R0','API key: M4/N3/R0']);
   await new Promise(r=>setTimeout(r,20));
   ctx.vidPlayer.onerror();
@@ -386,11 +393,11 @@ test('codec support summary formats a compact capability line',()=>{
   assert.equal(ctx.describeCodecSupport([{label:'H.264',ok:true},{label:'HEVC',ok:false}]),' เบราว์เซอร์ระบุว่ารองรับ: H.264 ✓ HEVC ✗');
 });
 test('codec capability check is wired into the works verdict message',()=>{
-  assert(/verdict === 'works'[\s\S]{0,300}describeCodecSupport\(deviceCodecSupport\(\)\)/.test(html),'works message carries device codec info');
+  assert(hasPattern(/verdict === 'works'[\s\S]{0,300}describeCodecSupport\(deviceCodecSupport\(\)\)/),'works message carries device codec info');
 });
 test('probe refines the generic card without overriding specific errors',()=>{
-  assert(/probeStreamEndpoint\(id, 'probe'\)/.test(html),'media failure triggers the probe');
-  assert(/status\.textContent\.indexOf\(MEDIA_STREAM_FAIL_MSG\) !== 0/.test(html),'probe refines only the generic message');
+  assert(hasPattern(/probeStreamEndpoint\(id, 'probe'\)/),'media failure triggers the probe');
+  assert(hasPattern(/status\.textContent\.indexOf\(MEDIA_STREAM_FAIL_MSG\) !== 0/),'probe refines only the generic message');
 });
 test('probe treats a hanging stream endpoint as a browser block',async()=>{
   const {ctx,timers}=setup();
