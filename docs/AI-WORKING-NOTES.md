@@ -316,4 +316,22 @@
     - คำขอ `OPTIONS` ส่ง `X-GDV-Worker-Rev: 2026-10-14-r1` พร้อม `Access-Control-Expose-Headers` ครบถ้วน (HTTP 204 No Content)
     - คำขอ `GET` ช่วงไบต์ `Range: bytes=0-10` ต่อไฟล์จริงบน Google Drive ได้รับการยืนยันสถานะ `HTTP 206 Partial Content` ส่งกลับ `Content-Range: bytes 0-10/71532734`, `Content-Length: 11`, `Accept-Ranges: bytes` และ `X-GDV-Worker-Rev: 2026-10-14-r1` อย่างสมบูรณ์แบบ
 
+### 24. Performance Optimization — Turbo Edition (`apply_project_fixes_single (2).zip` — `2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ที่มา:** สคริปต์ `apply_project_fixes.py` ขนาด 99 KB (1,751 บรรทัด) ใน `apply_project_fixes_single (2).zip`
+- **ฟีเจอร์เพิ่มประสิทธิภาพระดับสูง (Turbo Performance):**
+  1. **Preconnect Optimization (`index.html`):** ใส่ `<link rel="preconnect">` สำหรับ Cloudflare Worker (`google-drive-file-viewer.missnlpp9.workers.dev`) และ Google CDN (`drive.usercontent.google.com`) ลดเวลา Handshake (DNS lookup + TLS negotiation) เมื่อเริ่มเล่นสตรีมครั้งแรก
+  2. **Confirmation URL Caching (`cloudflare-drive-worker.mjs`):** เพิ่ม `confirmUrlCache` (Map แบบ LRU ขนาด 20 ไฟล์, TTL 10 นาที) จดจำลิงก์ดาวน์โหลดที่มี `uuid` จากหน้า HTML warning ของ Google Drive ทำให้คำขอช่วงไบต์ถัดไปและท่อย่อยของ 4-way parallel ข้ามขั้นตอนการขอฟอร์ม HTML (ลดจำนวน HTTP Round-Trip ลง 50% ต่อ Chunk) พร้อมระบบ Auto-eviction หากเกิดข้อผิดพลาด
+  3. **Pipelined OPFS Disk Writes (`video-player.js`):** ปรับปรุง `readVideoBlobRanges` ไม่ต้องรอการเขียนไฟล์ลง OPFS temp storage เสร็จก่อนดึงเน็ตเวิร์ก chunk ถัดไป แต่เปลี่ยนมารันการเขียนดิสก์ควบคู่ไปในเบื้องหลัง (`pendingWrites.push(...)`) และดึง chunk ถัดไปผ่านเน็ตเวิร์กได้ทันที ช่วยดึงความเร็วการดาวน์โหลดทั้งไฟล์ให้เต็มแบนด์วิดท์
+  4. **Auto-Skip Quota-Blocked Direct Route (`video-player.js`):** ใน `loadVideoAsBlob` หากเส้นทางตรงเพิ่งติดโควตา Google Drive (`routeCooldown.blocked`) ระบบจะสลับไปดึงผ่าน Worker 6 ช่องขนานทันที โดยไม่ต้องรอให้เกิด 403 ซ้ำ
+  5. **Aspect Metadata Size Sync (`video-player.js`):** เมื่อ `applyPreviewAspect` ดึงข้อมูลจาก Drive API จะซิงก์ขนาดไฟล์ `cached.size = Number(meta.size)` ให้อัตโนมัติหากข้อมูลแคชเดิมไม่มี
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านครบทั้ง **160/160 tests PASS (0 failures, duration ~23s)**
+  - เพิ่มเคสทดสอบใหม่:
+    - `confirmUrlCache reuses confirmed uuid URL on subsequent range requests without re-fetching HTML warning` ใน `tests/public-worker.cjs` (ผ่านฉลุย)
+  - `node tools/collection_data.js check` ผ่าน สองฝั่งตรงกันครบ **335 รายการ**
+  - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
+  - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker ปราศจาก syntax error
+
+
 

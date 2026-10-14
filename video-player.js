@@ -563,11 +563,12 @@
         };
         const auth = authParams();
         if (auth.mode === 'none') { probeThumb(); return; }
-        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=videoMediaMetadata(width,height),thumbnailLink' + (auth.mode === 'key' ? '&key=' + apiKey : '');
+        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=size,videoMediaMetadata(width,height),thumbnailLink' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
         fetch(url, { headers: headers })
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (meta) {
+            if (meta && Number(meta.size) > 0 && cached && !(Number(cached.size) > 0)) cached.size = Number(meta.size);
             if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
@@ -1051,18 +1052,31 @@
           });
         };
         let next = 0;
+        const pendingWrites = [];
+        let writeError = null;
         const worker = function () {
+          if (writeError) return Promise.reject(writeError);
           if (next >= chunks) return Promise.resolve();
           const index = next++;
           const start = index * CHUNK;
           return fetchChunk(index, 0).then(function (blob) {
-            if (!onChunk) { parts[index] = blob; return; }
-            return Promise.resolve(onChunk(index, start, blob)).catch(function (err) { err.permanent = true; throw err; });
-          }).then(function () { return worker(); });
+            if (writeError) throw writeError;
+            if (!onChunk) { parts[index] = blob; return worker(); }
+            // Pipeline OPFS disk write concurrently while immediately starting the next network chunk fetch!
+            const p = Promise.resolve().then(function () { return onChunk(index, start, blob); }).catch(function (err) {
+              err.permanent = true;
+              writeError = err;
+              throw err;
+            });
+            pendingWrites.push(p);
+            return worker();
+          });
         };
         const pool = [];
         for (let i = 0; i < Math.min(LIMIT, chunks); i++) pool.push(worker());
-        return Promise.all(pool).then(function () { return onChunk ? type : new Blob(parts, {type: type || 'application/octet-stream'}); });
+        return Promise.all(pool).then(function () {
+          return Promise.all(pendingWrites);
+        }).then(function () { return onChunk ? type : new Blob(parts, {type: type || 'application/octet-stream'}); });
       }
 
       function openVideoTempWriter() {
@@ -1147,13 +1161,12 @@
         renderVideoBlobProgress(0, 0);
         const directUrl = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const directHeaders = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
-        // แหล่งโหลดทั้งไฟล์เรียงตามลำดับ: Google API ตรงก่อน แล้ว Worker สาธารณะซึ่งใช้ช่องทาง usercontent
-        // (โควตาแยกต่างหาก จึงรอดเมื่อ Google ตัดโควตาดาวน์โหลดตรง) — ส่งเฉพาะ file ID ไม่มีโทเคนหรือ key แนบไป
-        // Worker ใช้ช่วง 4 MiB × 6 ช่อง ให้ทันภายใน timeout ต่อคำขอของ Worker แม้เน็ตช้าลง
-        const sources = [
-          {note: '', url: directUrl, headers: directHeaders},
-          {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}}
-        ];
+        const directRoute = auth.mode === 'bearer' ? 'bearer' : 'key';
+        const directBlocked = typeof routeCooldown !== 'undefined' && routeCooldown && routeCooldown.blocked(id, accessToken ? 'signedin' : 'public', directRoute);
+        const directSource = {note: '', url: directUrl, headers: directHeaders};
+        const workerSource = {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}};
+        // หากแหล่งตรงเพิ่งติดโควตา ให้ข้ามไปเริ่มดึงผ่าน Worker 6 ช่องขนานทันทีโดยไม่ต้องรอติด 403 ซ้ำ
+        const sources = directBlocked ? [workerSource, directSource] : [directSource, workerSource];
         const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
         const loadSingle = function () {
           return fetch(directUrl, { headers: directHeaders, signal: transfer.controller.signal })

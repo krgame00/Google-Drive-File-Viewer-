@@ -32,6 +32,20 @@ function rememberParallelFile(id, total) {
   parallelFiles.set(id, total);
   if (parallelFiles.size > 10) parallelFiles.delete(parallelFiles.keys().next().value);
 }
+// Cache confirmed Google download URLs (with uuid) per file ID for 10 minutes (LRU up to 20 files)
+// so parallel sub-intervals and whole-file chunks skip the HTML confirmation round-trip.
+const confirmUrlCache = new Map();
+function getCachedConfirmUrl(id) {
+  const entry = confirmUrlCache.get(id);
+  if (!entry) return null;
+  if (Date.now() - entry.at > 600000) { confirmUrlCache.delete(id); return null; }
+  return entry.url;
+}
+function setCachedConfirmUrl(id, url) {
+  if (confirmUrlCache.has(id)) confirmUrlCache.delete(id);
+  confirmUrlCache.set(id, {url: url, at: Date.now()});
+  if (confirmUrlCache.size > 20) confirmUrlCache.delete(confirmUrlCache.keys().next().value);
+}
 async function fetchParallelChunk(id, start, end, signal, fetchImpl) {
   // Split one bounded interval into four sub-intervals fetched in parallel
   // through the confirmation flow and stream them in order; returns
@@ -126,13 +140,15 @@ async function fetchMediaChunk(id, range, signal, fetchImpl) {
   const headers = new Headers();
   if (boundedRange) headers.set('Range', boundedRange);
   const seen = new Set();
-  let url = 'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t';
+  const baseUrl = 'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t';
+  let url = getCachedConfirmUrl(id) || baseUrl;
   for (let step = 0; step < 3; step++) {
     if (seen.has(url)) return {error: 'confirmationFailed'};
     seen.add(url);
     const res = await fetchImpl(url, {method: 'GET', headers, redirect: 'follow', signal});
     const type = res.headers.get('Content-Type') || '';
     if (!res.ok || /text\/html/i.test(type)) {
+      if (url !== baseUrl) confirmUrlCache.delete(id);
       const warning = await readWarning(res.body);
       if (/downloadQuotaExceeded|too many users|quota exceeded/i.test(warning)) {
         if (boundedRange !== range && rangeRetries < 2 && !signal.aborted) {
@@ -140,14 +156,18 @@ async function fetchMediaChunk(id, range, signal, fetchImpl) {
           headers.set('Range', boundedRange);
           // Each smaller interval gets its own bounded confirmation sequence.
           seen.clear(); step = -1;
-          url = 'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t';
+          url = getCachedConfirmUrl(id) || baseUrl;
           continue;
         }
         return {error: 'downloadQuotaExceeded', status: 403};
       }
       if (!res.ok) return {error: 'upstreamRejected', status: res.status};
       const next = confirmationUrl(warning, id);
-      if (!next) return {error: 'upstreamReturnedHtml'};
+      if (!next) {
+        if (url !== baseUrl && !seen.has(baseUrl)) { url = baseUrl; continue; }
+        return {error: 'upstreamReturnedHtml'};
+      }
+      setCachedConfirmUrl(id, next);
       url = next; continue;
     }
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {

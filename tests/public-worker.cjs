@@ -220,3 +220,22 @@ test('parallelFiles LRU retains parallel capability when switching between multi
  assert.equal(seekA.status,206);
  assert.ok(ranges.filter(r=>r.startsWith('fileA:')).length>=4,'fileA still streams in 4 parallel sub-intervals after fileB was opened');
 });
+test('confirmUrlCache reuses confirmed uuid URL on subsequent range requests without re-fetching HTML warning',async()=>{
+ const {createDriveWorker}=await worker;const urls=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  urls.push(String(url));
+  if(!String(url).includes('uuid=')){
+   return new Response(form('https://drive.usercontent.google.com/download','wConfirmCache'),{headers:{'Content-Type':'text/html'}});
+  }
+  const m=/^bytes=(\d+)-(\d+)$/.exec(opts.headers.get('Range'));
+  return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/50000000'}});
+ });
+ const r1=await app.fetch(new Request('https://worker.test/?id=wConfirmCache',{headers:{Range:'bytes=0-3'}}));
+ assert.equal(r1.status,206);
+ assert.equal(urls.length,2,'first chunk took 2 requests (HTML form + confirmed uuid URL)');
+ urls.length=0;
+ const r2=await app.fetch(new Request('https://worker.test/?id=wConfirmCache',{headers:{Range:'bytes=4-7'}}));
+ assert.equal(r2.status,206);
+ assert.equal(urls.length,1,'second chunk took only 1 request using cached uuid URL directly');
+ assert.match(urls[0],/uuid=confirmation-id/);
+});
