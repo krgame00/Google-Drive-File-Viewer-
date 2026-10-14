@@ -1712,15 +1712,50 @@
     .video-toolbar .lb-close, .video-toolbar .media-nav { position: static; transform: none; width: 44px; height: 44px; flex: 0 0 44px; font-size: 26px; }
     .video-toolbar .lb-close { order: 3; margin-left: auto; }
     #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 44px; padding: 8px 12px; margin-left: 4px; white-space: nowrap; flex-shrink: 0; }
-    .video-box:fullscreen { width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden; }
-    .video-box:fullscreen .ratio, .video-box:fullscreen .ratio[data-orientation="portrait"] { flex: 1 1 0; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto; }
-    .video-box:fullscreen .video-footer { display: none; }
-    .video-box:fullscreen .video-toolbar { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
+    .video-box:fullscreen,
+    .video-box.pseudo-fullscreen {
+      width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden;
+    }
+    .video-box.pseudo-fullscreen {
+      position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 100000; margin: 0; background: #000;
+    }
+    .video-box:fullscreen .ratio,
+    .video-box:fullscreen .ratio[data-orientation="portrait"],
+    .video-box.pseudo-fullscreen .ratio,
+    .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"] {
+      flex: 1 1 0; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto;
+    }
+    .video-box:fullscreen .video-footer,
+    .video-box.pseudo-fullscreen .video-footer { display: none; }
+    .video-box:fullscreen .video-toolbar,
+    .video-box.pseudo-fullscreen .video-toolbar {
+      padding-top: max(8px, env(safe-area-inset-top));
+      padding-left: max(8px, env(safe-area-inset-left));
+      padding-right: max(8px, env(safe-area-inset-right));
+    }
     .video-box { max-height: 94dvh; overflow-y: auto; }
-    .video-box .ratio { min-height: 0; max-height: 65dvh; width: 100%; margin: 0 auto; }
-    .video-box .ratio[data-orientation="portrait"] { width: auto; height: min(76dvh, 760px); max-height: 76dvh; max-width: 100%; }
+    .video-box .ratio {
+      --video-max-h: 65dvh;
+      min-height: 0;
+      max-height: var(--video-max-h);
+      aspect-ratio: 16 / 9;
+      width: min(100%, calc(var(--video-max-h) * 16 / 9));
+      margin: 0 auto;
+      overflow: hidden;
+      position: relative;
+    }
+    .video-box .ratio[data-orientation="landscape"] {
+      aspect-ratio: 16 / 9;
+      width: min(100%, calc(var(--video-max-h) * 16 / 9));
+    }
+    .video-box .ratio[data-orientation="portrait"] {
+      aspect-ratio: 9 / 16;
+      width: auto;
+      height: min(76dvh, 760px);
+      max-height: 76dvh;
+      max-width: 100%;
+    }
     .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
-    .video-box .ratio { overflow: hidden; }
     .video-box .ratio > iframe[data-video-preview="true"] {
       width: var(--preview-width, 100%); height: var(--preview-height, 100%);
       transform: scale(var(--preview-scale, 1)); transform-origin: top left;
@@ -1738,6 +1773,23 @@
     .pdf-page-count { min-width: 58px; color: #e5e7eb; text-align: center; font-size: 13px; white-space: nowrap; }
     #pdfStage { position: absolute; inset: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; background: #292929; overscroll-behavior: contain; }
     #pdfCanvas { display: block; max-width: none; height: auto; margin: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
+    @media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
+      .video-modal { padding: 4px env(safe-area-inset-right) 4px env(safe-area-inset-left); align-items: center; }
+      .video-box { max-height: 100dvh; width: 100%; border-radius: 6px; }
+      .video-toolbar { padding: 4px 8px; gap: 4px; }
+      .video-toolbar .lb-close, .video-toolbar .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 20px; }
+      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
+      .video-box .ratio {
+        --video-max-h: calc(100dvh - 46px);
+        max-height: var(--video-max-h);
+        width: min(100%, calc(var(--video-max-h) * 16 / 9));
+      }
+      .video-box .ratio[data-orientation="landscape"] {
+        width: min(100%, calc(var(--video-max-h) * 16 / 9));
+      }
+      .video-footer { padding: 6px 10px; gap: 4px; }
+      .video-info summary { min-height: 32px; padding: 4px 0; }
+    }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
@@ -1748,11 +1800,27 @@
       .pdf-controls.lb-pdf-controls button { min-width: 40px; min-height: 44px; padding: 4px; }
       .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
       #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 38px; padding: 6px 8px; font-size: 12px; margin-left: 0; white-space: nowrap; flex-shrink: 0; }
-      .video-box .ratio:has(iframe[style*="display: block"]) { aspect-ratio: 16 / 9; height: auto; }
+      .video-box .ratio:has(iframe[style*="display: block"]) {
+        aspect-ratio: 16 / 9;
+        width: min(100%, calc(var(--video-max-h, 65dvh) * 16 / 9));
+        height: auto;
+      }
       .video-box .ratio[data-orientation="portrait"],
-      .video-box .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) { aspect-ratio: 9 / 16; width: 100%; height: auto; max-height: 76dvh; }
+      .video-box .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) {
+        aspect-ratio: 9 / 16;
+        width: min(100%, calc(76dvh * 9 / 16));
+        height: auto;
+        max-height: 76dvh;
+      }
       .video-box:fullscreen .ratio:has(iframe[style*="display: block"]),
-      .video-box:fullscreen .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) { aspect-ratio: auto; max-height: none; height: 100%; }
+      .video-box:fullscreen .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]),
+      .video-box.pseudo-fullscreen .ratio:has(iframe[style*="display: block"]),
+      .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) {
+        aspect-ratio: auto;
+        max-height: none;
+        height: 100%;
+        width: 100%;
+      }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
       .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }
       .video-footer .video-title { white-space: nowrap; display: block; }

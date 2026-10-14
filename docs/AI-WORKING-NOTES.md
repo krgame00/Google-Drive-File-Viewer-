@@ -384,7 +384,35 @@
   - `py tests/test_patch_alive_sync.py` ผ่าน 1/1 test (OK)
   - `node --check` ผ่านทุกไฟล์ JavaScript / Worker ไร้ syntax error
 
-
-
-
-
+### 27. Fix Horizontal Video 3.2:1 Aspect Ratio Pancake & Mobile Fullscreen Fallback (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause):**
+  1. **วิดีโอแนวนอนแบนเป็นแพนเค้ก 3.2:1 ในแนวนอน (`styles.css`):**
+     - ใน `styles.css` กำหนด `.video-box .ratio` ด้วย `width: 100%` ร่วมกับ `max-height: 65dvh`
+     - เมื่อผู้ใช้หมุนจอมือถือเป็นแนวนอน (เช่น iPhone 14: 844x390px): ความกว้างของกล่องวิดีโอคือ 812px แต่ `max-height: 65dvh` บีบความสูงไว้ที่ 253.5px
+     - ตามกฎ CSS Flexbox/Block: เมื่อกำหนด `width: 100%` ความกว้างจะไม่หดตัวตาม `aspect-ratio: 16 / 9` ผลลัพธ์คือกล่องวิดีโอกลายเป็นสัดส่วน 812 / 253.5 = **3.203 : 1** แบนรีบเหมือนแถบแพนเค้ก และทำให้เครื่องเล่น Google Drive ข้างในเสียรูป
+  2. **ปุ่มเต็มจอบนมือถือ (โดยเฉพาะ iOS Safari / iPhone) ไม่ทำงาน:**
+     - Safari บน iPhone ไม่รองรับ HTML5 Fullscreen API (`Element.requestFullscreen`) บนอิลิเมนต์ `<div>` ทั่วไป ทำให้เมื่อผู้ใช้กดปุ่ม "เต็มจอ" ฟังก์ชันจะล้มเหลวและแจ้งเตือนว่า *"เปิดเต็มจอไม่ได้ ลองเปิดในแท็บใหม่"*
+     - ในแนวนอนไม่มี Media Query รองรับ ทำให้แถบควบคุมและส่วนข้อมูลด้านล่างเรียงซ้อนกันจนหน้าจอเกิด Scrollbar แนวตั้ง
+  3. **แคชเบราว์เซอร์บนมือถือจำโค้ดไฟล์เดิม:**
+     - ใน `index.html` ไม่ได้ใส่ query string สำหรับ cache busting (`?v=...`) ทำให้เบราว์เซอร์บนมือถือยังคงดึงไฟล์ CSS และ JavaScript รุ่นเก่าที่จำอยู่ในหน่วยความจำแคช
+- **แนวทางการแก้ไข:**
+  1. **คำนวณความกว้างสัดส่วน 16:9 แบบไดนามิกตามความสูงสูงสุด (`styles.css`):**
+     - แทนที่ `width: 100%` ด้วย `width: min(100%, calc(var(--video-max-h, 65dvh) * 16 / 9)); max-height: var(--video-max-h); aspect-ratio: 16 / 9; margin: 0 auto;`
+     - ทั้งในแนวตั้ง (374x210.4px) และแนวนอน (611.5x344px) สัดส่วนของวิดีโอจะล็อกอยู่ที่ **16:9 (1.7778:1)** อย่างแม่นยำ ไม่โดนบีบแบนเป็น 3.2:1 อีกต่อไป
+  2. **เพิ่มกฎตอบสนองสำหรับมือถือแนวนอน (`styles.css`):**
+     - เพิ่ม `@media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape)`
+     - กำหนด `--video-max-h: calc(100dvh - 46px);` ทำให้เมื่อผู้ใช้หมุนเครื่องแนวนอน วิดีโอจะขยายเต็มความสูงของหน้าจอโดยเหลือพื้นที่ 46px ให้แถบเครื่องมือด้านบน ทำให้ได้วิดีโอขนาดใหญ่ถึง 611.5x344px บนจอ 844x390px โดยไม่มี Scrollbar แนวตั้ง
+  3. **เพิ่มระบบ Pseudo-Fullscreen Fallback สำหรับ iOS และอุปกรณ์ที่ไม่รองรับ Native Fullscreen (`styles.css`, `video-player.js`, `app-core.js`):**
+     - เพิ่มคลาส `.video-box.pseudo-fullscreen` ใน CSS ด้วย `position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 100000;`
+     - ใน `togglePlayerFullscreen()`: ตรวจสอบ `req = box.requestFullscreen || box.webkitRequestFullscreen` หากไม่มีหรือ Reject จะสลับเข้าสู่โหมด `pseudo-fullscreen` ทันที พร้อมอัปเดตข้อความปุ่มเป็น "ออกเต็มจอ"
+     - ใน `closeVideo()` และปุ่ม `Escape`: เพิ่มการลบคลาส `pseudo-fullscreen` คืนค่าการแสดงผลตามปกติ
+  4. **ล้างแคชเบราว์เซอร์มือถือ (Cache Busting):**
+     - เพิ่ม `?v=20261014-r3` ต่อท้าย `styles.css` และแท็ก `<script>` ทั้ง 7 ไฟล์ใน `index.html`
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures, duration ~24s)**
+  - **Chrome DevTools MCP Emulation Verification (ทดสอบจริงในเบราว์เซอร์):**
+    - *iPhone 14 Landscape (844x390px):* กล่องวิดีโอมีขนาด `width = 611.55px`, `height = 344px`, สัดส่วนคำนวณได้ `aspect = 1.777833` ตรงกับ **16:9** เป๊ะ ไร้ Scrollbar แนวตั้ง บันทึกภาพหน้าจอตรวจสอบเรียบร้อย
+    - *Pseudo-Fullscreen:* จำลองกรณีไร้ `requestFullscreen` (iOS Safari) ผลลัพธ์ `isPseudo = true`, ปุ่มเปลี่ยนเป็น "ออกเต็มจอ", ขนาดเต็มจอ 16:9 สวยงาม และสามารถกดออกหรือกด Escape กลับมาได้ปกติ
+    - *iPhone 14 Portrait (390x844px):* กล่องวิดีโอมีขนาด `width = 374px`, `height = 210.375px`, สัดส่วน `aspect = 1.777778` ตรงกับ **16:9** แถบปุ่มด้านบนแสดงครบไม่ตกขอบ
+    - *Aspect Toggle:* ปุ่ม `#vidAspectToggle` กดสลับระหว่างแนวตั้ง 9:16 (`aspect = 0.5625`) และแนวนอน 16:9 (`aspect = 1.7778`) ได้ทันที

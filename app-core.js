@@ -1014,6 +1014,10 @@
           if (pdfInLightbox) { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); }
           else resetImageView();
         }
+        if (videoModal.classList.contains('show')) {
+          applyVideoAspect();
+          requestAnimationFrame(fitVideoPreview);
+        }
       });
 
 
@@ -1133,16 +1137,20 @@
       if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
       });
-      document.addEventListener('fullscreenchange', function () {
+      function handleFullscreenChange() {
         const box = videoModal.querySelector('.video-box');
-        const active = document.fullscreenElement === box;
+        const active = (document.fullscreenElement === box) || (document.webkitFullscreenElement === box) || (box && box.classList.contains('pseudo-fullscreen'));
         if (!active) releasePlayerOrientation();
         const button = document.getElementById('vidFullscreen');
-        button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
-        button.setAttribute('aria-pressed', String(active));
+        if (button) {
+          button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
+          button.setAttribute('aria-pressed', String(active));
+        }
         applyVideoAspect();
         requestAnimationFrame(fitVideoPreview);
-      });
+      }
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.getElementById('vidPreview').addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
@@ -1588,7 +1596,18 @@
 
         if (lightbox.classList.contains("show")) closeLightbox();
 
-        if (videoModal.classList.contains("show")) closeVideo();
+        if (videoModal.classList.contains("show")) {
+          const box = videoModal.querySelector('.video-box');
+          if (box && box.classList.contains('pseudo-fullscreen')) {
+            box.classList.remove('pseudo-fullscreen');
+            const button = document.getElementById('vidFullscreen');
+            if (button) { button.textContent = 'เต็มจอ'; button.setAttribute('aria-pressed', 'false'); }
+            applyVideoAspect();
+            requestAnimationFrame(fitVideoPreview);
+            return;
+          }
+          closeVideo();
+        }
 
       });
 

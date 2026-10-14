@@ -669,13 +669,40 @@
       function togglePlayerFullscreen() {
         if (!videoModal.classList.contains('show')) return Promise.resolve();
         const box = videoModal.querySelector('.video-box');
+        if (!box) return Promise.resolve();
         const failed = function () { showToast('เปิดเต็มจอไม่ได้ ลองเปิดในแท็บใหม่'); };
         try {
-          if (document.fullscreenElement === box) return Promise.resolve(document.exitFullscreen()).catch(failed);
-          if (!box.requestFullscreen || document.fullscreenElement) { failed(); return Promise.resolve(); }
-          return Promise.resolve(box.requestFullscreen()).then(function () {
-            return lockHorizontalPlayerOrientation(box);
-          }).catch(failed);
+          if (document.fullscreenElement === box || (document.webkitFullscreenElement && document.webkitFullscreenElement === box)) {
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (exit) return Promise.resolve(exit.call(document)).catch(failed);
+          }
+          if (box.classList && box.classList.contains && box.classList.contains('pseudo-fullscreen')) {
+            box.classList.remove('pseudo-fullscreen');
+            const btn = document.getElementById ? document.getElementById('vidFullscreen') : null;
+            if (btn) { btn.textContent = 'เต็มจอ'; btn.setAttribute('aria-pressed', 'false'); }
+            applyVideoAspect();
+            if (typeof fitVideoPreview === 'function') fitVideoPreview();
+            return Promise.resolve();
+          }
+          const req = box.requestFullscreen || box.webkitRequestFullscreen;
+          if (req) {
+            return Promise.resolve(req.call(box)).then(function () {
+              return lockHorizontalPlayerOrientation(box);
+            }).catch(function () {
+              if (box.classList && box.classList.add) box.classList.add('pseudo-fullscreen');
+              const btn = document.getElementById ? document.getElementById('vidFullscreen') : null;
+              if (btn) { btn.textContent = 'ออกเต็มจอ'; btn.setAttribute('aria-pressed', 'true'); }
+              applyVideoAspect();
+              if (typeof fitVideoPreview === 'function') fitVideoPreview();
+              failed();
+            });
+          }
+          if (box.classList && box.classList.add) box.classList.add('pseudo-fullscreen');
+          const btn = document.getElementById ? document.getElementById('vidFullscreen') : null;
+          if (btn) { btn.textContent = 'ออกเต็มจอ'; btn.setAttribute('aria-pressed', 'true'); }
+          applyVideoAspect();
+          if (typeof fitVideoPreview === 'function') fitVideoPreview();
+          return Promise.resolve();
         } catch (_) { failed(); return Promise.resolve(); }
       }
 
@@ -1408,6 +1435,10 @@
         if (document.fullscreenElement && videoModal.contains && videoModal.contains(document.fullscreenElement) && document.exitFullscreen) {
           Promise.resolve(document.exitFullscreen()).catch(function () {});
         }
+        const box = videoModal.querySelector && videoModal.querySelector('.video-box');
+        if (box && box.classList && box.classList.remove) box.classList.remove('pseudo-fullscreen');
+        const btn = document.getElementById ? document.getElementById('vidFullscreen') : null;
+        if (btn) { btn.textContent = 'เต็มจอ'; btn.setAttribute('aria-pressed', 'false'); }
         resetMediaPlayback();
         vidCurrentId = null;
         document.body.style.overflow = lightbox.classList.contains("show") ? "hidden" : mediaPreviousOverflow;
