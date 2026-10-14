@@ -272,15 +272,20 @@
 
       function renderFavoriteFolders() {
         let section = document.getElementById("favoriteFolders");
+        const drawerMount = document.getElementById("myLibraryContent");
         if (!section) {
           section = document.createElement("section");
           section.id = "favoriteFolders";
           section.className = "favorite-folders";
-          document.getElementById("browserCard").before(section);
+          if (drawerMount) drawerMount.appendChild(section);
+          else document.getElementById("browserCard").before(section);
+        } else if (drawerMount && section.parentElement !== drawerMount) {
+          drawerMount.appendChild(section);
         }
         section.innerHTML = '<h3>★ รายการโปรด</h3><p>บันทึกในเบราว์เซอร์นี้ · เปิดโฟลเดอร์แล้วกด ☆ เพื่อเพิ่ม</p>';
         const favs = loadFavoriteFolders();
         if (!favs.length) {
+          if (window.updateMyLibraryBadge) window.updateMyLibraryBadge();
           return;
         }
         const grid = document.createElement("div");
@@ -302,6 +307,7 @@
             </div>
           `;
           open.onclick = () => {
+            if (window.closeMyLibraryDrawer) window.closeMyLibraryDrawer();
             navStack = [{ id: item.id, name: item.name }];
             pushHash(item.id);
             openFolderAndReveal(item.id, item.name);
@@ -321,6 +327,7 @@
           grid.appendChild(row);
         });
         section.appendChild(grid);
+        if (window.updateMyLibraryBadge) window.updateMyLibraryBadge();
       }
 
       function showFolderCoverStatus(target, failed) {

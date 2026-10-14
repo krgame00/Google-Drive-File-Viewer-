@@ -30,7 +30,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261014-r6" />
+  <link rel="stylesheet" href="styles.css?v=20261014-r7" />
 
 </head>
 
@@ -64,13 +64,17 @@
 
             </div>
 
-            <button type="button" id="themeToggle" class="btn-ghost btn-sm" title="สลับธีมสว่าง/มืด" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
-
-              <svg id="themeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-
-              <span id="themeLabel">มืด</span>
-
-            </button>
+            <div style="display:inline-flex; align-items:center; gap:8px;">
+              <button type="button" id="myLibraryToggle" class="btn-ghost btn-sm" title="เปิดคลังของฉัน (ดูต่อ, ดูภายหลัง, รายการโปรด)" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px; position:relative;">
+                <span>⭐</span>
+                <span>คลังของฉัน</span>
+                <span id="myLibraryBadge" class="my-library-badge" style="display:none">0</span>
+              </button>
+              <button type="button" id="themeToggle" class="btn-ghost btn-sm" title="สลับธีมสว่าง/มืด" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+                <svg id="themeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <span id="themeLabel">มืด</span>
+              </button>
+            </div>
 
           </div>
 
@@ -412,6 +416,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       กลับคลัง
     </button>
+    <button type="button" id="mbLibrary" aria-label="คลังของฉัน">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      คลังของฉัน
+    </button>
 
     <button type="button" id="mbSearch" aria-label="ค้นหา" disabled>
 
@@ -429,15 +437,29 @@
 
   <div class="toast" id="toast">สำเร็จ!</div>
 
+  <!-- ===== My Library Drawer ===== -->
+  <div id="myLibraryBackdrop" class="drawer-backdrop" aria-hidden="true"></div>
+  <aside id="myLibraryDrawer" class="drawer-panel" role="dialog" aria-modal="true" aria-label="คลังของฉัน" aria-hidden="true">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <span class="drawer-title-icon">⭐</span>
+        <h2>คลังของฉัน</h2>
+        <span id="myLibraryTotalCount" class="drawer-count-pill">0 รายการ</span>
+      </div>
+      <button type="button" id="myLibraryClose" class="drawer-close-btn" aria-label="ปิดเมนูคลังของฉัน">×</button>
+    </div>
+    <div class="drawer-body" id="myLibraryContent">
+      <!-- Sections continueWatching, personalLibrary, favoriteFolders are mounted here -->
+    </div>
+  </aside>
 
-
-  <script src="video-cache.js?v=20261014-r6"></script>
-  <script src="app-core.js?v=20261014-r6"></script>
-  <script src="video-player.js?v=20261014-r6"></script>
-  <script src="drive-explorer.js?v=20261014-r6"></script>
-  <script src="media-lightbox.js?v=20261014-r6"></script>
-  <script src="collections-data.js?v=20261014-r6" defer></script>
-  <script src="collection-viewer.js?v=20261014-r6" defer></script>
+  <script src="video-cache.js?v=20261014-r7"></script>
+  <script src="app-core.js?v=20261014-r7"></script>
+  <script src="video-player.js?v=20261014-r7"></script>
+  <script src="drive-explorer.js?v=20261014-r7"></script>
+  <script src="media-lightbox.js?v=20261014-r7"></script>
+  <script src="collections-data.js?v=20261014-r7" defer></script>
+  <script src="collection-viewer.js?v=20261014-r7" defer></script>
 
 </body>
 

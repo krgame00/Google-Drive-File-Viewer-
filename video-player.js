@@ -1386,11 +1386,15 @@
 
       function renderContinueWatching() {
         let section = document.getElementById("continueWatching");
+        const drawerMount = document.getElementById("myLibraryContent");
         if (!section) {
           section = document.createElement("section");
           section.id = "continueWatching";
           section.className = "favorite-folders";
-          document.getElementById("browserCard").before(section);
+          if (drawerMount) drawerMount.appendChild(section);
+          else document.getElementById("browserCard").before(section);
+        } else if (drawerMount && section.parentElement !== drawerMount) {
+          drawerMount.appendChild(section);
         }
         section.innerHTML = '<h3>ดูต่อจากครั้งล่าสุด</h3><p>บันทึกในเบราว์เซอร์นี้ สูงสุด 30 รายการ · จำเวลาได้เฉพาะเครื่องเล่นโดยตรง ไม่รวมพรีวิว Google Drive</p>';
         const items = loadContinueWatching();
@@ -1398,6 +1402,7 @@
           const empty = document.createElement("p");
           empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
           section.appendChild(empty);
+          if (window.updateMyLibraryBadge) window.updateMyLibraryBadge();
           return;
         }
         const grid = document.createElement("div");
@@ -1424,6 +1429,7 @@
             </div>
           `;
           button.onclick = () => {
+            if (window.closeMyLibraryDrawer) window.closeMyLibraryDrawer();
             lsSet("gdv_vpos_" + item.id, item.position);
             openVideo(item.id, item.name);
           };
@@ -1442,6 +1448,7 @@
           grid.appendChild(row);
         });
         section.appendChild(grid);
+        if (window.updateMyLibraryBadge) window.updateMyLibraryBadge();
       }
 
       function revokeCurrentVideo() {

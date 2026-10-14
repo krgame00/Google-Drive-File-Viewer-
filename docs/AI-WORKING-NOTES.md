@@ -542,3 +542,34 @@
     - ตรวจสอบการ์ดคลัง XBep: Dot Status Pill แสดงผลคมชัด กะทัดรัด ไม่เบียดกัน
     - Dashboard Pill Chips: แสดงผล `📦 ทั้งหมด 335`, `🟢 Drive พร้อม 173`, `🔴 ย้าย/เสีย 162` ชัดเจน สวยงาม
 
+### 31. Feature: My Library Drawer ("⭐ คลังของฉัน") (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาเดิม:**
+  - ส่วน "ดูภายหลัง", "ดูต่อจากครั้งล่าสุด", และ "★ รายการโปรด" แสดงผลเป็น Section ขนาดใหญ่ 3 ส่วนคั่นอยู่กลางหน้าหลัก
+  - ทำให้หน้าหลักต้องเลื่อนยาวมาก และบดบังการสำรวจโฟลเดอร์ใน Drive และคลัง XBep
+- **แนวทางและสิ่งที่ทำ (Implementation):**
+  1. **สร้าง Drawer/Slide-over Menu "⭐ คลังของฉัน" (`#myLibraryDrawer`):**
+     - บนเดสก์ท็อป: สไลด์มาจากด้านขวา (Slide-over Panel)
+     - บนมือถือ (<680px): สไลด์ขึ้นมาจากด้านล่างเป็น Bottom Sheet มีความสูง 84dvh พร้อมปุ่มปิด `×` และ Backdrop Blur ฉากหลัง
+  2. **ย้าย 3 ส่วนเข้าสู่ Drawer โดยอัตโนมัติ:**
+     - `renderPersonalLibrary()` (`app-core.js`), `renderContinueWatching()` (`video-player.js`), และ `renderFavoriteFolders()` (`drive-explorer.js`) ตรวจพบ `#myLibraryContent` และ Mount เข้าไปใน Drawer
+     - หน้าหลักระหว่าง คลัง XBep กับ เบราว์เซอร์ Drive จึงเชื่อมต่อกันอย่างต่อเนื่อง คลีนโล่ง ไม่รกสายตา
+  3. **จุดเข้าถึง 2 ทาง (Header + Mobile Bar):**
+     - Header: เพิ่มปุ่ม `#myLibraryToggle` ข้างปุ่มเปลี่ยนธีม พร้อม Badge สีแดงเรืองแสงนับจำนวนรวมแบบเรียลไทม์
+     - Mobile Bottom Bar: เพิ่มปุ่ม `#mbLibrary` (ไอคอนดาว) ในแถบลัดด้านล่าง
+  4. **Micro-UX & Interactivity:**
+     - คลิกปุ่มเปิดการ์ดใดๆ ใน Drawer จะสั่งปิด Drawer อัตโนมัติ (`closeMyLibraryDrawer()`) เพื่อนำผู้ใช้เข้าสู่วิดีโอหรือโฟลเดอร์ทันที
+     - รองรับการกดแป้น `Escape` หรือคลิกฉากหลังเพื่อปิด
+     - ป้องกันการ Scroll ซ้อนของหน้าหลักด้วย `body.drawer-open { overflow: hidden; }`
+  5. **อัปเดต Cache Busting เป็น `?v=20261014-r7` (`index.html`):**
+     - ให้ผู้ใช้ได้รับเวอร์ชันใหม่ทันที
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures)**
+  - **Data Integrity:** `node tools/collection_data.js check` ผ่านครบ 335 รายการ
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Browser E2E Verification ผ่าน Chrome DevTools MCP:**
+    - ตรวจสอบ `drawerChildren: ["personalLibrary", "continueWatching", "favoriteFolders"]` ย้ายเข้า Drawer ครบถ้วน
+    - ตรวจสอบ `prevSiblingOfBrowserCard: "collectionsCard"` (หน้าหลักคลีน ไร้ Section คั่น)
+    - ทดสอบคลิกเปิด-ปิด Drawer, Backdrop และ Badge ตัวเลขแสดงผลเรียลไทม์ถูกต้อง 100%
+
+

@@ -1279,11 +1279,15 @@
 
       function renderPersonalLibrary() {
         let section = document.getElementById("personalLibrary");
+        const drawerMount = document.getElementById("myLibraryContent");
         if (!section) {
           section = document.createElement("section");
           section.id = "personalLibrary";
           section.className = "favorite-folders";
-          document.getElementById("browserCard").before(section);
+          if (drawerMount) drawerMount.appendChild(section);
+          else document.getElementById("browserCard").before(section);
+        } else if (drawerMount && section.parentElement !== drawerMount) {
+          drawerMount.appendChild(section);
         }
         const settingsOpen = !!section.querySelector("details[open]");
         const data = readPersonalData();
@@ -1312,7 +1316,10 @@
               <span class="resume-time-tag">${kindLabel}</span>
             </div>
           `;
-          open.onclick = () => handleFileClick(item.id, item.kind, item.name);
+          open.onclick = () => {
+            if (window.closeMyLibraryDrawer) window.closeMyLibraryDrawer();
+            handleFileClick(item.id, item.kind, item.name);
+          };
           const remove = document.createElement("button"); remove.type = "button"; remove.className = "favorite-remove-btn"; remove.textContent = "×";
           remove.setAttribute("aria-label", "ลบ " + item.name + " จากดูภายหลัง");
           remove.onclick = (e) => {
@@ -1321,6 +1328,7 @@
           };
           row.append(open, remove); items.appendChild(row);
         });
+        if (window.updateMyLibraryBadge) window.updateMyLibraryBadge();
         const tools = section.querySelector(".personal-tools");
         const makeButton = (label, action) => { const b = document.createElement("button"); b.type = "button"; b.className = "btn-ghost"; b.textContent = label; b.onclick = action; tools.appendChild(b); return b; };
         makeButton("ส่งออกข้อมูลส่วนตัว", () => {
@@ -1925,6 +1933,71 @@
 
 
 
+      // ===== My Library Drawer Functions =====
+      function updateMyLibraryBadge() {
+        const cwCount = (function () {
+          try { return JSON.parse(lsGet("gdv_continue") || "[]").length; } catch (_) { return 0; }
+        })();
+        const wlCount = (function () {
+          try { return JSON.parse(lsGet("gdv_watch_later") || "[]").length; } catch (_) { return 0; }
+        })();
+        const favCount = (function () {
+          try { return JSON.parse(lsGet("gdv_favorites") || "[]").length; } catch (_) { return 0; }
+        })();
+        const total = cwCount + wlCount + favCount;
+        const badge = document.getElementById("myLibraryBadge");
+        if (badge) {
+          badge.textContent = String(total);
+          badge.style.display = total > 0 ? "inline-flex" : "none";
+        }
+        const totalPill = document.getElementById("myLibraryTotalCount");
+        if (totalPill) {
+          totalPill.textContent = total + " รายการ";
+        }
+      }
+
+      function openMyLibraryDrawer() {
+        const backdrop = document.getElementById("myLibraryBackdrop");
+        const drawer = document.getElementById("myLibraryDrawer");
+        if (backdrop) backdrop.classList.add("show");
+        if (drawer) {
+          drawer.classList.add("show");
+          drawer.setAttribute("aria-hidden", "false");
+        }
+        document.body.classList.add("drawer-open");
+        updateMyLibraryBadge();
+      }
+
+      function closeMyLibraryDrawer() {
+        const backdrop = document.getElementById("myLibraryBackdrop");
+        const drawer = document.getElementById("myLibraryDrawer");
+        if (backdrop) backdrop.classList.remove("show");
+        if (drawer) {
+          drawer.classList.remove("show");
+          drawer.setAttribute("aria-hidden", "true");
+        }
+        document.body.classList.remove("drawer-open");
+      }
+
+      function initMyLibraryDrawer() {
+        const toggle = document.getElementById("myLibraryToggle");
+        if (toggle) toggle.addEventListener("click", openMyLibraryDrawer);
+        const mb = document.getElementById("mbLibrary");
+        if (mb) mb.addEventListener("click", openMyLibraryDrawer);
+        const closeBtn = document.getElementById("myLibraryClose");
+        if (closeBtn) closeBtn.addEventListener("click", closeMyLibraryDrawer);
+        const backdrop = document.getElementById("myLibraryBackdrop");
+        if (backdrop) backdrop.addEventListener("click", closeMyLibraryDrawer);
+        window.addEventListener("keydown", function (event) {
+          if (event.key === "Escape") closeMyLibraryDrawer();
+        });
+        updateMyLibraryBadge();
+      }
+
+      window.openMyLibraryDrawer = openMyLibraryDrawer;
+      window.closeMyLibraryDrawer = closeMyLibraryDrawer;
+      window.updateMyLibraryBadge = updateMyLibraryBadge;
+
       // ===== Init =====
 
       refreshClientIdStatus();
@@ -1932,10 +2005,12 @@
       refreshKeyStatus();
 
       renderRecentFolders();
+      initMyLibraryDrawer();
       renderFavoriteFolders();
       if (window.GDVVideoApi && window.GDVVideoApi.video) renderContinueWatching();
 
       renderPersonalLibrary();
+      updateMyLibraryBadge();
       driveLink.focus();
 
 
