@@ -675,7 +675,7 @@
           });
         };
         const sources = [];
-        if (!googleOnly) sources.push({route:'worker', label:'worker', url:'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id)});
+        if (!googleOnly) sources.push({route:'worker', label:'worker', url:'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1'});
         sources.push({route:'usercontent', label:'ลิงก์ตรง', url:'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t'});
         if (apiKey) sources.push({route:'key', label:'API key', url:'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + apiKey});
         else notes.push('API key: ไม่ได้ตั้งค่า');
@@ -902,7 +902,7 @@
         // Worker ใช้ช่วง 4 MiB × 6 ช่อง ให้ทันภายใน timeout ต่อคำขอของ Worker แม้เน็ตช้าลง
         const sources = [
           {note: '', url: directUrl, headers: directHeaders},
-          {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id), headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}}
+          {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}}
         ];
         const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
         const loadSingle = function () {

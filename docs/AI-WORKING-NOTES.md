@@ -231,3 +231,32 @@
 - **ผลตรวจสอบ:** `node --check video-player.js` ผ่าน; `node --test tests/*.cjs` ผ่าน **146/146, 0 fail**; `git diff --check` ผ่าน. การทดสอบ OPFS ยังใช้ temporary-writer dependency จำลอง contract ไม่ใช่การทดสอบ OPFS จริงในเบราว์เซอร์.
 - **Browser smoke:** หน้า `http://127.0.0.1:8765/index.html` โหลดครบ (`document.readyState=complete`), title ถูกต้อง และ `GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi` มีครบ. ยังไม่ได้ทดสอบโหลดคลิปจริงผ่านบัญชี Google ในเบราว์เซอร์.
 - **Git:** ยังไม่ commit หรือ push; เก็บ working-tree changes ก่อนหน้านี้ไว้ทั้งหมด.
+
+### 18. Tail-moov MP4 handling and prefetch lifecycle (`2026-10-14` — commit `00cfd05`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบ:** ไฟล์วิดีโอ MP4 บางตัวเก็บ metadata box `moov` ไว้ท้ายไฟล์ (Tail-moov) ทำให้การอ่านหัวไฟล์ 1 MiB ไม่พบ Codec และตกค้างที่สถานะ `unknown`; รวมถึงเมื่อผู้ใช้ seek ข้ามช่วงหรือเปลี่ยนไฟล์ คำขอ prefetch ของช่วงก่อนหน้ายังทำงานต่อจนจบ
+- **การแก้ไข:**
+  - ใน `video-player.js`: หากหัวไฟล์เป็น MP4 แต่ยังไม่พบ atom `moov` ให้ส่ง Range request เพิ่มอีก 1 ท่อไปดึง 1 MiB ท้ายไฟล์ (`totalBytes - cap` ถึง `totalBytes - 1`) เพื่ออ่าน Codec ให้ได้ข้อสรุป `works` หรือระบุ codec ชัดเจน
+  - ใน `drive-stream-sw.js`: เมื่อมีคำขอใหม่และ prefetch เดิม (`ahead`) ไม่ตรงกับช่วงหรือไฟล์ที่ขอ ให้สั่ง `ahead.controller.abort()` ทันทีเพื่อประหยัดแบนด์วิดท์ และคำนวณ `reachesKnownEnd` เพื่อไม่ให้ท่อย่อยแตกย่อยเกินขนาดจริงของไฟล์
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - เพิ่มเคสทดสอบ `an mp4 with moov at EOF probes the tail range and identifies its codec` ใน `tests/stream-probe.cjs`
+  - รัน `node --test tests/stream-probe.cjs` ผ่านครบทุกเคส
+
+### 19. Content-Length for partial media responses (`2026-10-14` — commit `077e103`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบ:** เซิร์ฟเวอร์ต้นทางบางแห่งส่ง HTTP 206 Partial Content โดยละเว้น `Content-Length` header ทำให้เครื่องเล่นสื่อในเบราว์เซอร์ไม่ทราบขนาดข้อมูลของ chunk นั้น
+- **การแก้ไข:** ใน `cloudflare-drive-worker.mjs` หากได้ผลลัพธ์ 206 และไม่มี `Content-Length` ให้คำนวณไบต์จาก `Content-Range` (`end - start + 1`) แล้วเติมใส่ header อัตโนมัติ
+
+### 20. Continuous media streaming past 8 MiB in Cloudflare Worker & final baseline (`2026-10-14`)
+- **สถานะ:** `IMPLEMENTED — LOCAL TESTS PASS; LIVE DEPLOYMENT PENDING`
+- **ปัญหาที่พบ:** เครื่องเล่นสื่อแบบเนทีฟของเบราว์เซอร์บางรุ่น (โดยเฉพาะเมื่อส่ง `Range: bytes=0-` ปลายเปิด) อาจไม่ส่งคำขอ Range ถัดไปเมื่อ Chunk 8 MiB แรกจบลง ทำให้วิดีโอหยุดเล่นกะทันหัน
+- **การแก้ไข:**
+  - ใน `cloudflare-drive-worker.mjs`: เพิ่ม `createContinuousMediaResponse` เมื่อได้รับคำขอปลายเปิดพร้อมพารามิเตอร์ `continuous=1` โดยใช้ `ReadableStream` ตัวเดียวดึงท่อนถัดไป (ทั้งแบบเดี่ยวและ 4-way parallel) มา enqueue เข้าสตรีมเดิมอย่างต่อเนื่องจนจบไฟล์ โดยไม่ต้องตัดการเชื่อมต่อ
+  - ใน `video-player.js`: ส่ง `&continuous=1` ไปยัง URL ของ Worker
+  - เพิ่มเคสทดสอบ `open-ended media requests stream past the first 8 MiB in one continuous 206 response` ใน `tests/public-worker.cjs`
+- **หลักฐานการตรวจสอบรอบล่าสุด (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านครบ **148/148 tests (0 failures, duration ~23s)**
+  - `tests/media-lightbox.cjs` ผ่านครบ 14 เคส
+  - `node tools/collection_data.js check` ผ่าน ข้อมูลคลังสองฝั่งตรงกันครบ **335 รายการ**
+  - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
+  - `node --check` ผ่านครบทุกโมดูล ปราศจาก syntax error

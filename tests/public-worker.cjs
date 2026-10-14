@@ -154,3 +154,23 @@ test('a truncated intermediate sub-interval falls back to a single bounded fetch
  assert.equal(await res.text(),'bytes=999999999-1008388606','truncated intermediate sub-interval must not be stitched into a corrupted stream');
 });
 
+test('open-ended media requests stream past the first 8 MiB in one continuous 206 response',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[];const total=8388608+100;
+ const app=createDriveWorker(async(url,opts)=>{
+  const range=opts.headers.get('Range');ranges.push(range);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);assert(m,'upstream request should be bounded');
+  const start=Number(m[1]),end=Math.min(Number(m[2]),total-1),body=new Uint8Array(end-start+1);
+  body.fill(start===0?1:2);
+  return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+start+'-'+end+'/'+total,'Content-Length':String(body.length),'Accept-Ranges':'bytes'}});
+ });
+ const res=await app.fetch(new Request('https://worker.test/?id=w17&continuous=1',{headers:{Range:'bytes=0-'}}));
+ assert.equal(res.status,206);
+ assert.equal(res.headers.get('Content-Range'),'bytes 0-'+(total-1)+'/'+total);
+ assert.equal(res.headers.get('Content-Length'),String(total));
+ assert.equal(res.headers.get('Accept-Ranges'),'bytes');
+ const body=new Uint8Array(await res.arrayBuffer());
+ assert.equal(body.length,total,'body must continue past the initial 8 MiB boundary');
+ assert.equal(body[0],1);assert.equal(body[8388608],2);
+ assert.equal(ranges.length,5,'initial chunk plus four parallel continuation ranges');
+});
+

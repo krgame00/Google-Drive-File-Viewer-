@@ -147,6 +147,63 @@ async function fetchMediaChunk(id, range, signal, fetchImpl) {
   }
   return {error: 'confirmationFailed'};
 }
+async function createContinuousMediaResponse(id, firstResult, fileSize, signal, fetchImpl, useParallel, abortController) {
+  const first = firstResult.res;
+  const firstRange = (first.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+  const served = (firstResult.servedRange || '').match(/^bytes=(\d+)-(\d+)$/);
+  if (first.status !== 206 || !firstRange || !served) return null;
+  const start = BigInt(firstRange[1]), firstEnd = BigInt(firstRange[2]), total = BigInt(firstRange[3]);
+  if (start !== BigInt(served[1]) || firstEnd < start || total !== fileSize || firstEnd >= total) return null;
+  let current = first;
+  let currentEnd = firstEnd;
+  let reader = current.body ? current.body.getReader() : null;
+  let nextStart = firstEnd + 1n;
+  const stream = new ReadableStream({
+    async pull(controller) {
+      try {
+        while (true) {
+          if (signal.aborted) throw new DOMException('The operation was aborted', 'AbortError');
+          if (reader) {
+            const part = await reader.read();
+            if (!part.done) { controller.enqueue(part.value); return; }
+            reader = null;
+          }
+          if (nextStart >= total) { controller.close(); return; }
+          let outcome = null;
+          if (useParallel) {
+            outcome = await fetchParallelChunk(id, nextStart, nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n < total - 1n ? nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n : total - 1n, signal, fetchImpl);
+          }
+          if (!outcome || !outcome.res) {
+            outcome = await fetchMediaChunk(id, 'bytes=' + nextStart + '-', signal, fetchImpl);
+          }
+          if (!outcome || !outcome.res || outcome.res.status !== 206) throw new Error('mediaContinuationFailed');
+          const match = (outcome.res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
+          if (!match || BigInt(match[1]) !== nextStart || BigInt(match[2]) < nextStart || BigInt(match[2]) >= total || (match[3] !== '*' && BigInt(match[3]) !== total)) {
+            if (outcome.res.body) await outcome.res.body.cancel().catch(() => {});
+            throw new Error('mediaContinuationRangeMismatch');
+          }
+          current = outcome.res;
+          currentEnd = BigInt(match[2]);
+          reader = current.body ? current.body.getReader() : null;
+          nextStart = currentEnd + 1n;
+          if (!reader) continue;
+        }
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    cancel() {
+      if (abortController) abortController.abort();
+      try { if (reader) reader.cancel().catch(() => {}); } catch (_) {}
+    }
+  });
+  const headers = new Headers(cors);
+  headers.set('Content-Type', first.headers.get('Content-Type') || 'video/mp4');
+  headers.set('Content-Range', 'bytes ' + start + '-' + (total - 1n) + '/' + total);
+  headers.set('Content-Length', (total - start).toString());
+  headers.set('Accept-Ranges', 'bytes');
+  return new Response(stream, {status: 206, headers});
+}
 export function createDriveWorker(fetchImpl = fetch) {
   return {async fetch(request) {
     if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
@@ -193,6 +250,20 @@ export function createDriveWorker(fetchImpl = fetch) {
             || (actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]))))) {
           if (res.body) await res.body.cancel();
           return jsonError(502, 'upstreamIgnoredRange');
+        }
+      }
+      // Native media elements may not issue another Range request after the
+      // first capped response. For open-ended requests, keep one 206 response
+      // alive and stream subsequent chunks until EOF instead of ending at 8 MiB.
+      const openEnded = range && range.match(/^bytes=(\d+)-$/i);
+      const totalMatch = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+)$/i);
+      if (request.method === 'GET' && new URL(request.url).searchParams.get('continuous') === '1' && openEnded && totalMatch) {
+        if (ahead) { ahead.controller.abort(); ahead = null; }
+        const total = BigInt(totalMatch[1]);
+        const first = (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+)$/i);
+        if (first && BigInt(first[1]) === BigInt(openEnded[1]) && BigInt(first[2]) < total) {
+          const continuous = await createContinuousMediaResponse(id, result, total, abort.signal, fetchImpl, parallelOk === id, abort);
+          if (continuous) return continuous;
         }
       }
       // Keep the next chunk in flight so the following media request starts
