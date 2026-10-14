@@ -8,7 +8,7 @@
 
 - [x] แยกโค้ดหลักออกเป็นโมดูล JavaScript; `index.html` เหลือโครงหน้าและ script tags เป็นหลัก
 - [x] ตรวจในเครื่องว่าโมดูลหลักและ bridge ได้แก่ `GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi` โหลดได้
-- [x] รันทดสอบ `node --test tests/*.cjs` ล่าสุด: **151/151 ผ่าน, 0 fail**
+- [x] รันทดสอบ `node --test tests/*.cjs` ล่าสุด: **154/154 ผ่าน, 0 fail**
 - [x] ยืนยันว่าคำขอแบบ Range ไปยัง Worker ตอบกลับ `206 Partial Content` และมี `Content-Range` ที่สอดคล้องกับช่วงที่ขอในการทดสอบก่อนหน้า
 - [ ] **ยังไม่ผ่านการยอมรับใช้งานจริง:** ตัวเล่นวิดีโอสาธารณะยังไม่โหลด metadata/เริ่มเล่นใน Chrome แม้ fetch แบบ Range จะได้ข้อมูลกลับมา
 - [ ] สถานะการ Deploy ของ Cloudflare Worker ยังต้องตรวจให้แน่ชัดว่าโค้ดบน Cloudflare ตรงกับไฟล์ `cloudflare-drive-worker.mjs` ปัจจุบันหรือไม่; เอกสารเดิมมีบันทึก deployment ที่ไม่ตรงกัน
@@ -54,7 +54,7 @@
 - [ ] อัปเดต `docs/AI-WORKING-NOTES.md` ด้วยสถานะ Phase 4 และหลักฐานจริงเมื่อทำแต่ละส่วนเสร็จ
 
 ## P3 — ตรวจความสอดคล้องข้อมูลและ regression ก่อนปล่อย
-- [ ] รัน `node --test tests/*.cjs` — baseline ณ วันที่ 14 ตุลาคม 2026 คือ 146/146 ผ่าน
+- [ ] รัน `node --test tests/*.cjs` — baseline ณ วันที่ 14 ตุลาคม 2026 คือ 154/154 ผ่าน
 - [ ] รัน `node tools/collection_data.js check` และยืนยันข้อมูลสองฝั่งตรงกันครบ 335 รายการ
 - [ ] รัน `py -B tests/test_patch_alive_sync.py` เพื่อยืนยันสคริปต์อัปเดตสถานะ Drive ซิงก์กับ JSON
 - [ ] รัน `node --check` กับ JavaScript/Worker ทุกไฟล์ที่เปลี่ยน และ `git diff --check`

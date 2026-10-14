@@ -438,7 +438,7 @@
           while (true) {
             let url = "https://www.googleapis.com/drive/v3/files?q=" +
               encodeURIComponent("'" + folderId + "' in parents and trashed=false") +
-              "&orderBy=folder,name&pageSize=1000&fields=files(id,name,mimeType,thumbnailLink,iconLink,modifiedTime,size),nextPageToken";
+              "&orderBy=folder,name&pageSize=1000&fields=files(id,name,mimeType,thumbnailLink,iconLink,modifiedTime,size,videoMediaMetadata(width,height)),nextPageToken";
             if (pageToken) url += "&pageToken=" + encodeURIComponent(pageToken);
             if (auth.mode === "key") url += "&key=" + apiKey;
 

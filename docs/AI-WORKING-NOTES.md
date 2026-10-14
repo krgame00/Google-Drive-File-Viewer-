@@ -274,3 +274,18 @@
   - `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
   - `py -B tests/test_patch_alive_sync.py` ผ่าน
   - `node --check` ผ่านหมดทุกไฟล์ JS/MJS ไร้ข้อผิดพลาด
+
+### 22. Google Preview 9:16 Portrait & 16:9 Landscape Adaptation (`apply_project_fixes_single/apply_project_fixes.py` — `2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาเดิม:** เมื่อสลับมาใช้พรีวิว Google Drive (iframe `/preview`) กฎ CSS บนจอมือถือ (`max-width: 680px`) บังคับ `aspect-ratio: 16 / 9` เสมอ ทำให้วิดีโอแนวตั้ง (9:16) ถูกบีบเป็นแท่งเล็กๆ กลางจอแนวนอน และไม่มีการดึงขนาดวิดีโอล่วงหน้าจาก API
+- **การปรับปรุง:**
+  1. `drive-explorer.js`: เพิ่ม `videoMediaMetadata(width,height)` ในคำขอ `fields` ของ `listFolder` ทำให้ `fileMetaOf(id)` ทราบสัดส่วนคลิปได้ทันทีโดยไม่ต้องยิงเน็ตเพิ่ม
+  2. `video-player.js`: อัปเกรด `applyPreviewAspect(id)` เป็นระบบตรวจสัดส่วน 3 ชั้น (`fileMetaOf` ➔ Drive API files.get พร้อม `supportsAllDrives=true` ➔ วัดขนาดจริงจากรูปปก Image `naturalWidth/naturalHeight` แม้ไม่ได้ล็อกอิน), ติดตั้ง `data-orientation="portrait" | "landscape"` บน `.ratio`, และเพิ่มฟังก์ชัน `togglePreviewAspect()`
+  3. `styles.css`: ปลดล็อกกฎมือถือ ให้ `.video-box .ratio[data-orientation="portrait"]` ใช้สัดส่วน 9 / 16 พร้อมจำกัดความสูง `max-height: 76dvh` ไม่ให้ล้นจอ และรองรับโหมดเต็มจอ
+  4. `index.html` & `app-core.js`: เพิ่มปุ่ม `#vidAspectToggle` (สลับแนว ↕↔ / แนวตั้ง ↕ / แนวนอน ↔) บน `.video-toolbar` และเชื่อม bridge `mediaThumbs`
+  5. `tests/video-layout.cjs`: เพิ่ม 3 เคสทดสอบสำหรับการดึงขนาดจากแคช, Fallback จาก Thumbnail, และการกดปุ่มสลับแนวตั้ง-แนวนอน
+- **ผลการทดสอบรอบล่าสุด (Complete Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านฉลุยครบ **156/156 tests PASS (0 failures, duration ~23s)**
+  - `node tools/collection_data.js check` ข้อมูลสองฝั่งตรงกันครบ **335 รายการ**
+  - `py -B tests/test_patch_alive_sync.py` ผ่านฉลุย
+  - `node --check` ผ่านหมดทุกไฟล์ JS/MJS

@@ -160,7 +160,12 @@
         vidFrame.style.display = "none";
         vidFrame.removeAttribute('data-video-preview');
         previewAspect = null;
-        if (vidFrame.parentElement) vidFrame.parentElement.style.aspectRatio = '';
+        if (vidFrame.parentElement) {
+          vidFrame.parentElement.style.aspectRatio = '';
+          if (typeof vidFrame.parentElement.removeAttribute === 'function') vidFrame.parentElement.removeAttribute('data-orientation');
+        }
+        const aspectBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidAspectToggle') : null;
+        if (aspectBtn) aspectBtn.textContent = 'สลับแนว ↕↔';
         vidLoading.classList.remove("show");
         resetPdfViewer();
       }
@@ -408,6 +413,31 @@
                     } catch (_) {}
                   }
                 }
+                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
+                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
+                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
+                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
+                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
+                    try {
+                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
+                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
+                        reader = tailRes.body.getReader();
+                        let tail = new Uint8Array(0), tailLen = 0;
+                        while (!settled && tailLen < cap) {
+                          const part = await reader.read();
+                          if (settled || part.done) break;
+                          const next = new Uint8Array(tailLen + part.value.byteLength);
+                          next.set(tail); next.set(part.value, tailLen);
+                          tail = next; tailLen = tail.length;
+                          const info = readMp4CodecInfo(tail);
+                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
+                        }
+                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
+                        await tailRes.body.cancel();
+                      }
+                    } catch (_) {}
+                  }
+                }
                 const webm = length >= 4 && head[0] === 26 && head[1] === 69 && head[2] === 223 && head[3] === 163;
                 const text = Array.from(head.subarray(0, Math.min(length, 16))).map(function (x) { return String.fromCharCode(x); }).join('').trim();
                 done(mp4 || webm ? 'works' : /^[<{\[]/.test(text) ? 'invalid' : 'unknown');
@@ -448,10 +478,36 @@
         if (!ratioEl) return;
         if (previewAspect && previewAspect.id === id) { applyVideoAspect(); return; }
         ratioEl.style.aspectRatio = '';
+        if (typeof ratioEl.removeAttribute === 'function') ratioEl.removeAttribute('data-orientation');
+        const cached = typeof fileMetaOf === 'function' ? fileMetaOf(id) : null;
+        const cw = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.width);
+        const ch = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.height);
+        if (cw > 0 && ch > 0) {
+          previewAspect = { id: id, value: clampPreviewAspect(cw, ch) };
+          applyVideoAspect();
+          return;
+        }
         const session = mediaSession;
+        const probeThumb = function (thumbUrl) {
+          if (typeof Image !== 'function') { fitVideoPreview(); return; }
+          const img = new Image();
+          img.onload = function () {
+            if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
+            const tw = Number(img.naturalWidth || img.width), th = Number(img.naturalHeight || img.height);
+            if (tw > 0 && th > 0) {
+              previewAspect = { id: id, value: clampPreviewAspect(tw, th) };
+              applyVideoAspect();
+            } else {
+              fitVideoPreview();
+            }
+          };
+          img.onerror = function () { fitVideoPreview(); };
+          const knownThumb = thumbUrl || (typeof mediaThumbs !== 'undefined' && mediaThumbs && mediaThumbs[id]) || (cached && cached.thumbnailLink);
+          img.src = knownThumb || ('https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w320');
+        };
         const auth = authParams();
-        if (auth.mode === 'none') { fitVideoPreview(); return; }
-        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?fields=videoMediaMetadata(width,height)' + (auth.mode === 'key' ? '&key=' + apiKey : '');
+        if (auth.mode === 'none') { probeThumb(); return; }
+        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=videoMediaMetadata(width,height),thumbnailLink' + (auth.mode === 'key' ? '&key=' + apiKey : '');
         const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
         fetch(url, { headers: headers })
           .then(function (res) { return res.ok ? res.json() : null; })
@@ -459,11 +515,11 @@
             if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
-            if (!w || !h) { fitVideoPreview(); return; }
+            if (!w || !h) { probeThumb(meta && meta.thumbnailLink); return; }
             previewAspect = { id: id, value: clampPreviewAspect(w, h) };
             applyVideoAspect();
           })
-          .catch(function () { fitVideoPreview(); });
+          .catch(function () { probeThumb(); });
       }
 
       function configurePreviewFullscreen() {
@@ -515,9 +571,29 @@
         if (!ratioEl) return;
         const box = videoModal.querySelector && videoModal.querySelector('.video-box');
         const aspect = getPlayerAspect();
-        ratioEl.style.aspectRatio = box && document.fullscreenElement === box ? '' : aspect ? String(aspect) : '';
+        const isFullscreen = !!(box && document.fullscreenElement === box);
+        ratioEl.style.aspectRatio = isFullscreen ? '' : aspect ? String(aspect) : '';
+        if (typeof ratioEl.setAttribute === 'function' && typeof ratioEl.removeAttribute === 'function') {
+          if (!isFullscreen && aspect) ratioEl.setAttribute('data-orientation', aspect < 1 ? 'portrait' : 'landscape');
+          else ratioEl.removeAttribute('data-orientation');
+        }
+        const aspectBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidAspectToggle') : null;
+        if (aspectBtn) {
+          aspectBtn.textContent = aspect ? (aspect < 1 ? 'แนวตั้ง ↕' : 'แนวนอน ↔') : 'สลับแนว ↕↔';
+        }
         fitVideoPreview();
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitVideoPreview);
         if (box && videoModal.classList.contains('show')) lockHorizontalPlayerOrientation(box);
+      }
+
+      function togglePreviewAspect() {
+        if (!videoModal.classList.contains('show') || !vidCurrentId) return null;
+        const current = getPlayerAspect();
+        const next = current && current < 1 ? 16 / 9 : 9 / 16;
+        previewAspect = { id: vidCurrentId, value: next };
+        vidPlayer.playerAspect = next;
+        applyVideoAspect();
+        return next;
       }
 
       function applyNativeVideoAspect() {
@@ -1285,6 +1361,7 @@
     getPlayerAspect,
     releasePlayerOrientation,
     applyVideoAspect,
+    togglePreviewAspect,
     applyNativeVideoAspect,
     togglePlayerFullscreen,
     prepareStreamWorker,

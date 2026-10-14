@@ -1115,7 +1115,10 @@
       const applyVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyVideoAspect(...args) : undefined;
       const applyNativeVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyNativeVideoAspect(...args) : undefined;
       const togglePlayerFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePlayerFullscreen(...args) : undefined;
+      const togglePreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePreviewAspect(...args) : undefined;
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
+      const vidAspectToggleBtn = document.getElementById('vidAspectToggle');
+      if (vidAspectToggleBtn) vidAspectToggleBtn.addEventListener('click', togglePreviewAspect);
       document.addEventListener('fullscreenchange', function () {
         const box = videoModal.querySelector('.video-box');
         const active = document.fullscreenElement === box;
