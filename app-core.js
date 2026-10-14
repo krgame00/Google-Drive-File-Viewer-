@@ -1108,6 +1108,7 @@
       const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.fitVideoPreview(...args) : undefined;
       if (window.ResizeObserver) new window.ResizeObserver(fitVideoPreview).observe(vidFrame.parentElement);
       window.addEventListener('resize', fitVideoPreview, {passive: true});
+      window.addEventListener('orientationchange', fitVideoPreview, {passive: true});
       vidFrame.addEventListener('load', fitVideoPreview);
       let previewAspect = null;
       const clampPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clampPreviewAspect(...args) : undefined;

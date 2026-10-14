@@ -453,3 +453,49 @@
     - ทดสอบ Emulation จอ iPhone 14 Portrait (390x844px) และ Landscape (844x390px)
     - ค่า CSS Variables ของพรีวิว: `--preview-width: 800px`, `--preview-height: 450px`
     - สัดส่วนกรอบวิดีโอคงที่ 16:9 (`aspect = 1.7778`) ทั้งสองแนว และไม่มี Scrollbar ภายในกรอบ
+
+### 29. Universal Responsive Fit across All Devices, Orientations & Fullscreen Modes (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause):**
+  1. **สัดส่วนวิดีโอถูกยืดเพี้ยนในโหมดเต็มจอ (Fullscreen / Pseudo-Fullscreen):**
+     - กฎเดิมใน `styles.css` กำหนด `.video-box:fullscreen .ratio { aspect-ratio: auto; width: 100%; height: auto; }`
+     - บนมือถือแนวนอน (เช่น 844x390px) ทำให้กล่อง `.ratio` โดนยืดเป็นสัดส่วน **2.45:1** (แบนกว้างเกินจริง) และสำหรับคลิปแนวตั้ง 9:16 ก็ถูกบังคับยืดแบนเช่นกัน
+     - ทำให้ Google Drive Preview iframe เสียรูปทรงตามกรอบที่บิดเบี้ยว
+  2. **กล่องเครื่องเล่นสูงเกินหน้าจอมือถือแนวนอน (Mobile Landscape Overflow):**
+     - ในแนวนอนบนมือถือ (ความสูงจอเพียง 360-390px) การวาง Toolbar (40px) + Video (344px) + Footer (88px) รวมกันได้ 472px ซึ่งเกินความสูงหน้าจอ ส่งผลให้กล่องเกิด Scrollbar แนวตั้ง และส่วนล่างของวิดีโอถูกดันตกขอบ
+  3. **การหมุนจอมือถือ (Orientation Change) ไม่ทริกเกอร์การคำนวณสเกลพรีวิวใหม่ทันที:**
+     - ใน `app-core.js` มีเฉพาะอีเวนต์ `resize` แต่บนอุปกรณ์มือถือบางรุ่นการหมุนหน้าจอจะส่งสัญญาณ `orientationchange` ก่อนที่ `resize` จะเสร็จสมบูรณ์
+- **แนวทางการแก้ไข:**
+  1. **ผูกตัวแปร CSS `--video-aspect` แบบไดนามิก (`video-player.js`, `styles.css`):**
+     - ใน `applyVideoAspect()` กำหนด `ratioEl.style.setProperty('--video-aspect', String(aspect));` ตามสัดส่วนจริงของวิดีโอ (16:9, 9:16 หรือขนาดอื่น)
+     - ใน `styles.css` ปรับให้ `.video-box .ratio` ใช้ `aspect-ratio: var(--video-aspect, 16 / 9);` และคำนวณความกว้างตามความสูงสูงสุดอย่างแม่นยำ `width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));`
+  2. **ล็อกสัดส่วนแบบ Aspect-Contain ในโหมดเต็มจอ (Fullscreen & Pseudo-Fullscreen) (`styles.css`):**
+     - แทนที่การตั้ง `aspect-ratio: auto; width: 100%` ด้วย:
+       ```css
+       .video-box:fullscreen .ratio, .video-box.pseudo-fullscreen .ratio {
+         flex: 0 0 auto;
+         max-width: 100vw;
+         max-height: calc(100dvh - 44px);
+         aspect-ratio: var(--video-aspect, 16 / 9);
+         width: min(100vw, calc((100dvh - 44px) * var(--video-aspect, 16 / 9)));
+         height: auto;
+         margin: auto;
+       }
+       ```
+     - ผลลัพธ์: ทั้งคลิปแนวนอน (16:9) และแนวตั้ง (9:16) จะคงสัดส่วนที่ถูกต้องเสมอ ไม่โดนยืดเป็น 2.45:1 และอยู่ตรงกลางจออย่างสมบูรณ์แบบบนทุกอุปกรณ์
+  3. **ปรับความสูงสูงสุดสำหรับมือถือแนวนอนให้พอดีจอ 100% (`styles.css`):**
+     - ปรับ `--video-max-h: calc(100dvh - 84px);` ใน `@media (orientation: landscape)` ทำให้ Toolbar + Video + Footer รวมกันไม่เกิน `100dvh` หน้าจอไม่เกิด Scrollbar โดยไม่จำเป็น
+  4. **เพิ่ม Event Listener `orientationchange` (`app-core.js`):**
+     - ผูก `window.addEventListener('orientationchange', fitVideoPreview, {passive: true});` เพื่อให้คำนวณ Virtual Viewport ของ Google Drive ใหม่ทันทีที่หมุนจอ
+  5. **อัปเดต Cache Busting เป็น `?v=20261014-r5` (`index.html`):**
+     - อัปเดต query string ให้เบราว์เซอร์ทุกอุปกรณ์ดึงไฟล์ใหม่ทันที
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures)**
+  - **Data Sync:** `node tools/collection_data.js check` ตรงกันครบ **335 รายการ**
+  - **Python Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Syntax Check:** `node --check video-player.js` และ `node --check app-core.js` ผ่านสมบูรณ์
+  - **Chrome DevTools MCP Emulation ตรวจสอบครบทุกอุปกรณ์:**
+    - *iPhone 14 Landscape (844x390px):* กล่องวิดีโอ 16:9 สัดส่วน 1.7778 เป๊ะ ใน Fullscreen ได้ขนาด 615.1x346px ไร้การยืด 2.45:1
+    - *iPhone 14 Portrait (390x844px):* กล่องวิดีโอ 16:9 (374x210.4px) และ 9:16 (360.8x641.4px) สัดส่วนแม่นยำ ไม่ล้นจอ
+    - *iPad Mini Portrait (768x1024px) & Landscape (1024x768px):* แสดงผลเต็มพื้นที่ 16:9 พอดี ไร้ Scrollbar
+    - *Desktop (1920x1080px):* ขนาด 921.6x518.4px สัดส่วน 16:9 คมชัดตรงกลางหน้าจอ

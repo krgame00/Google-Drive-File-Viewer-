@@ -1715,43 +1715,59 @@
     .video-box:fullscreen,
     .video-box.pseudo-fullscreen {
       width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     .video-box.pseudo-fullscreen {
       position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 100000; margin: 0; background: #000;
     }
-    .video-box:fullscreen .ratio,
-    .video-box:fullscreen .ratio[data-orientation="portrait"],
-    .video-box.pseudo-fullscreen .ratio,
-    .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"] {
-      flex: 1 1 0; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: auto;
-    }
-    .video-box:fullscreen .video-footer,
-    .video-box.pseudo-fullscreen .video-footer { display: none; }
     .video-box:fullscreen .video-toolbar,
     .video-box.pseudo-fullscreen .video-toolbar {
+      width: 100%; flex-shrink: 0;
       padding-top: max(8px, env(safe-area-inset-top));
       padding-left: max(8px, env(safe-area-inset-left));
       padding-right: max(8px, env(safe-area-inset-right));
     }
+    .video-box:fullscreen .ratio,
+    .video-box.pseudo-fullscreen .ratio {
+      flex: 0 0 auto;
+      max-width: 100vw;
+      max-height: calc(100dvh - 44px);
+      aspect-ratio: var(--video-aspect, 16 / 9);
+      width: min(100vw, calc((100dvh - 44px) * var(--video-aspect, 16 / 9)));
+      height: auto;
+      margin: auto;
+    }
+    .video-box:fullscreen .ratio[data-orientation="portrait"],
+    .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"] {
+      flex: 0 0 auto;
+      max-width: 100vw;
+      max-height: calc(100dvh - 44px);
+      aspect-ratio: var(--video-aspect, 9 / 16);
+      width: min(100vw, calc((100dvh - 44px) * var(--video-aspect, 9 / 16)));
+      height: auto;
+      margin: auto;
+    }
+    .video-box:fullscreen .video-footer,
+    .video-box.pseudo-fullscreen .video-footer { display: none; }
     .video-box { max-height: 94dvh; overflow-y: auto; }
     .video-box .ratio {
       --video-max-h: 65dvh;
       min-height: 0;
       max-height: var(--video-max-h);
-      aspect-ratio: 16 / 9;
-      width: min(100%, calc(var(--video-max-h) * 16 / 9));
+      aspect-ratio: var(--video-aspect, 16 / 9);
+      width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
       margin: 0 auto;
       overflow: hidden;
       position: relative;
     }
     .video-box .ratio[data-orientation="landscape"] {
-      aspect-ratio: 16 / 9;
-      width: min(100%, calc(var(--video-max-h) * 16 / 9));
+      aspect-ratio: var(--video-aspect, 16 / 9);
+      width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
     }
     .video-box .ratio[data-orientation="portrait"] {
-      aspect-ratio: 9 / 16;
-      width: auto;
-      height: min(76dvh, 760px);
+      aspect-ratio: var(--video-aspect, 9 / 16);
+      width: min(100%, calc(min(76dvh, 760px) * var(--video-aspect, 9 / 16)));
+      height: auto;
       max-height: 76dvh;
       max-width: 100%;
     }
@@ -1780,15 +1796,18 @@
       .video-toolbar .lb-close, .video-toolbar .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 20px; }
       #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
       .video-box .ratio {
-        --video-max-h: calc(100dvh - 46px);
+        --video-max-h: calc(100dvh - 84px);
         max-height: var(--video-max-h);
-        width: min(100%, calc(var(--video-max-h) * 16 / 9));
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
       }
       .video-box .ratio[data-orientation="landscape"] {
-        width: min(100%, calc(var(--video-max-h) * 16 / 9));
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
       }
-      .video-footer { padding: 6px 10px; gap: 4px; }
-      .video-info summary { min-height: 32px; padding: 4px 0; }
+      .video-box .ratio[data-orientation="portrait"] {
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 9 / 16)));
+      }
+      .video-footer { padding: 4px 10px; gap: 4px; }
+      .video-info summary { min-height: 28px; padding: 2px 0; }
     }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
@@ -1801,25 +1820,16 @@
       .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
       #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 38px; padding: 6px 8px; font-size: 12px; margin-left: 0; white-space: nowrap; flex-shrink: 0; }
       .video-box .ratio:has(iframe[style*="display: block"]) {
-        aspect-ratio: 16 / 9;
-        width: min(100%, calc(var(--video-max-h, 65dvh) * 16 / 9));
+        aspect-ratio: var(--video-aspect, 16 / 9);
+        width: min(100%, calc(var(--video-max-h, 65dvh) * var(--video-aspect, 16 / 9)));
         height: auto;
       }
       .video-box .ratio[data-orientation="portrait"],
       .video-box .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) {
-        aspect-ratio: 9 / 16;
-        width: min(100%, calc(76dvh * 9 / 16));
+        aspect-ratio: var(--video-aspect, 9 / 16);
+        width: min(100%, calc(76dvh * var(--video-aspect, 9 / 16)));
         height: auto;
         max-height: 76dvh;
-      }
-      .video-box:fullscreen .ratio:has(iframe[style*="display: block"]),
-      .video-box:fullscreen .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]),
-      .video-box.pseudo-fullscreen .ratio:has(iframe[style*="display: block"]),
-      .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"]:has(iframe[style*="display: block"]) {
-        aspect-ratio: auto;
-        max-height: none;
-        height: 100%;
-        width: 100%;
       }
       .video-footer { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 10px; gap: 8px; }
       .video-footer .video-title, .video-footer #vidErrorStatus, .video-footer #vidOpenTab { grid-column: 1 / -1; }

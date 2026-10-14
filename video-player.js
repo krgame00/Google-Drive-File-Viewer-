@@ -560,8 +560,14 @@
         if (!ratioEl) return;
         const box = videoModal.querySelector && videoModal.querySelector('.video-box');
         const aspect = getPlayerAspect();
-        const isFullscreen = !!(box && document.fullscreenElement === box);
-        ratioEl.style.aspectRatio = isFullscreen ? '' : aspect ? String(aspect) : '';
+        const isFullscreen = !!(box && (document.fullscreenElement === box || (box.classList && box.classList.contains('pseudo-fullscreen'))));
+        if (ratioEl.style && typeof ratioEl.style.setProperty === 'function') {
+          if (aspect) ratioEl.style.setProperty('--video-aspect', String(aspect));
+          else if (typeof ratioEl.style.removeProperty === 'function') ratioEl.style.removeProperty('--video-aspect');
+        }
+        if (ratioEl.style) {
+          ratioEl.style.aspectRatio = isFullscreen ? '' : aspect ? String(aspect) : '';
+        }
         if (typeof ratioEl.setAttribute === 'function' && typeof ratioEl.removeAttribute === 'function') {
           if (!isFullscreen && aspect) ratioEl.setAttribute('data-orientation', aspect < 1 ? 'portrait' : 'landscape');
           else ratioEl.removeAttribute('data-orientation');
