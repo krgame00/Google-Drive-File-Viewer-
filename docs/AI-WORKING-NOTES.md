@@ -332,6 +332,12 @@
   - `node tools/collection_data.js check` ผ่าน สองฝั่งตรงกันครบ **335 รายการ**
   - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
   - `node --check` ผ่านหมดทุกไฟล์ JavaScript / Worker ปราศจาก syntax error
+  - **Live Turbo Cloudflare Worker Deployment Verified:**
+    - ยืนยันการ deploy โค้ด Turbo Edition (`confirmUrlCache` + LRU 10 parallel files) ขึ้น [Cloudflare Worker จริง](https://google-drive-file-viewer.missnlpp9.workers.dev/):
+    - ยิงคำขอต่อเนื่อง 2 ครั้งติดกัน (`Range: bytes=0-10` และ `bytes=11-20`) บนไฟล์ขนาด 71.5 MB ของ Google Drive
+    - คำขอแรกได้ `HTTP 206 Partial Content` (`bytes 0-10/71532734`, `Content-Length: 11`)
+    - คำขอที่สองต่อจากนั้นได้ `HTTP 206 Partial Content` (`bytes 11-20/71532734`, `Content-Length: 10`) โดยส่งผ่าน `confirmUrlCache` ดึงต่อได้อย่างรวดเร็วและถูกต้องสมบูรณ์
+
 
 
 
