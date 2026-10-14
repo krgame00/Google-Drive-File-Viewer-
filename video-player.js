@@ -264,7 +264,7 @@
         const typeAt = off => String.fromCharCode(bytes[off + 4], bytes[off + 5], bytes[off + 6], bytes[off + 7]);
         const containers = ['moov', 'trak', 'mdia', 'minf', 'stbl'];
         const stsdBoxes = [];
-        (function collect(start, end, depth) {
+        function collect(start, end, depth) {
           let off = start;
           while (off + 8 <= end) {
             const size = u32(off);
@@ -274,7 +274,20 @@
             else if (depth > 0 && containers.indexOf(type) !== -1) { collect(off + 8, off + size, depth - 1); }
             off += size;
           }
-        })(0, bytes.length, 6);
+        }
+        collect(0, bytes.length, 6);
+        // If a tail range starts inside mdat before moov, scan for the moov box header.
+        if (!stsdBoxes.length) {
+          for (let i = 0; i + 8 <= bytes.length; i++) {
+            if (bytes[i + 4] === 109 && bytes[i + 5] === 111 && bytes[i + 6] === 111 && bytes[i + 7] === 118) {
+              const size = u32(i);
+              if (size >= 8 && i + size <= bytes.length) {
+                collect(i + 8, i + size, 5);
+                if (stsdBoxes.length) break;
+              }
+            }
+          }
+        }
         if (!stsdBoxes.length) return null;
         const profiles = {66: 'Baseline', 77: 'Main', 88: 'Extended', 100: 'High', 110: 'High 10 (Hi10P)', 122: 'High 4:2:2', 244: 'High 4:4:4'};
         let fallback = null;
@@ -343,6 +356,31 @@
                   if (mp4) {
                     const info = readMp4CodecInfo(head);
                     if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
+                  }
+                }
+                if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
+                  const cr = (res.headers.get('Content-Range') || '').match(/^bytes \d+-(\d+)\/(\d+)$/i);
+                  const endByte = cr ? Number(cr[1]) : 0, totalBytes = cr ? Number(cr[2]) : 0;
+                  if (Number.isFinite(totalBytes) && totalBytes > endByte + 1) {
+                    const tailStart = Math.max(endByte + 1, totalBytes - cap);
+                    try {
+                      const tailRes = await fetch(url.href, { headers: { Range: 'bytes=' + tailStart + '-' + (totalBytes - 1) }, signal: controller ? controller.signal : undefined });
+                      if (!settled && tailRes && (tailRes.status === 206 || tailRes.status === 200) && tailRes.body && typeof tailRes.body.getReader === 'function') {
+                        reader = tailRes.body.getReader();
+                        let tail = new Uint8Array(0), tailLen = 0;
+                        while (!settled && tailLen < cap) {
+                          const part = await reader.read();
+                          if (settled || part.done) break;
+                          const next = new Uint8Array(tailLen + part.value.byteLength);
+                          next.set(tail); next.set(part.value, tailLen);
+                          tail = next; tailLen = tail.length;
+                          const info = readMp4CodecInfo(tail);
+                          if (info) { done(info.playable ? 'works' : 'codec:' + info.label); return; }
+                        }
+                      } else if (tailRes && tailRes.body && tailRes.body.cancel) {
+                        await tailRes.body.cancel();
+                      }
+                    } catch (_) {}
                   }
                 }
                 if (mp4 && !settled && res.headers && typeof res.headers.get === 'function') {
@@ -666,12 +704,13 @@
         };
         const fail = function () {
           if (onFail) { onFail(notes); return; }
-          showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google');
-          if (publicError) { setVideoStatus('error', publicError); return; }
+          const routeNotes = notes.length ? ' (' + notes.join(' · ') + ')' : '';
+          showStreamFailure('แหล่งสตรีมสาธารณะเล่นไฟล์นี้ไม่ได้ ลองเชื่อมต่อ Google โหลดทั้งไฟล์ หรือเลือกใช้พรีวิว Google' + routeNotes);
+          if (publicError) { setVideoStatus('error', publicError + routeNotes); return; }
           const session = mediaSession, attempt = videoAttempt;
           probePublicStreamError(id).then(function (message) {
             if (!message || session !== mediaSession || attempt !== videoAttempt || id !== vidCurrentId || !videoModal.classList.contains('show')) return;
-            setVideoStatus('error', message);
+            setVideoStatus('error', message + routeNotes);
           });
         };
         const sources = [];
@@ -1062,6 +1101,7 @@
         };
 
         setVideoStatus('loading');
+        vidPlayer.preload = 'auto';
 
         vidPlayer.src = url;
 

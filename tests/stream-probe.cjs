@@ -68,3 +68,32 @@ test('an mp4 with moov at EOF probes the tail range and identifies its codec',as
  assert.equal(await api.probeStreamEndpoint('file','probe'),'works');
  assert.deepEqual(ranges,['bytes=0-1048575','bytes=4194304-5242879']);
 });
+
+test('an mp4 whose moov is at the end of the file fetches the tail range and reads the codec profile',async()=>{
+ const ranges=[];
+ const ftyp=box('ftyp',new TextEncoder().encode('isom'));
+ const mdatPrefix=new Uint8Array(64);
+ const headChunk=merge([ftyp,mdatPrefix]);
+ const tailMoov=merge([new Uint8Array(24),tinyMp4(110).slice(12)]);
+ const {api}=setup(async(url,opts)=>{
+  const range=opts.headers.Range;
+  ranges.push(range);
+  if(range==='bytes=0-1048575'){
+   let sent=false;
+   return {
+    status:206,
+    headers:new Headers({'Content-Range':'bytes 0-1048575/5242880'}),
+    body:{getReader(){return {read:async()=>{if(sent)return {done:true};sent=true;return {value:headChunk,done:false};},cancel:async()=>{},releaseLock(){}};}}
+   };
+  }
+  let tailSent=false;
+  return {
+   status:206,
+   headers:new Headers({'Content-Range':'bytes 4194304-5242879/5242880'}),
+   body:{getReader(){return {read:async()=>{if(tailSent)return {done:true};tailSent=true;return {value:tailMoov,done:false};},cancel:async()=>{},releaseLock(){}};}}
+  };
+ });
+ const verdict=await api.probeStreamEndpoint('file-tail','probe');
+ assert.equal(verdict,'codec:H.264 โปรไฟล์ High 10 (Hi10P)');
+ assert.deepEqual(ranges,['bytes=0-1048575','bytes=4194304-5242879']);
+});

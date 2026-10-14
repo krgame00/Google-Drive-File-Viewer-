@@ -1061,16 +1061,16 @@
         if (!videoCache || !videoCache.supported) { select.disabled = true; document.getElementById('clearVideoCache').disabled = true; status.textContent = 'เบราว์เซอร์นี้เก็บคลิปไว้เปิดซ้ำไม่ได้'; return; }
         return videoCache.stats().then(function (stats) { status.textContent = stats.count + ' คลิป · ' + (formatSize(stats.bytes) || '0 B') + ' / ' + select.value + ' GB'; });
       }
-      const startVideoPlayback = (...args) => window.GDVVideoApi.video.startVideoPlayback(...args);
-      const playbackRouteRecords = (...args) => window.GDVVideoApi.video.playbackRouteRecords(...args);
-      const rememberPlaybackRoute = (...args) => window.GDVVideoApi.video.rememberPlaybackRoute(...args);
-      const preferredPlaybackRoute = (...args) => window.GDVVideoApi.video.preferredPlaybackRoute(...args);
-      const recordActivePlaybackRoute = (...args) => window.GDVVideoApi.video.recordActivePlaybackRoute(...args);
-      const setVideoStatus = (...args) => window.GDVVideoApi.video.setVideoStatus(...args);
-      const handleDriveStreamError = (...args) => window.GDVVideoApi.video.handleDriveStreamError(...args);
-      const cancelVideoAttempt = (...args) => window.GDVVideoApi.video.cancelVideoAttempt(...args);
-      const resetMediaPlayback = (...args) => window.GDVVideoApi.video.resetMediaPlayback(...args);
-      const openVideo = (...args) => window.GDVVideoApi.video.openVideo(...args);
+      const startVideoPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.startVideoPlayback(...args) : undefined;
+      const playbackRouteRecords = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.playbackRouteRecords(...args) : undefined;
+      const rememberPlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.rememberPlaybackRoute(...args) : undefined;
+      const preferredPlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.preferredPlaybackRoute(...args) : undefined;
+      const recordActivePlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.recordActivePlaybackRoute(...args) : undefined;
+      const setVideoStatus = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.setVideoStatus(...args) : undefined;
+      const handleDriveStreamError = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.handleDriveStreamError(...args) : undefined;
+      const cancelVideoAttempt = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.cancelVideoAttempt(...args) : undefined;
+      const resetMediaPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.resetMediaPlayback(...args) : undefined;
+      const openVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openVideo(...args) : undefined;
 
 
 
@@ -1091,30 +1091,30 @@
       const MEDIA_STREAM_FAIL_MSG = 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google';
       // Brave บล็อก fetch ข้ามโดเมนจาก service worker (ข้อจำกัด upstream ยังไม่แก้) —
       // จำไว้ในเซสชันเพื่อเปิดพรีวิวให้ทันทีในไฟล์ถัดไป แทนการโชว์การ์ด error ทุกครั้ง
-      const streamBlocked = (...args) => window.GDVVideoApi.video.streamBlocked(...args);
-      const rememberStreamBlocked = (...args) => window.GDVVideoApi.video.rememberStreamBlocked(...args);
-      const clearStreamBlocked = (...args) => window.GDVVideoApi.video.clearStreamBlocked(...args);
-      const streamBlockVerdict = (...args) => window.GDVVideoApi.video.streamBlockVerdict(...args);
-      const shouldRememberStreamBlock = (...args) => window.GDVVideoApi.video.shouldRememberStreamBlock(...args);
-      const deviceCodecSupport = (...args) => window.GDVVideoApi.video.deviceCodecSupport(...args);
-      const describeCodecSupport = (...args) => window.GDVVideoApi.video.describeCodecSupport(...args);
-      const readMp4CodecInfo = (...args) => window.GDVVideoApi.video.readMp4CodecInfo(...args);
-      const probeStreamEndpoint = (...args) => window.GDVVideoApi.video.probeStreamEndpoint(...args);
-      const calculatePreviewLayout = (...args) => window.GDVVideoApi.video.calculatePreviewLayout(...args);
-      const fitVideoPreview = (...args) => window.GDVVideoApi.video.fitVideoPreview(...args);
+      const streamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.streamBlocked(...args) : undefined;
+      const rememberStreamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.rememberStreamBlocked(...args) : undefined;
+      const clearStreamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clearStreamBlocked(...args) : undefined;
+      const streamBlockVerdict = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.streamBlockVerdict(...args) : undefined;
+      const shouldRememberStreamBlock = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.shouldRememberStreamBlock(...args) : undefined;
+      const deviceCodecSupport = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.deviceCodecSupport(...args) : undefined;
+      const describeCodecSupport = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.describeCodecSupport(...args) : undefined;
+      const readMp4CodecInfo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readMp4CodecInfo(...args) : undefined;
+      const probeStreamEndpoint = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.probeStreamEndpoint(...args) : undefined;
+      const calculatePreviewLayout = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.calculatePreviewLayout(...args) : undefined;
+      const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.fitVideoPreview(...args) : undefined;
       if (window.ResizeObserver) new window.ResizeObserver(fitVideoPreview).observe(vidFrame.parentElement);
       window.addEventListener('resize', fitVideoPreview, {passive: true});
       vidFrame.addEventListener('load', fitVideoPreview);
       let previewAspect = null;
-      const clampPreviewAspect = (...args) => window.GDVVideoApi.video.clampPreviewAspect(...args);
-      const applyPreviewAspect = (...args) => window.GDVVideoApi.video.applyPreviewAspect(...args);
-      const configurePreviewFullscreen = (...args) => window.GDVVideoApi.video.configurePreviewFullscreen(...args);
-      const lockHorizontalPlayerOrientation = (...args) => window.GDVVideoApi.video.lockHorizontalPlayerOrientation(...args);
-      const getPlayerAspect = (...args) => window.GDVVideoApi.video.getPlayerAspect(...args);
-      const releasePlayerOrientation = (...args) => window.GDVVideoApi.video.releasePlayerOrientation(...args);
-      const applyVideoAspect = (...args) => window.GDVVideoApi.video.applyVideoAspect(...args);
-      const applyNativeVideoAspect = (...args) => window.GDVVideoApi.video.applyNativeVideoAspect(...args);
-      const togglePlayerFullscreen = (...args) => window.GDVVideoApi.video.togglePlayerFullscreen(...args);
+      const clampPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clampPreviewAspect(...args) : undefined;
+      const applyPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyPreviewAspect(...args) : undefined;
+      const configurePreviewFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.configurePreviewFullscreen(...args) : undefined;
+      const lockHorizontalPlayerOrientation = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.lockHorizontalPlayerOrientation(...args) : undefined;
+      const getPlayerAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.getPlayerAspect(...args) : undefined;
+      const releasePlayerOrientation = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.releasePlayerOrientation(...args) : undefined;
+      const applyVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyVideoAspect(...args) : undefined;
+      const applyNativeVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyNativeVideoAspect(...args) : undefined;
+      const togglePlayerFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePlayerFullscreen(...args) : undefined;
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
       document.addEventListener('fullscreenchange', function () {
         const box = videoModal.querySelector('.video-box');
@@ -1161,27 +1161,27 @@
         });
       }
 
-      const prepareStreamWorker = (...args) => window.GDVVideoApi.video.prepareStreamWorker(...args);
+      const prepareStreamWorker = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.prepareStreamWorker(...args) : undefined;
 
-      const showStreamFailure = (...args) => window.GDVVideoApi.video.showStreamFailure(...args);
+      const showStreamFailure = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.showStreamFailure(...args) : undefined;
 
-      const tryStreamDirect = (...args) => window.GDVVideoApi.video.tryStreamDirect(...args);
+      const tryStreamDirect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryStreamDirect(...args) : undefined;
 
-      const probePublicStreamError = (...args) => window.GDVVideoApi.video.probePublicStreamError(...args);
+      const probePublicStreamError = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.probePublicStreamError(...args) : undefined;
 
-      const tryPublicStream = (...args) => window.GDVVideoApi.video.tryPublicStream(...args);
+      const tryPublicStream = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryPublicStream(...args) : undefined;
 
 
 
-      const readVideoBlobResponse = (...args) => window.GDVVideoApi.video.readVideoBlobResponse(...args);
-      const readVideoBlobRanges = (...args) => window.GDVVideoApi.video.readVideoBlobRanges(...args);
-      const openVideoTempWriter = (...args) => window.GDVVideoApi.video.openVideoTempWriter(...args);
-      const renderVideoBlobProgress = (...args) => window.GDVVideoApi.video.renderVideoBlobProgress(...args);
-      const cancelVideoBlobTransfer = (...args) => window.GDVVideoApi.video.cancelVideoBlobTransfer(...args);
-      const requestVideoBlob = (...args) => window.GDVVideoApi.video.requestVideoBlob(...args);
-      const loadVideoAsBlob = (...args) => window.GDVVideoApi.video.loadVideoAsBlob(...args);
+      const readVideoBlobResponse = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readVideoBlobResponse(...args) : undefined;
+      const readVideoBlobRanges = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readVideoBlobRanges(...args) : undefined;
+      const openVideoTempWriter = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openVideoTempWriter(...args) : undefined;
+      const renderVideoBlobProgress = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.renderVideoBlobProgress(...args) : undefined;
+      const cancelVideoBlobTransfer = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.cancelVideoBlobTransfer(...args) : undefined;
+      const requestVideoBlob = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.requestVideoBlob(...args) : undefined;
+      const loadVideoAsBlob = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadVideoAsBlob(...args) : undefined;
 
-      const tryVideoSrc = (...args) => window.GDVVideoApi.video.tryVideoSrc(...args);
+      const tryVideoSrc = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryVideoSrc(...args) : undefined;
 
 
 
@@ -1343,17 +1343,17 @@
         observeFolderCovers(document);
       }
 
-      const loadWatchedVideos = (...args) => window.GDVVideoApi.video.loadWatchedVideos(...args);
+      const loadWatchedVideos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadWatchedVideos(...args) : undefined;
 
-      const toggleWatchedVideo = (...args) => window.GDVVideoApi.video.toggleWatchedVideo(...args);
+      const toggleWatchedVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleWatchedVideo(...args) : undefined;
 
-      const attachWatchedButtons = (...args) => window.GDVVideoApi.video.attachWatchedButtons(...args);
+      const attachWatchedButtons = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.attachWatchedButtons(...args) : undefined;
 
-      const loadContinueWatching = (...args) => window.GDVVideoApi.video.loadContinueWatching(...args);
+      const loadContinueWatching = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadContinueWatching(...args) : undefined;
 
-      const saveVideoPos = (...args) => window.GDVVideoApi.video.saveVideoPos(...args);
+      const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.saveVideoPos(...args) : undefined;
 
-      const renderContinueWatching = (...args) => window.GDVVideoApi.video.renderContinueWatching(...args);
+      const renderContinueWatching = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.renderContinueWatching(...args) : undefined;
 
             // เก็บกวาด gdv_vpos_* เก่าสุดออกให้เหลือไม่เกิน maxKeys (กัน localStorage บวม)
 
@@ -1437,7 +1437,7 @@
 
 
 
-      const revokeCurrentVideo = (...args) => window.GDVVideoApi.video.revokeCurrentVideo(...args);
+      const revokeCurrentVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.revokeCurrentVideo(...args) : undefined;
 
       function resetPdfViewer(...args) {
         const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
@@ -1520,7 +1520,7 @@
         return api.revokeCurrentDoc(...args);
       }
 
-      const closeVideo = (...args) => window.GDVVideoApi.video.closeVideo(...args);
+      const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.closeVideo(...args) : undefined;
 
       vidClose.addEventListener("click", closeVideo);
 

@@ -14,8 +14,10 @@ function setup(){
   const ctx={document:{getElementById:id=>el(id),querySelectorAll:sel=>{ if(sel==='.lightbox .lb-ui'){ if(!uiEls.length){uiEls.push(el('btnA'),el('btnB'));} } return uiEls; },activeElement:null},lbImg:el('lbImg'),pdfCanvas:el('pdfCanvas'),pdfInLightbox:false,console,Date:{now:()=>nowValue},setTimeout(cb,ms){timers.set(++seq,cb);timerMs.set(seq,ms);return seq},clearTimeout(id){timers.delete(id)},navigateMedia(kind,dir){navCalls.push([kind,dir])},imageView:{scale:1,x:0,y:0},imageControlsVisible:true,imgTapTimer:null,imgLastTapTime:0,imgLastTapX:0,imgLastTapY:0};
   let nowValue=1000;
   vm.createContext(ctx);
+  const {loadMediaLightboxApi}=require('./helpers/load-media-lightbox-api.cjs');
+  const api=loadMediaLightboxApi(ctx);
   for(const name of ['clampImageScale','clampImagePan','applyImageView','resetImageView','imageGestureMode','swipeNavigateFor','setImageControlsVisible','cancelImageTap','handleImageTap'])
-    if(html.includes('function '+name+'(')) vm.runInContext(fn(name),ctx);
+    ctx[name]=api[name];
   return {ctx,els,timers,timerMs,navCalls,uiEls,now:v=>{nowValue=v},getNow:()=>nowValue};
 }
 let failures=0;function test(name,run){try{run();console.log('PASS',name)}catch(e){failures++;console.error('FAIL',name,e.message)}}

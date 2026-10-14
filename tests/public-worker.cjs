@@ -174,3 +174,31 @@ test('open-ended media requests stream past the first 8 MiB in one continuous 20
  assert.equal(ranges.length,5,'initial chunk plus four parallel continuation ranges');
 });
 
+test('worker responses expose revision header via CORS without credentials',async()=>{
+ const {createDriveWorker,WORKER_REVISION}=await worker;
+ assert.match(WORKER_REVISION,/^2026-10-14/);
+ const optRes=await createDriveWorker().fetch(new Request('https://worker.test/?id=w17',{method:'OPTIONS'}));
+ assert.equal(optRes.status,204);
+ assert.equal(optRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);
+ assert.match(optRes.headers.get('Access-Control-Expose-Headers'),/X-GDV-Worker-Rev/);
+ const getRes=await createDriveWorker(async()=>new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100'}})).fetch(request('w17'));
+ assert.equal(getRes.status,206);
+ assert.equal(getRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);
+});
+test('tail open-ended request reaching known EOF aborts stale prefetch immediately and avoids parallel split past EOF',async()=>{
+ const {createDriveWorker}=await worker;const ranges=[],signals=[];
+ const app=createDriveWorker(async(url,opts)=>{
+  const range=opts.headers.get('Range');ranges.push(range);signals.push(opts.signal);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  const start=Number(m[1]),end=Math.min(Number(m[2]),19999999);
+  const body=new Uint8Array(Math.max(1,end-start+1));
+  return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+start+'-'+end+'/20000000','Content-Length':String(body.length)}});
+ });
+ await app.fetch(request('w18'));
+ assert.equal(ranges.length,5,'warmup request plus 4 parallel prefetch sub-intervals');
+ const tailRes=await app.fetch(new Request('https://worker.test/?id=w18',{headers:{Range:'bytes=19500000-'}}));
+ assert.equal(tailRes.status,206);
+ assert.ok(signals.slice(1,5).every(s=>s.aborted),'stale prefetch aborted before tail fetch');
+ assert.equal(ranges.length,6,'tail request reaching known EOF uses a single bounded fetch instead of 4 parallel sub-intervals past EOF');
+ assert.equal(ranges[5],'bytes=19500000-27888607');
+});

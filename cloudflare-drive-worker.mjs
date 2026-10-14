@@ -1,11 +1,13 @@
 // Public files only. Never forward an account token or Google cookies.
+export const WORKER_REVISION = '2026-10-14-r1';
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
   'Access-Control-Allow-Headers': 'Range, Content-Type',
-  'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges',
+  'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, X-GDV-Worker-Rev',
   'Cross-Origin-Resource-Policy': 'cross-origin',
   'Cache-Control': 'no-store',
+  'X-GDV-Worker-Rev': WORKER_REVISION,
 };
 const jsonError = (status, reason) => new Response(JSON.stringify({error: reason}), {
   status, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'},
@@ -21,6 +23,7 @@ export function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 let ahead = null;
 // Files whose source answered with a usable length stream in parallel.
 let parallelOk = null;
+let parallelTotal = null;
 async function fetchParallelChunk(id, start, end, signal, fetchImpl) {
   // Split one bounded interval into four sub-intervals fetched in parallel
   // through the confirmation flow and stream them in order; returns
@@ -221,15 +224,22 @@ export function createDriveWorker(fetchImpl = fetch) {
       // A chunk prefetched for the previous request may already cover this one.
       let result = null;
       const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedMediaRange(range) || '');
-      if (request.method === 'GET' && ahead && ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
-        const hit = ahead;
-        ahead = null;
-        try {
-          const cached = await hit.promise;
-          if (cached && cached.res) result = cached;
-        } catch (_) {}
+      if (request.method === 'GET' && ahead) {
+        if (ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
+          const hit = ahead;
+          ahead = null;
+          try {
+            const cached = await hit.promise;
+            if (cached && cached.res) result = cached;
+          } catch (_) {}
+        } else {
+          // Abort stale prefetch before starting a seek or tail metadata fetch.
+          ahead.controller.abort();
+          ahead = null;
+        }
       }
-      if (!result && request.method === 'GET' && requestedBound && boundedMediaRange(range) !== range && parallelOk === id) {
+      const reachesKnownEnd = parallelOk === id && parallelTotal !== null && requestedBound && BigInt(requestedBound[2]) >= parallelTotal;
+      if (!result && request.method === 'GET' && requestedBound && boundedMediaRange(range) !== range && parallelOk === id && !reachesKnownEnd) {
         result = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), abort.signal, fetchImpl);
       }
       if (!result) result = await fetchMediaChunk(id, range, abort.signal, fetchImpl);
@@ -237,7 +247,11 @@ export function createDriveWorker(fetchImpl = fetch) {
       const res = result.res, servedRange = result.servedRange;
       // A source that reports usable lengths can be fetched in parallel from
       // the next interval on; lengthless answers keep the single connection.
-      if (res.status === 206 && res.headers.get('Content-Length')) parallelOk = id;
+      if (res.status === 206 && res.headers.get('Content-Length')) {
+        parallelOk = id;
+        const totalMatch = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
+        parallelTotal = totalMatch && totalMatch[1] !== '*' ? BigInt(totalMatch[1]) : null;
+      }
       // A capped request must return a partial 206, never a full-file 200.
       // A readable interval header must match the request; when Google hides
       // Content-Range from scripts (CORS exposure) the 206 itself certifies
@@ -281,9 +295,11 @@ export function createDriveWorker(fetchImpl = fetch) {
         if (!ahead) {
           const controller = new AbortController();
           const entry = {id: id, start: nextStart, controller: controller};
-          entry.promise = (parallelOk === id
-            ? fetchParallelChunk(id, nextStart, nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n, controller.signal, fetchImpl)
-            : fetchMediaChunk(id, 'bytes=' + nextStart + '-' + (nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n), controller.signal, fetchImpl)
+          const nextEnd = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
+          const nextReachesEnd = parallelTotal !== null && nextEnd >= parallelTotal;
+          entry.promise = (parallelOk === id && !nextReachesEnd
+            ? fetchParallelChunk(id, nextStart, nextEnd, controller.signal, fetchImpl)
+            : fetchMediaChunk(id, 'bytes=' + nextStart + '-' + nextEnd, controller.signal, fetchImpl)
           ).then(function (outcome) { clearTimeout(timer); return outcome; }).catch(function () { clearTimeout(timer); return null; });
           const timer = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 60000);
           ahead = entry;

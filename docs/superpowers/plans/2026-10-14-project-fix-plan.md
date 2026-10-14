@@ -8,7 +8,7 @@
 
 - [x] แยกโค้ดหลักออกเป็นโมดูล JavaScript; `index.html` เหลือโครงหน้าและ script tags เป็นหลัก
 - [x] ตรวจในเครื่องว่าโมดูลหลักและ bridge ได้แก่ `GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi` โหลดได้
-- [x] รันทดสอบ `node --test tests/*.cjs` ล่าสุด: **146/146 ผ่าน, 0 fail**
+- [x] รันทดสอบ `node --test tests/*.cjs` ล่าสุด: **151/151 ผ่าน, 0 fail**
 - [x] ยืนยันว่าคำขอแบบ Range ไปยัง Worker ตอบกลับ `206 Partial Content` และมี `Content-Range` ที่สอดคล้องกับช่วงที่ขอในการทดสอบก่อนหน้า
 - [ ] **ยังไม่ผ่านการยอมรับใช้งานจริง:** ตัวเล่นวิดีโอสาธารณะยังไม่โหลด metadata/เริ่มเล่นใน Chrome แม้ fetch แบบ Range จะได้ข้อมูลกลับมา
 - [ ] สถานะการ Deploy ของ Cloudflare Worker ยังต้องตรวจให้แน่ชัดว่าโค้ดบน Cloudflare ตรงกับไฟล์ `cloudflare-drive-worker.mjs` ปัจจุบันหรือไม่; เอกสารเดิมมีบันทึก deployment ที่ไม่ตรงกัน

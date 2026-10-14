@@ -38,3 +38,18 @@ test('recently failed public routes are skipped without losing the remaining rou
  const {ctx,sources}=setup();ctx.accessToken='test-token';ctx.routeCooldown={blocked:(id,mode,route)=>mode==='signedin'&&route==='worker'};
  ctx.tryPublicStream('file1');assert.match(sources[0].url,/usercontent/);sources[0].fail();await Promise.resolve();assert.match(sources[1].url,/googleapis/);
 });
+
+test('public playback failure preserves per-route diagnostics even when quota probe refines the message',async()=>{
+ const {ctx,sources,failures}=setup();
+ ctx.probePublicStreamError=async()=>'Google จำกัดการดาวน์โหลดไฟล์นี้ (downloadQuotaExceeded)';
+ ctx.tryPublicStream('file1');
+ sources[0].fail('media','M4/N3/R0');
+ sources[1].fail('timeout');
+ await Promise.resolve();
+ assert.equal(failures.length,2);
+ assert.match(failures[0],/worker: M4\/N3\/R0/);
+ assert.match(failures[0],/ลิงก์ตรง: หมดเวลา/);
+ assert.match(failures[1],/downloadQuotaExceeded/);
+ assert.match(failures[1],/worker: M4\/N3\/R0/);
+ assert.match(failures[1],/ลิงก์ตรง: หมดเวลา/);
+});

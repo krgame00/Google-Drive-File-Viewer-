@@ -298,3 +298,20 @@ test('no reachable client still returns 401 without upstream fetch',async()=>{
   assert.equal((await request('__drive_stream?id=file1','GET','')).status,401);
   assert.equal(calls.length,0);
 });
+
+test('tail open-ended request reaching known EOF aborts stale parallel prefetch immediately and uses single bounded fetch',async()=>{
+ const {request,ctx}=setup();const calls=[],signals=[];
+ ctx.fetch=async(url,options)=>{
+  const range=options.headers.get('Range');calls.push(range);signals.push(options.signal);
+  const m=/^bytes=(\d+)-(\d+)$/.exec(range);
+  const start=Number(m[1]),end=Math.min(Number(m[2]),39999999);
+  return new Response('abcd',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+start+'-'+end+'/40000000','Content-Length':'4'}});
+ };
+ await request('__drive_stream?id=file_eof','GET','tab-1','bytes=0-');
+ assert.equal(calls.length,5,'warmup plus 4 parallel read-ahead sub-intervals');
+ const tailRes=await request('__drive_stream?id=file_eof','GET','tab-1','bytes=39000000-');
+ assert.equal(tailRes.status,206);
+ assert.ok(signals.slice(1,5).every(s=>s.aborted),'stale parallel read-ahead aborted immediately');
+ assert.equal(calls.length,6,'tail request reaching known EOF uses a single fetch without parallel sub-intervals past EOF');
+ assert.equal(calls[5],'bytes=39000000-55777215');
+});

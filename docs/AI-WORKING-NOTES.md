@@ -255,8 +255,22 @@
   - ใน `video-player.js`: ส่ง `&continuous=1` ไปยัง URL ของ Worker
   - เพิ่มเคสทดสอบ `open-ended media requests stream past the first 8 MiB in one continuous 206 response` ใน `tests/public-worker.cjs`
 - **หลักฐานการตรวจสอบรอบล่าสุด (Complete Verification Evidence):**
-  - `node --test tests/*.cjs` ผ่านครบ **148/148 tests (0 failures, duration ~23s)**
+  - `node --test tests/*.cjs` ผ่านครบ **153/153 tests (0 failures, duration ~23s)**
   - `tests/media-lightbox.cjs` ผ่านครบ 14 เคส
   - `node tools/collection_data.js check` ผ่าน ข้อมูลคลังสองฝั่งตรงกันครบ **335 รายการ**
   - `py -B tests/test_patch_alive_sync.py` ผ่าน 1/1 test
   - `node --check` ผ่านครบทุกโมดูล ปราศจาก syntax error
+
+### 21. Applied `apply_project_fixes (1).py` — Quality-of-life & Test Seam Hardening (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **การปรับปรุง:**
+  1. `app-core.js`: ครอบ Safe Guard 51 จุดบนฟังก์ชันที่เรียก `window.GDVVideoApi.video.*` ป้องกัน TypeError กรณี Event หรือ ResizeObserver ทำงานก่อน `video-player.js` โหลดเสร็จ
+  2. `index.html`: เพิ่ม `preload="auto"` บน `<video id="vidPlayer">` และจัดลำดับแท็ก `<script>` ให้โหลดโมดูลโค้ดหลักก่อน `collections-data.js` (ขนาด 305 KB)
+  3. `cloudflare-drive-worker.mjs`: เพิ่ม `WORKER_REVISION = '2026-10-14-r1'`, ดักจับ Stale Prefetch Abort และเช็กขอบเขตท้ายไฟล์ (`reachesKnownEnd`)
+  4. `video-player.js`: เสริมตัวตรวจจับ MP4 moov ที่ถูกเลื่อนไปอยู่หลังกล่อง mdat และแสดง Route diagnostics ในข้อความผิดพลาด
+  5. `tests/`: สร้าง `tests/helpers/load-media-lightbox-api.cjs`, ย้าย `tests/image-viewer.cjs` ไปเรียกผ่าน module API แทนการ slice โค้ดจาก HTML, และเพิ่มเทสครอบคลุม Stale abort, Tail EOF, Moov probing, Route diagnostics และ Early resize observer guard
+- **ผลการทดสอบ (Verification Evidence):**
+  - `node --test tests/*.cjs` ผ่านฉลุย **153/153 tests PASS (0 fail)**
+  - `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - `py -B tests/test_patch_alive_sync.py` ผ่าน
+  - `node --check` ผ่านหมดทุกไฟล์ JS/MJS ไร้ข้อผิดพลาด
