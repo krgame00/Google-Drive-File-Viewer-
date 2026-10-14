@@ -416,3 +416,40 @@
     - *Pseudo-Fullscreen:* จำลองกรณีไร้ `requestFullscreen` (iOS Safari) ผลลัพธ์ `isPseudo = true`, ปุ่มเปลี่ยนเป็น "ออกเต็มจอ", ขนาดเต็มจอ 16:9 สวยงาม และสามารถกดออกหรือกด Escape กลับมาได้ปกติ
     - *iPhone 14 Portrait (390x844px):* กล่องวิดีโอมีขนาด `width = 374px`, `height = 210.375px`, สัดส่วน `aspect = 1.777778` ตรงกับ **16:9** แถบปุ่มด้านบนแสดงครบไม่ตกขอบ
     - *Aspect Toggle:* ปุ่ม `#vidAspectToggle` กดสลับระหว่างแนวตั้ง 9:16 (`aspect = 0.5625`) และแนวนอน 16:9 (`aspect = 1.7778`) ได้ทันที
+
+### 28. Fix Google Drive Preview Controls Clipping & Vertical Scrollbar on Mobile (`2026-10-14`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause):**
+  1. **ปุ่มควบคุมตัดขาด ไทม์ไลน์เด้งขึ้นบน และปุ่มลอยซ้อนกลางจอในโหมดพรีวิว (`video-player.js`):**
+     - ในคอมมิตก่อนหน้า มีการทดลองปรับ `frameWidth` ใน `calculatePreviewLayout()` สำหรับคลิปแนวนอน (`horizontal`) ให้ลดลงเหลือ `480px` โดยหวังว่าจะทำให้ปุ่มควบคุมดูใหญ่ขึ้นบนจอมือถือ
+     - แต่สำหรับวิดีโอสัดส่วน 16:9 เมื่อกำหนด `frameWidth = 480px` จะได้ความสูงเสมือน (`height`) เพียง `270px` (480 * 9 / 16)
+     - ตัวเล่น Material 3 ภายใน iframe `/preview` ของ Google Drive ต้องการพื้นที่ความสูงอย่างน้อย ~320px หากพื้นที่ต่ำกว่านั้น Google Drive จะสลับเข้าสู่เลย์เอาต์ขนาดจิ๋วที่บกพร่อง:
+       - แถบ Scrubber ไทม์ไลน์ถูกดีดขึ้นไปอยู่ขอบบนสุดของวิดีโอ
+       - ปุ่มความเร็ว, คำบรรยาย, ระดับเสียง และการตั้งค่า (`[🔊][CC][1x][⚙️]`) ถูกพับกลายเป็นก้อนเม็ดกระดุมลอยขวางอยู่กลางภาพวิดีโอ
+       - ปุ่ม Play/Pause และเวลาถูกดันทะลุขอบล่างจนโดนตัดขาดไปครึ่งหนึ่ง
+       - เกิดแถบ Scrollbar แนวตั้งซ้อนอยู่ภายในกรอบ iframe ของ Google Drive
+- **แนวทางการแก้ไข:**
+  1. **ฟื้นฟู Virtual Viewport ขั้นต่ำ 800x450px สำหรับคลิปแนวนอน (`video-player.js`):**
+     - ปรับปรุง `calculatePreviewLayout()` ให้คำนวณ `minWidth = 800` และหากเป็นคลิปแนวนอนบนหน้าจอแคบ จะบังคับความสูงเสมือนขั้นต่ำ `minHeight = 420px`:
+       ```javascript
+       const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
+       const minWidth = 800;
+       const minHeight = horizontal && width < 800 ? 420 : 0;
+       const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
+       const scale = width / frameWidth;
+       return {width: frameWidth, height: height / scale, scale: scale};
+       ```
+     - ผลลัพธ์: บนจอมือถือ (เช่น ความกว้าง 374px หรือ 390px) ตัว iframe จะมีขนาดเสมือน `800x450px` (Scale ~0.468 ถึง 0.488) ซึ่งขนาด 800x450px นี้จะทำให้ Google Drive เรนเดอร์ด้วย Desktop Toolbar แถวเดียวเรียบเนียนอยู่ขอบล่างสุด ไร้ปุ่มเม็ดกระดุมลอยกลางจอ ไร้ไทม์ไลน์ชิดบน ปุ่ม Play/Pause แสดงครบถ้วน และไร้ Scrollbar ภายใน iframe
+  2. **ปรับปรุงการทดสอบ Unit Tests (`tests/player-fullscreen.cjs`):**
+     - ปรับ assertion ใน `tests/player-fullscreen.cjs` ให้ตรวจสอบ Virtual Viewport ขนาด `800px` width และ `450px` height สำหรับคลิปแนวนอนบนมือถือ
+  3. **อัปเดต Cache Busting เป็นเวอร์ชันใหม่ (`index.html`):**
+     - เปลี่ยน query string เป็น `?v=20261014-r4` สำหรับ `styles.css` และสคริปต์ทั้ง 7 โมดูล เพื่อให้เบราว์เซอร์บนมือถือโหลดโค้ดใหม่ทันทีโดยไม่ติดแคชเดิม
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures, duration ~24s)**
+  - **Data Sync:** `node tools/collection_data.js check` ตรวจสอบข้อมูลสองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่านครบ 1/1 (OK)
+  - **Syntax Check:** `node --check video-player.js` ผ่านสมบูรณ์ ไร้ข้อผิดพลาด
+  - **Chrome DevTools MCP Emulation:**
+    - ทดสอบ Emulation จอ iPhone 14 Portrait (390x844px) และ Landscape (844x390px)
+    - ค่า CSS Variables ของพรีวิว: `--preview-width: 800px`, `--preview-height: 450px`
+    - สัดส่วนกรอบวิดีโอคงที่ 16:9 (`aspect = 1.7778`) ทั้งสองแนว และไม่มี Scrollbar ภายในกรอบ

@@ -401,10 +401,12 @@
       }
 
       function calculatePreviewLayout(width, height, aspect) {
-        // Landscape clips need a smaller virtual viewport so phone controls remain usable.
-        // Keep the existing tall viewport for portrait clips.
+        // Google Drive's Material 3 control bar needs >= 760px virtual width and >= 420px virtual height
+        // so the timeline and control pills stay on a single bottom row without wrapping or clipping.
         const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
-        const frameWidth = Math.max(horizontal ? 480 : 800, width);
+        const minWidth = 800;
+        const minHeight = horizontal && width < 800 ? 420 : 0;
+        const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
       }
