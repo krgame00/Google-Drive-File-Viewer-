@@ -222,6 +222,13 @@ export function createDriveWorker(fetchImpl = fetch) {
       for (const name of ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges']) {
         const value = res.headers.get(name); if (value) output.set(name, value);
       }
+      // Some upstream responses omit Content-Length even for a valid 206.
+      // When Content-Range gives an exact interval, publish its exact byte
+      // count so native media loaders can recognize the end of this response.
+      if (res.status === 206 && !output.has('Content-Length')) {
+        const interval = (output.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
+        if (interval) output.set('Content-Length', (BigInt(interval[2]) - BigInt(interval[1]) + 1n).toString());
+      }
       // Keep real type and range status; do not relabel HTML or fake range support.
       if (request.method === 'HEAD' && res.body) await res.body.cancel();
       return new Response(request.method === 'HEAD' ? null : res.body, {status: res.status, headers: output});

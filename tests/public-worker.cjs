@@ -7,7 +7,7 @@ const form=(action='https://drive.usercontent.google.com/download',id='w1')=>'<f
 test('follows all Google confirmation fields and preserves partial video headers',async()=>{
  const {createDriveWorker}=await worker;const calls=[];
  const app=createDriveWorker(async(url,opts)=>{calls.push({url,opts});return calls.length===1?new Response(form('https://drive.usercontent.google.com/download','w1'),{headers:{'Content-Type':'text/html'}}):new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100','Cross-Origin-Resource-Policy':'same-site','Set-Cookie':'private'}})});
- const res=await app.fetch(request('w1'));assert.equal(res.status,206);assert.equal(await res.text(),'data');
+ const res=await app.fetch(request('w1'));assert.equal(res.status,206);assert.equal(res.headers.get('Content-Length'),'4','derive exact length from Content-Range when upstream omits it');assert.equal(await res.text(),'data');
  assert.equal(new URL(calls[1].url).searchParams.get('uuid'),'confirmation-id');assert.equal(calls[1].opts.headers.get('Range'),'bytes=0-8388607');
  assert.equal(res.headers.get('Cross-Origin-Resource-Policy'),'cross-origin');assert.equal(res.headers.get('Content-Range'),'bytes 0-3/100');assert.equal(res.headers.get('Set-Cookie'),null);assert.equal(res.headers.get('Accept-Ranges'),null);
 });
