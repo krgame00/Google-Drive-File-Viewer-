@@ -2142,6 +2142,7 @@
     }
     .video-box .ratio > video, .video-box .ratio > iframe { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; }
     .video-box .ratio > iframe[data-video-preview="true"] {
+      top: 0; left: 0; right: auto; bottom: auto;
       width: var(--preview-width, 100%); height: var(--preview-height, 100%);
       transform: scale(var(--preview-scale, 1)); transform-origin: top left;
     }
@@ -2158,26 +2159,6 @@
     .pdf-page-count { min-width: 58px; color: #e5e7eb; text-align: center; font-size: 13px; white-space: nowrap; }
     #pdfStage { position: absolute; inset: 0; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 12px; background: #292929; overscroll-behavior: contain; }
     #pdfCanvas { display: block; max-width: none; height: auto; margin: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
-    @media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
-      .video-modal { padding: 4px env(safe-area-inset-right) 4px env(safe-area-inset-left); align-items: center; }
-      .video-box { max-height: 100dvh; width: 100%; border-radius: 6px; }
-      .video-toolbar { padding: 4px 8px; gap: 4px; }
-      .video-toolbar .lb-close, .video-toolbar .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 20px; }
-      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
-      .video-box .ratio {
-        --video-max-h: calc(100dvh - 84px);
-        max-height: var(--video-max-h);
-        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
-      }
-      .video-box .ratio[data-orientation="landscape"] {
-        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
-      }
-      .video-box .ratio[data-orientation="portrait"] {
-        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 9 / 16)));
-      }
-      .video-footer { padding: 4px 10px; gap: 4px; }
-      .video-info summary { min-height: 28px; padding: 2px 0; }
-    }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
       .video-box { max-height: calc(100dvh - 16px); }
@@ -2215,5 +2196,25 @@
       .video-footer .video-help { grid-column: 1 / -1; }
       .video-help-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .video-help-actions #vidReconnect { grid-column: 1 / -1; }
+    }
+    @media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
+      .video-modal { padding: 4px env(safe-area-inset-right) 4px env(safe-area-inset-left); align-items: center; }
+      .video-box { max-height: 100dvh; width: 100%; border-radius: 6px; }
+      .video-toolbar { padding: 4px 8px; gap: 4px; }
+      .video-toolbar .lb-close, .video-toolbar .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 20px; }
+      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
+      .video-box .ratio {
+        --video-max-h: calc(100dvh - 84px);
+        max-height: var(--video-max-h);
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
+      }
+      .video-box .ratio[data-orientation="landscape"] {
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 16 / 9)));
+      }
+      .video-box .ratio[data-orientation="portrait"] {
+        width: min(100%, calc(var(--video-max-h) * var(--video-aspect, 9 / 16)));
+      }
+      .video-footer { padding: 4px 10px; gap: 4px; }
+      .video-info summary { min-height: 28px; padding: 2px 0; }
     }
   

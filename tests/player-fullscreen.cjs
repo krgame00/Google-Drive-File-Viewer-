@@ -59,7 +59,8 @@ test('preview fitting applies only to video previews and ignores zero-sized layo
   bridge.vidFrame.getAttribute=key=>key==='data-video-preview'?'true':null;
   api.fitVideoPreview();assert.equal(props.get('--preview-width'),'800px');
   const oldScale=props.get('--preview-scale');
-  ratio.getBoundingClientRect=()=>({width:844,height:330});api.fitVideoPreview();assert.equal(props.get('--preview-scale'),'1');
+  ratio.getBoundingClientRect=()=>({width:844,height:330});api.fitVideoPreview();
+  const scale844=Number(props.get('--preview-scale'));assert(scale844>0.7&&scale844<0.8);
   assert.notEqual(oldScale,props.get('--preview-scale'));
   props.clear();ratio.getBoundingClientRect=()=>({width:0,height:330});api.fitVideoPreview();assert.equal(props.size,0);
 });
@@ -70,6 +71,12 @@ test('horizontal preview gives Google Material 3 controls a full 800x450 virtual
   const ultrawide=api.calculatePreviewLayout(390,177,2.2);assert(ultrawide.height>=420);assert(ultrawide.width>=800);
   const tall=api.calculatePreviewLayout(390,730);assert.equal(tall.width,800);assert.equal(tall.height*tall.scale,730);
   assert.equal(api.calculatePreviewLayout(700,240,9/16).width,800);
+  const landscapePhone=api.calculatePreviewLayout(844,250,16/9);
+  assert(landscapePhone.height>=420);assert(landscapePhone.width>=800);assert(landscapePhone.scale<1);
+  assert(Math.abs(landscapePhone.width*landscapePhone.scale-844)<1);
+  assert(Math.abs(landscapePhone.height*landscapePhone.scale-250)<1);
+  const desktop=api.calculatePreviewLayout(1280,720,16/9);
+  assert.equal(desktop.scale,1);assert.equal(desktop.width,1280);assert.equal(desktop.height,720);
 });
 
 test('leaving fullscreen while the orientation request is pending releases the lock',async()=>{

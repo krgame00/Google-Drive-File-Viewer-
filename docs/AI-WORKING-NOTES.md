@@ -603,5 +603,50 @@
     - การ์ดทั้งใน "ดูภายหลัง" และ "ดูต่อจากครั้งล่าสุด" แสดงผลภาพปกเต็มขนาด พร้อม Play Glyph Overlay และ Progress Bar ตรงตามสเปก
     - บันทึกภาพ Screenshot ยืนยันการแสดงผล (Step 2971 ในบันทึกการทำงาน)
 
+### 33. Bug Fix: Google Drive Preview Landscape Mini-Player & Clipped Controls Layout (`2026-10-15`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาเดิมก่อนปรับปรุง:**
+  1. เมื่อเปิดพรีวิว Google Drive บนหน้าจอมือถือแนวนอน (Landscape Orientation เช่น iPhone 844x390, หรือหน้าจอที่มีความสูงของวิวพอร์ตวิดีโอต่ำกว่า 300px) แถบควบคุมวิดีโอของ Google Drive จะกลายสภาพเป็นโหมด "Mini/Compact Player" ที่แสดงผลผิดเพี้ยน:
+     - เส้น Timeline Scrubber ถูกดันขึ้นไปปักติดชิดขอบบนสุดของคลิป
+     - กลุ่มปุ่มปรับเสียง, คำบรรยาย (CC), ความเร็วการเล่น (1x) และฟันเฟืองตั้งค่า หดตัวกลายเป็น Floating Pill ก้อนกลมลอยอยู่กลางจอฝั่งขวา
+     - ปุ่ม Play ก้อนกลมและปุ่มถอยหลัง/เดินหน้า 10s ด้านล่างถูกตัดขาดครึ่งก้อน (Overflow clipping) จากขอบล่างของหน้าจอ
+- **สาเหตุเชิงลึก (Root Cause Analysis - RCA):**
+  1. ใน `video-player.js` ฟังก์ชัน `calculatePreviewLayout(width, height, aspect)` คำนวณไว้ว่า:
+     `const minHeight = horizontal && width < 800 ? 420 : 0;`
+     บนมือถือแนวนอน (เช่น 844x390 หรือ 915x412) ความกว้าง `width >= 800` เสมอ ทำให้เงื่อนไข `width < 800` เป็นเท็จ ส่งผลให้ `minHeight = 0` และ `scale = 1` ปล่อยให้ Virtual Height ภายใน iframe ยุบตัวลงเหลือ `<= 270px` ตามความสูงจริงของหน้าจอ
+     และใน CSS ภายใน iframe ของ Google Drive มี Media Query ดักจับ `@media (max-height: 270px)` เพื่อเปลี่ยนเป็น Compact Player ทันที
+  2. ลำดับการเรียกใช้ใน `media-lightbox.js` (`fallbackIframe`):
+     เดิมเรียก `fitVideoPreview()` ก่อน `applyPreviewAspect(id)` ทำให้การวัดและคำนวณ Layout ในครั้งแรกยังไม่ได้สัดส่วนจริงของวิดีโอ
+  3. CSS Inset & Media Query Precedence (`styles.css`):
+     - กฎ `.video-box .ratio > iframe` มี `position: absolute; inset: 0;` ซึ่งไปล็อกขอบล่าง `bottom: 0` ขณะที่ iframe พยายามขยายตาม `--preview-height`
+     - กฎ `@media (orientation: landscape)` วางอยู่ก่อนหน้า `@media (max-width: 680px)` ทำให้เมื่อเปิดบนจอมือถือแนวนอนที่มีความกว้าง `<= 680px` สไตล์ปุ่ม 44px ของ Mobile Portrait เข้าไปทับ Layout ของแนวนอน
+- **สถาปัตยกรรมและการแก้ไข (Implementation Details):**
+  1. **ปลดล็อก Virtual Height เสมอในโหมดแนวนอน (`video-player.js`):**
+     - ปรับแก้เป็น:
+       `const minHeight = horizontal ? 420 : 0;`
+       `const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);`
+       `const scale = width / frameWidth;`
+     - หากความสูงของวิดีโอแนวนอนบนหน้าจอใดๆ ต่ำกว่า 420px ระบบจะขยาย `frameWidth` ทางคณิตศาสตร์สัมพันธ์กับอัตราส่วน และปรับ `scale` ให้ชดเชยพอดีกับ Container ส่งผลให้ **Virtual Height ภายใน iframe มีขนาด `>= 420px` เสมอ** ป้องกันไม่ให้ Google Drive เข้าสู่โหมด Compact Player เด็ดขาด
+     - บนเดสก์ท็อปที่ความสูง `>= 420px` อัตราส่วน `minHeight / height <= 1` ทำให้ `scale = 1` คงเดิม ไม่กระทบการแสดงผลจอใหญ่แม้แต่พิกเซลเดียว
+  2. **จัดลำดับการคำนวณสัดส่วนล่วงหน้า (`media-lightbox.js`):**
+     - ใน `fallbackIframe(id)` สลับให้ `applyPreviewAspect(id);` ทำงานก่อน `fitVideoPreview();` เพื่อให้ทราบค่าสัดส่วนที่ถูกต้องตั้งแต่แรก
+  3. **ขจัด Inset Locking & เรียงลำดับ Media Queries ใหม่ (`styles.css`):**
+     - เพิ่ม `top: 0; left: 0; right: auto; bottom: auto;` ใน `.video-box .ratio > iframe[data-video-preview="true"]` เพื่อให้ iframe ขยายได้อย่างเป็นอิสระจากจุด Anchor มุมบนซ้าย
+     - ย้ายบล็อก `@media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape)` มาไว้หลัง `@media (max-width: 680px)` เพื่อให้ UI โหมดแนวนอนมีความกระชับ (ปุ่ม 34px, ขอบบาง, พื้นที่แสดงผลวิดีโอสูงสุด) ไม่ถูกสไตล์แนวตั้งทับ
+  4. **อัปเดตชุดทดสอบ TDD (`tests/player-fullscreen.cjs`):**
+     - ปรับ Assertion ของขนาด 844x330 ให้รองรับ Scale ที่ถูกต้อง (`assert(scale844 > 0.7 && scale844 < 0.8)`)
+     - เพิ่มเคสทดสอบสำหรับมือถือแนวนอน (844x250) และเดสก์ท็อป (1280x720) เพื่อการันตีว่า Virtual Viewport มีขนาด `>= 800x420` เสมอ
+  5. **อัปเดต Cache Busting เป็น `?v=20261014-r9` (`index.html`):**
+     - อัปเดต `styles.css` และสคริปต์ทั้ง 7 ไฟล์
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures, duration 22.8s)**
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Chrome DevTools MCP E2E Verification:**
+    - วิวพอร์ตแนวนอน 844x390: `previewWidth: "800px"`, `previewHeight: "450px"`, `previewScale: "0.6528"`
+    - วิวพอร์ตแนวนอนขนาดเล็ก 844x250: `width: 1418px`, `height: 420.02px`, `scale: 0.5952`
+    - ภาพบันทึกหน้าจอ (Step 3221): เส้น Timeline อยู่ด้านล่าง ปุ่มและไอคอนแถวเดียวเรียงชิดมุมขวาล่างสวยงาม ไร้ Floating Pill ไร้การ Clipping 100%
+
+
 
 

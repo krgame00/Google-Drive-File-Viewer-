@@ -348,8 +348,8 @@
         configurePreviewFullscreen();
         vidFrame.setAttribute('data-video-preview', 'true');
         vidFrame.style.display = "block";
-        fitVideoPreview();
         applyPreviewAspect(id);
+        fitVideoPreview();
         setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน · หากขึ้นกำลังประมวลผลหรือดูไม่ได้ กด “โหลดทั้งไฟล์แทน” หรือ “เปิดใน VLC / แอปนอก” ด้านล่าง');
         vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
       }

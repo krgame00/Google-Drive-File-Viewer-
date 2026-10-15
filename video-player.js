@@ -405,7 +405,7 @@
         // so the timeline and control pills stay on a single bottom row without wrapping or clipping.
         const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
         const minWidth = 800;
-        const minHeight = horizontal && width < 800 ? 420 : 0;
+        const minHeight = horizontal ? 420 : 0;
         const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
