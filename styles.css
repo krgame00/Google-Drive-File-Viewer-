@@ -1221,8 +1221,8 @@
     }
     .resume-thumb-box {
       position: relative;
-      width: 58px;
-      height: 44px;
+      width: 74px;
+      height: 48px;
       flex-shrink: 0;
       border-radius: 8px;
       background: linear-gradient(135deg, rgba(239, 68, 68, 0.22), rgba(99, 102, 241, 0.32));
@@ -1238,11 +1238,43 @@
     .resume-thumb-box.is-folder {
       background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(234, 88, 12, 0.32));
     }
+    .resume-thumb-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      z-index: 1;
+      opacity: 0;
+      transition: opacity .25s ease, transform .25s ease;
+    }
+    .resume-thumb-img.loaded {
+      opacity: 1;
+    }
+    .resume-card:hover .resume-thumb-img.loaded {
+      transform: scale(1.08);
+    }
     .resume-play-glyph {
-      font-size: 15px;
+      position: relative;
+      z-index: 2;
+      font-size: 14px;
       color: #fff;
-      opacity: 0.9;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+      opacity: 0.95;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+      transition: transform .15s ease, background .15s ease;
+    }
+    .resume-thumb-box.has-thumb .resume-play-glyph {
+      background: rgba(0, 0, 0, 0.52);
+      backdrop-filter: blur(2px);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
     }
     .resume-progress-track {
       position: absolute;
@@ -1250,7 +1282,8 @@
       left: 0;
       right: 0;
       height: 3.5px;
-      background: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.25);
+      z-index: 3;
     }
     .resume-progress-bar {
       height: 100%;

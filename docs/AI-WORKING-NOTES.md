@@ -572,4 +572,36 @@
     - ตรวจสอบ `prevSiblingOfBrowserCard: "collectionsCard"` (หน้าหลักคลีน ไร้ Section คั่น)
     - ทดสอบคลิกเปิด-ปิด Drawer, Backdrop และ Badge ตัวเลขแสดงผลเรียลไทม์ถูกต้อง 100%
 
+### 32. Feature & Fix: Real Cover Thumbnails for Resume Cards & Library Drawer (`2026-10-15`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาเดิมก่อนปรับปรุง:**
+  1. การ์ดในเมนู "⭐ คลังของฉัน" (ทั้งส่วน "ดูภายหลัง" และ "ดูต่อจากครั้งล่าสุด") แสดงผลเป็นกล่องสี่เหลี่ยม Gradient มืดๆ พร้อมไอคอน Play `▶` เท่านั้น ไม่มีรูปภาพปกวิดีโอหรือรูปพรีวิว ทำให้ผู้ใช้จำไม่ได้ว่าคลิปไหนเป็นเรื่องอะไร
+  2. Endpoint ตรงของ Drive (`lh3.googleusercontent.com` หรือ `drive.google.com/thumbnail`) จะติด 403 Forbidden หากไฟล์ไม่ได้เปิดสิทธิ์แชร์สาธารณะ (Web-published)
+  3. สคริปต์ `app-core.js` มี ReferenceError บรรทัด `initMyLibraryDrawer` จากการอ้างอิงตัวแปร `backdrop` ที่ยังไม่ได้ประกาศ (`const backdrop = document.getElementById("myLibraryBackdrop")`) ทำให้แอปหยุดทำงานช่วงท้ายของการโหลด
+- **สถาปัตยกรรมและการเปลี่ยนแปลง (Implementation Details):**
+  1. **ระบบ Multi-tier Cover Thumbnail System:**
+     - **Tier 1 (RAM Cache):** ตรวจสอบ `mediaThumbs[id]` จากการโหลดไฟล์ในโฟลเดอร์ Google Drive ที่ได้รับ Signed Thumbnail URL มาแล้ว
+     - **Tier 2 (HTML5 Video Frame Capture):** ใน `video-player.js` ฟังก์ชัน `saveVideoPos()` ใช้ `<canvas>` ขนาด 160x100 วาดเฟรมจริงของวิดีโอที่กำลังเล่นอยู่แบบเรียลไทม์ แล้วแปลงเป็น Data URL (JPEG คุณภาพ 0.68) บันทึกลง `localStorage.setItem("gdv_thumb_" + vidCurrentId, dataUrl)` ทำให้วิดีโอที่ดูค้างไว้มีรูปปกตรงจากเนื้อเรื่องช่วงที่กำลังดูทันที
+     - **Tier 3 (Folder Listing & Explorer Cache):** ใน `drive-explorer.js` และ `media-lightbox.js` แคช `f.thumbnailLink` และรูปจากการ์ดลง `localStorage` เมื่อผู้ใช้สำรวจไฟล์หรือกด "+ ดูภายหลัง"
+     - **Tier 4 (Async Drive API Probe):** หากรูปพรีวิวโหลดไม่สำเร็จ (เช่น โดน 403) จะเรียก `window.tryLoadDriveThumbnail(id, imgEl)` ส่งคำขอไปที่ Drive API v3 ด้วย API Key หรือ OAuth Token เพื่อดึง `thumbnailLink` ที่มีสิทธิ์เข้าถึงจริง
+     - **Tier 5 (Graceful Fallback):** หากไม่มีรูปหรือโหลดล้มเหลว จะซ่อน `<img>` และแสดงกล่อง Gradient นุ่มลึกพร้อมไอคอน Play แทน โดยไม่มีไอคอน Broken Image โผล่มากวนใจ
+  2. **ปรับปรุง CSS & Micro-interactions (`styles.css`):**
+     - ปรับขนาด `.resume-thumb-box` ให้มีสัดส่วนวิดีโอ 16:10 (74x48px)
+     - เพิ่มคลาส `.resume-thumb-img` พร้อม `object-fit: cover`, Fade-in (`opacity: 0` -> `1` เมื่อโหลดเสร็จ) และ Zoom Micro-animation (`transform: scale(1.08)`) เมื่อ Hover บนตัวการ์ด
+     - เพิ่มป้ายวงกลมโปร่งแสงกึ่งโปร่งใส `.resume-thumb-box.has-thumb .resume-play-glyph` ลอยเด่นอยู่เหนือภาพปก
+  3. **แก้ไข Bug และ Attribute Safety:**
+     - แก้ไข ReferenceError: เพิ่ม `const backdrop = document.getElementById("myLibraryBackdrop");` ใน `initMyLibraryDrawer()`
+     - ป้องกัน XSS/HTML Injection: ปรับ `safeThumbUrl` และ `safeId` ให้ผ่านการ Escape เครื่องหมายคำพูด `"` และ `'` ป้องกันการหลุดจากแอตทริบิวต์ `src` หรือฟังก์ชัน `onerror`
+  4. **อัปเดต Cache Busting เป็น `?v=20261014-r8` (`index.html`):**
+     - อัปเดต `styles.css` และ 7 สคริปต์ให้ดึงเวอร์ชันล่าสุดทันที
+- **หลักฐานการตรวจสอบ (Complete Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures, duration 22.6s)**
+  - **Data Integrity:** `node tools/collection_data.js check` ถูกต้องครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Visual & Console Inspection ผ่าน Chrome DevTools MCP:**
+    - คอนโซลเบราว์เซอร์: 0 Errors (ReferenceError หายขาด 100%)
+    - การ์ดทั้งใน "ดูภายหลัง" และ "ดูต่อจากครั้งล่าสุด" แสดงผลภาพปกเต็มขนาด พร้อม Play Glyph Overlay และ Progress Bar ตรงตามสเปก
+    - บันทึกภาพ Screenshot ยืนยันการแสดงผล (Step 2971 ในบันทึกการทำงาน)
+
+
 

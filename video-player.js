@@ -499,6 +499,10 @@
           .then(function (res) { return res.ok ? res.json() : null; })
           .then(function (meta) {
             if (meta && Number(meta.size) > 0 && cached && !(Number(cached.size) > 0)) cached.size = Number(meta.size);
+            if (meta && meta.thumbnailLink) {
+              if (typeof mediaThumbs !== 'undefined' && mediaThumbs) mediaThumbs[id] = meta.thumbnailLink;
+              try { localStorage.setItem("gdv_thumb_" + id, meta.thumbnailLink); } catch (_) {}
+            }
             if (session !== mediaSession || id !== vidCurrentId || !videoModal.classList.contains('show') || vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
@@ -1371,6 +1375,20 @@
         if (!vidCurrentId || vidPlayer.style.display === "none") return;
         const time = vidPlayer.currentTime;
         if (!Number.isFinite(time)) return;
+        // บันทึกภาพเฟรมปัจจุบันของวิดีโอเป็นภาพปกสำรอง (ถ้ายังไม่มีในแคช)
+        try {
+          if (vidPlayer.videoWidth > 0 && typeof localStorage !== "undefined" && !localStorage.getItem("gdv_thumb_" + vidCurrentId)) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 160;
+            canvas.height = Math.round(160 * (vidPlayer.videoHeight / vidPlayer.videoWidth));
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(vidPlayer, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.68);
+            if (dataUrl && dataUrl.length > 100) {
+              localStorage.setItem("gdv_thumb_" + vidCurrentId, dataUrl);
+            }
+          }
+        } catch (_) {}
         const items = loadContinueWatching().filter(x => x.id !== vidCurrentId);
         if (vidPlayer.ended) {
           lsRemove("gdv_vpos_" + vidCurrentId);
@@ -1418,8 +1436,17 @@
           const progressPercent = Math.min(96, Math.max(8, Math.round((item.position / (item.duration || (item.position + 120))) * 100)));
           const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
 
+          const cachedThumb = (function () {
+            if (typeof mediaThumbs !== "undefined" && mediaThumbs && mediaThumbs[item.id]) return mediaThumbs[item.id];
+            try { return localStorage.getItem("gdv_thumb_" + item.id); } catch (_) { return null; }
+          })();
+          const thumbUrl = cachedThumb || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(item.id) + "&sz=w320");
+          const safeThumbUrl = (thumbUrl || "").replace(/"/g, '&quot;');
+          const safeId = (item.id || "").replace(/['"\\]/g, "");
+
           button.innerHTML = `
-            <div class="resume-thumb-box" aria-hidden="true">
+            <div class="resume-thumb-box${cachedThumb ? ' has-thumb' : ''}" aria-hidden="true">
+              <img class="resume-thumb-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
               <span class="resume-play-glyph">▶</span>
               <div class="resume-progress-track"><div class="resume-progress-bar" style="width:${progressPercent}%"></div></div>
             </div>

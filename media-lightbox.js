@@ -308,6 +308,11 @@
           later.textContent = saved ? "✓ ดูภายหลัง" : "+ ดูภายหลัง"; later.setAttribute("aria-pressed", String(saved));
           later.onclick = event => {
             event.stopPropagation();
+            const thumbImg = card.querySelector(".thumb-img");
+            if (thumbImg && thumbImg.src) {
+              try { localStorage.setItem("gdv_thumb_" + card.dataset.id, thumbImg.src); } catch (_) {}
+              if (typeof mediaThumbs !== "undefined" && mediaThumbs) mediaThumbs[card.dataset.id] = thumbImg.src;
+            }
             if (updatePersonalData(state => {
               state.watchLater = state.watchLater.filter(x => x.id !== card.dataset.id);
               if (!saved) state.watchLater.unshift({ id: card.dataset.id, name: card.dataset.name, kind: card.dataset.kind });

@@ -297,8 +297,16 @@
           open.type = "button";
           open.className = "resume-btn";
           const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+          const savedCover = readPersonalData().covers.find(x => x.id === item.id);
+          const coverFileId = savedCover ? savedCover.fileId : null;
+          const cachedThumb = coverFileId ? ((function () {
+            if (typeof mediaThumbs !== "undefined" && mediaThumbs && mediaThumbs[coverFileId]) return mediaThumbs[coverFileId];
+            try { return localStorage.getItem("gdv_thumb_" + coverFileId); } catch (_) { return null; }
+          })() || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(coverFileId) + "&sz=w320")) : null;
+
           open.innerHTML = `
-            <div class="resume-thumb-box is-folder" aria-hidden="true">
+            <div class="resume-thumb-box is-folder${cachedThumb ? ' has-thumb' : ''}" aria-hidden="true">
+              ${cachedThumb ? `<img class="resume-thumb-img loaded" src="${cachedThumb}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb')" />` : ''}
               <span class="resume-play-glyph">📁</span>
             </div>
             <div class="resume-info">
@@ -670,7 +678,12 @@
 
               mediaThumbs = {};
 
-              files.forEach(function (f) { if (f.thumbnailLink) mediaThumbs[f.id] = f.thumbnailLink; });
+              files.forEach(function (f) {
+                if (f.thumbnailLink) {
+                  mediaThumbs[f.id] = f.thumbnailLink;
+                  try { localStorage.setItem("gdv_thumb_" + f.id, f.thumbnailLink); } catch (_) {}
+                }
+              });
 
               if (!files.length) {
 
@@ -1245,7 +1258,12 @@
           openLightbox(id);
 
         } else if (kind === "video") {
-
+          const clickedCard = document.querySelector('.file-card[data-id="' + id + '"]');
+          const clickedThumb = clickedCard ? clickedCard.querySelector(".thumb-img")?.src : null;
+          if (clickedThumb) {
+            try { localStorage.setItem("gdv_thumb_" + id, clickedThumb); } catch (_) {}
+            if (typeof mediaThumbs !== "undefined" && mediaThumbs) mediaThumbs[id] = clickedThumb;
+          }
           openVideo(id, name);
 
         } else {

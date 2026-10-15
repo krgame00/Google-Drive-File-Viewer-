@@ -1307,8 +1307,18 @@
           const icon = isVid ? "▶" : "🖼";
           const kindLabel = isVid ? "🎬 วิดีโอ" : "🖼 รูปภาพ";
           const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+
+          const cachedThumb = (function () {
+            if (typeof mediaThumbs !== "undefined" && mediaThumbs && mediaThumbs[item.id]) return mediaThumbs[item.id];
+            try { return localStorage.getItem("gdv_thumb_" + item.id); } catch (_) { return null; }
+          })();
+          const thumbUrl = cachedThumb || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(item.id) + "&sz=w320");
+          const safeThumbUrl = (thumbUrl || "").replace(/"/g, '&quot;');
+          const safeId = (item.id || "").replace(/['"\\]/g, "");
+
           open.innerHTML = `
-            <div class="resume-thumb-box ${isVid ? 'is-video' : 'is-img'}" aria-hidden="true">
+            <div class="resume-thumb-box ${isVid ? 'is-video' : 'is-img'}${cachedThumb ? ' has-thumb' : ''}" aria-hidden="true">
+              <img class="resume-thumb-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
               <span class="resume-play-glyph">${icon}</span>
             </div>
             <div class="resume-info">
@@ -1994,9 +2004,33 @@
         updateMyLibraryBadge();
       }
 
+      function tryLoadDriveThumbnail(id, imgEl) {
+        if (!id || !imgEl || imgEl.dataset.probing) return;
+        imgEl.dataset.probing = "1";
+        const auth = authParams();
+        if (auth.mode === "none") return;
+        let url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) + "?fields=thumbnailLink&supportsAllDrives=true";
+        if (auth.mode === "key" && apiKey) url += "&key=" + encodeURIComponent(apiKey);
+        const headers = auth.mode === "bearer" ? { Authorization: "Bearer " + accessToken } : {};
+        fetch(url, { headers })
+          .then(r => r.ok ? r.json() : null)
+          .then(meta => {
+            if (meta && meta.thumbnailLink && imgEl.isConnected) {
+              imgEl.src = meta.thumbnailLink;
+              imgEl.style.display = "block";
+              imgEl.classList.add("loaded");
+              if (imgEl.parentElement) imgEl.parentElement.classList.add("has-thumb");
+              if (typeof mediaThumbs !== "undefined" && mediaThumbs) mediaThumbs[id] = meta.thumbnailLink;
+              try { localStorage.setItem("gdv_thumb_" + id, meta.thumbnailLink); } catch (_) {}
+            }
+          })
+          .catch(() => {});
+      }
+
       window.openMyLibraryDrawer = openMyLibraryDrawer;
       window.closeMyLibraryDrawer = closeMyLibraryDrawer;
       window.updateMyLibraryBadge = updateMyLibraryBadge;
+      window.tryLoadDriveThumbnail = tryLoadDriveThumbnail;
 
       // ===== Init =====
 
