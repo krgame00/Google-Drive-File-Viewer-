@@ -647,6 +647,56 @@
     - วิวพอร์ตแนวนอนขนาดเล็ก 844x250: `width: 1418px`, `height: 420.02px`, `scale: 0.5952`
     - ภาพบันทึกหน้าจอ (Step 3221): เส้น Timeline อยู่ด้านล่าง ปุ่มและไอคอนแถวเดียวเรียงชิดมุมขวาล่างสวยงาม ไร้ Floating Pill ไร้การ Clipping 100%
 
+### 34. Bug Fix: Google Drive Preview Landscape Material 3 Virtual Viewport (960x540 Standard) (`2026-10-15`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบจากผู้ใช้งาน (User Feedback & Screenshot `media_1792052792821_69eb1d25.png`):**
+  - แม้จะขยาย Virtual Height เป็น 420px แล้ว แต่บนอุปกรณ์มือถือแนวนอนบางรุ่น ผู้ใช้ยังพบว่า:
+    1. เส้น Timeline Scrubber ยังถูกดันขึ้นไปอยู่ขอบบน
+    2. แถบควบคุมเสียง/CC/1x/ตั้งค่า ยังกลายเป็น Floating Pill ลอยอยู่กลางจอฝั่งขวา
+    3. ปุ่ม Play สีขาวทรงรีและปุ่มถอย/ข้าม 10s ด้านล่างยังถูกเฉือนขาดครึ่งก้อน (Bottom Button Clipping)
+- **สาเหตุเชิงลึกจากการวัด DOM จริงผ่าน Chrome DevTools (Deep Root-Cause Analysis - RCA):**
+  1. **ขนาดของปุ่ม Material 3 เกินขอบเขต 420px:**
+     - จากการ inspect DOM ภายใน iframe พรีวิวของ Google Drive (`youtube.googleapis.com/embed/?ps=docs`) พบว่าปุ่มควบคุม Material 3 โหมดสัมผัสมี Bounding Rect ดังนี้:
+       - ปุ่ม Play ทรงรีขนาดใหญ่: `top: 376px`, `bottom: 452px`, `height: 76px`
+       - ปุ่ม Seek 10s ทรงรี: `top: 390px`, `bottom: 438px`, `height: 48px`
+     - เมื่อตั้ง `minHeight = 420px` ขอบล่างของปุ่ม Play ยื่นลงไปถึง `452px` ทำให้ส่วนล่างของปุ่มถูกตัดทิ้ง (Clipped) ไปถึง `452 - 420 = 32px` (หรือคิดเป็น 42% ของความสูงปุ่ม)!
+  2. **เกณฑ์การตัดสิน Layout Desktop vs Mobile ของ Google Drive Preview:**
+     - Google Drive จะสลับเข้าสู่โหมด "Mobile Touch Layout" (Timeline ด้านบน, Floating Pill กลางจอขวา, ปุ่มสัมผัสขนาดใหญ่ด้านล่าง) เมื่อ Virtual Height ต่ำกว่า `480px` หรือ Virtual Width ต่ำกว่า `960px`
+     - แต่เมื่อขยาย Virtual Viewport ให้ได้มาตรฐานวิดีโอ 16:9 ความละเอียด 540p (`width >= 960px` และ `height >= 540px`):
+       - Google Drive จะสลับเป็น **"Desktop Single-Row Player Layout"** ทันที
+       - เส้น Timeline จะย้ายกลับลงมาอยู่เหนือแถบควบคุมด้านล่าง
+       - ปุ่ม Play, Seek, เสียง, CC, ความเร็ว, และเต็มจอ จะเรียงตัวเป็นแถวเดียว (Single bottom toolbar) ชิดมุมล่าง ไร้ Floating Pill และไม่มีการตัดขาดของปุ่มแม้แต่พิกเซลเดียว
+- **สถาปัตยกรรมและการแก้ไข (Implementation Details):**
+  1. **ยกระดับ Virtual Viewport Baseline เป็น 960x540 (`video-player.js`):**
+     - ปรับฟังก์ชัน `calculatePreviewLayout`:
+       ```javascript
+       const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
+       const minWidth = 960;
+       const minHeight = horizontal ? 540 : 0;
+       const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
+       const scale = width / frameWidth;
+       return {width: frameWidth, height: height / scale, scale: scale};
+       ```
+     - ผลลัพธ์ทางคณิตศาสตร์:
+       - **มือถือแนวนอนทั่วไป (เช่น iPhone 844x330):** Virtual Viewport เป็น `1382 x 540.35px`, `scale = 0.6107`, ขนาด Render จริงคือ `844 x 330px` พอดี Container 100%
+       - **มือถือแนวนอนจอเตี้ย (เช่น 844x250):** Virtual Viewport เป็น `1824 x 540.28px`, `scale = 0.4627`, ขนาด Render จริงคือ `844 x 250px` พอดี Container 100%
+       - **มือถือแนวนอนจอเล็ก (เช่น 544x306):** Virtual Viewport เป็น `960 x 540px`, `scale = 0.5667`, ขนาด Render จริงคือ `544 x 306px` พอดี Container 100%
+       - **เดสก์ท็อปจอใหญ่ (1280x720):** `scale = 1` ไม่มีการย่อ/ขยายใดๆ
+       - **มือถือแนวตั้ง (390x219 สำหรับคลิป 16:9):** Virtual Viewport เป็น `960 x 540px`, `scale = 0.40625`, ขนาด Render จริงคือ `390 x 219.4px`
+  2. **ปรับปรุงชุดทดสอบ (`tests/player-fullscreen.cjs`):**
+     - อัปเดต Assertions ให้ตรงกับเกณฑ์ 960x540 ใหม่
+     - ตรวจสอบความถูกต้องของสเกลและการคงอัตราส่วนบนทุกวิวพอร์ต
+  3. **อัปเดต Cache Busting เป็น `?v=20261014-r10` (`index.html`):**
+     - ป้องกันแคชเก่าค้างในเบราว์เซอร์ของผู้ใช้
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests:** `node --test tests/*.cjs` ผ่านครบถ้วน **160/160 tests PASS (0 failures, duration 22.9s)**
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+  - **Chrome DevTools MCP Live Invariance Matrix Verification:**
+    - ทดสอบรันการคำนวณและวัดขนาดจริงในเบราว์เซอร์ พบว่า `fitsExactW: true`, `fitsExactH: true`, และ `virtualMeetsDesktopThreshold: true` ครบทุกประเภทหน้าจอ
+    - บันทึกภาพ Screenshot ยืนยันการเรนเดอร์ในโหมดแนวนอน (Step 3566)
+
+
 
 
 

@@ -57,22 +57,22 @@ test('preview fitting applies only to video previews and ignores zero-sized layo
   const {bridge,api,props,ratio}=setup();
   api.fitVideoPreview();assert.equal(props.size,0);
   bridge.vidFrame.getAttribute=key=>key==='data-video-preview'?'true':null;
-  api.fitVideoPreview();assert.equal(props.get('--preview-width'),'800px');
+  api.fitVideoPreview();assert.equal(props.get('--preview-width'),'962px');
   const oldScale=props.get('--preview-scale');
   ratio.getBoundingClientRect=()=>({width:844,height:330});api.fitVideoPreview();
-  const scale844=Number(props.get('--preview-scale'));assert(scale844>0.7&&scale844<0.8);
+  const scale844=Number(props.get('--preview-scale'));assert(scale844>0.6&&scale844<0.7);
   assert.notEqual(oldScale,props.get('--preview-scale'));
   props.clear();ratio.getBoundingClientRect=()=>({width:0,height:330});api.fitVideoPreview();assert.equal(props.size,0);
 });
 
-test('horizontal preview gives Google Material 3 controls a full 800x450 virtual viewport on phones without wrapping or clipping',()=>{
+test('horizontal preview gives Google Material 3 controls a full 960x540 virtual viewport on phones without wrapping or clipping',()=>{
   const {api}=setup();
-  const wide=api.calculatePreviewLayout(390,390*9/16);assert.equal(wide.width,800);assert.equal(wide.height,450);assert(wide.scale>=0.48);
-  const ultrawide=api.calculatePreviewLayout(390,177,2.2);assert(ultrawide.height>=420);assert(ultrawide.width>=800);
-  const tall=api.calculatePreviewLayout(390,730);assert.equal(tall.width,800);assert.equal(tall.height*tall.scale,730);
-  assert.equal(api.calculatePreviewLayout(700,240,9/16).width,800);
+  const wide=api.calculatePreviewLayout(390,390*9/16);assert.equal(wide.width,960);assert.equal(wide.height,540);assert(wide.scale>=0.40);
+  const ultrawide=api.calculatePreviewLayout(390,177,2.2);assert(ultrawide.height>=540);assert(ultrawide.width>=960);
+  const tall=api.calculatePreviewLayout(390,730);assert.equal(tall.width,960);assert.equal(tall.height*tall.scale,730);
+  assert.equal(api.calculatePreviewLayout(700,240,9/16).width,960);
   const landscapePhone=api.calculatePreviewLayout(844,250,16/9);
-  assert(landscapePhone.height>=420);assert(landscapePhone.width>=800);assert(landscapePhone.scale<1);
+  assert(landscapePhone.height>=540);assert(landscapePhone.width>=960);assert(landscapePhone.scale<1);
   assert(Math.abs(landscapePhone.width*landscapePhone.scale-844)<1);
   assert(Math.abs(landscapePhone.height*landscapePhone.scale-250)<1);
   const desktop=api.calculatePreviewLayout(1280,720,16/9);

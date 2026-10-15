@@ -401,11 +401,14 @@
       }
 
       function calculatePreviewLayout(width, height, aspect) {
-        // Google Drive's Material 3 control bar needs >= 760px virtual width and >= 420px virtual height
-        // so the timeline and control pills stay on a single bottom row without wrapping or clipping.
+        // Google Drive's Material 3 player layout:
+        // - If virtual height < 480px or virtual width < 960px, Google Drive renders its mobile touch layout
+        //   (timeline pinned to top, floating tools in middle right, oversized bottom buttons that extend to y=452px, causing clipping).
+        // - With virtual width >= 960px and virtual height >= 540px (standard 16:9 540p desktop baseline),
+        //   Google Drive renders the clean desktop player: all controls in one neat bottom bar, no floating pills, zero clipping.
         const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
-        const minWidth = 800;
-        const minHeight = horizontal ? 420 : 0;
+        const minWidth = 960;
+        const minHeight = horizontal ? 540 : 0;
         const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
         const scale = width / frameWidth;
         return {width: frameWidth, height: height / scale, scale: scale};
