@@ -939,12 +939,13 @@
         return runPublicStream(id, onFail, googleOnly);
       }
 
-      function readVideoBlobResponse(res, signal, onProgress) {
+      function readVideoBlobResponse(res, signal, onProgress, onChunkData) {
         return (async function () {
           const aborted = function () { if (signal.aborted) { const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; } };
           aborted();
           const length = Number(res.headers && res.headers.get('content-length'));
           const total = Number.isFinite(length) && length > 0 ? length : 0;
+          const mimeType = (res.headers && res.headers.get('content-type')) || 'application/octet-stream';
           onProgress(0, total);
           if (!res.body || !res.body.getReader) {
             const blob = await res.blob(); aborted(); onProgress(Number(blob.size) || 0, total); return blob;
@@ -959,8 +960,11 @@
               const part = await reader.read(); aborted();
               if (part.done) break;
               chunks.push(part.value); loaded += part.value.byteLength; onProgress(loaded, total);
+              if (typeof onChunkData === 'function') {
+                try { onChunkData(chunks, loaded, total, mimeType); } catch (_) {}
+              }
             }
-            return new Blob(chunks, {type: res.headers.get('content-type') || 'application/octet-stream'});
+            return new Blob(chunks, {type: mimeType});
           } finally {
             signal.removeEventListener('abort', cancel);
             if (reader.releaseLock) reader.releaseLock();
@@ -969,12 +973,13 @@
       }
 
       function readVideoBlobRanges(url, headers, size, signal, onProgress, onChunk, opts) {
-        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (ค่าเริ่ม: 4 คำขอ × 8 MiB; ปรับได้ผ่าน opts {chunk, limit, retries})
+        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (ค่าเริ่ม: 4 คำขอ × 8 MiB; ปรับได้ผ่าน opts {chunk, limit, retries, onChunkReady})
         // ไม่ส่ง onChunk: ประกอบเป็น Blob ในแรมตามลำดับเดิม  |  ส่ง onChunk(index, start, blob):
         // ส่งต่อทุกช่วงให้ผู้เรียก (เช่น เขียนลงดิสก์) แล้วคืนค่า content-type แทน Blob
         // โยน AbortError เมื่อผู้ใช้ยกเลิก ส่วนความล้มเหลวอื่นให้ผู้เรียกตกกลับไปโหลดเชื่อมต่อเดียว
         const cfg = opts || {};
         const CHUNK = cfg.chunk || 8388608, LIMIT = cfg.limit || 4, RETRIES = cfg.retries || 2;
+        const onChunkReady = typeof cfg.onChunkReady === 'function' ? cfg.onChunkReady : null;
         const chunks = Math.ceil(size / CHUNK);
         const parts = onChunk ? null : new Array(chunks);
         const loaded = new Array(chunks).fill(0);
@@ -1035,6 +1040,9 @@
           const start = index * CHUNK;
           return fetchChunk(index, 0).then(function (blob) {
             if (writeError) throw writeError;
+            if (onChunkReady) {
+              try { onChunkReady(index, start, blob, chunks, type || 'video/mp4'); } catch (_) {}
+            }
             if (!onChunk) { parts[index] = blob; return worker(); }
             // Pipeline OPFS disk write concurrently while immediately starting the next network chunk fetch!
             const p = Promise.resolve().then(function () { return onChunk(index, start, blob); }).catch(function (err) {
@@ -1078,11 +1086,17 @@
         const speed = elapsed >= 1 && loaded > 0 ? loaded / elapsed : 0;
         const remaining = speed > 0 && total > loaded ? Math.ceil((total - loaded) / speed) : 0;
         const eta = remaining > 0 ? ' · เหลือประมาณ ' + (remaining < 60 ? remaining + ' วินาที' : Math.ceil(remaining / 60) + ' นาที') : '';
-        const text = 'กำลังโหลดทั้งไฟล์: ' + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + formatSize(speed) + '/s' : '') + eta;
+        const watching = !!(videoBlobTransfer && videoBlobTransfer.previewStarted);
+        const prefix = watching ? 'กำลังเล่นระหว่างโหลดทั้งไฟล์: ' : 'กำลังโหลดทั้งไฟล์: ';
+        const text = prefix + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + formatSize(speed) + '/s' : '') + eta;
         const label = document.getElementById('vidLoadingText');
         const bar = document.getElementById('vidProgressBar');
         if (label) label.textContent = text;
         if (bar) bar.style.width = percent === null ? '0%' : percent + '%';
+        if (watching) {
+          const status = document.getElementById('vidErrorStatus');
+          if (status) { status.textContent = text; status.hidden = false; }
+        }
       }
 
       function cancelVideoBlobTransfer(showMessage) {
@@ -1090,6 +1104,22 @@
         if (!transfer) return;
         videoBlobTransfer = null;
         transfer.controller.abort();
+        if (transfer.previewUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+          try { URL.revokeObjectURL(transfer.previewUrl); } catch (_) {}
+          transfer.previewUrl = null;
+        }
+        if (transfer.previewStarted && showMessage && typeof vidPlayer !== 'undefined' && vidPlayer) {
+          try {
+            vidPlayer.oncanplay = null;
+            vidPlayer.onerror = null;
+            vidPlayer.onended = null;
+            vidPlayer.ontimeupdate = null;
+            vidPlayer.pause();
+            vidPlayer.removeAttribute('src');
+            vidPlayer.load();
+            vidPlayer.style.display = 'none';
+          } catch (_) {}
+        }
         const cancel = document.getElementById('vidCancelBlob');
         const button = document.getElementById('vidBlob');
         if (cancel) cancel.hidden = true;
@@ -1102,7 +1132,7 @@
         const size = Number(fileMetaOf(id).size);
         if (!(size > 0) || size >= 256 * 1024 * 1024) {
           const detail = size > 0 ? 'ขนาด ' + formatSize(size) : 'ไม่ทราบขนาดไฟล์';
-          if (!window.confirm('โหลดวิดีโอทั้งไฟล์ (' + detail + ') เพื่อเล่นในเว็บ? ต้องรอโหลดครบ ใช้เน็ตตามขนาดไฟล์และพื้นที่จัดเก็บชั่วคราวบนเครื่อง สามารถยกเลิกระหว่างโหลดได้')) return;
+          if (!window.confirm('โหลดวิดีโอทั้งไฟล์ (' + detail + ') เพื่อเล่นในเว็บ? ระบบจะเริ่มเล่นทันทีที่ส่วนต้นพร้อม และโหลดส่วนที่เหลือต่อในพื้นหลัง (ใช้เน็ตตามขนาดไฟล์และพื้นที่จัดเก็บชั่วคราวบนเครื่อง สามารถยกเลิกระหว่างโหลดได้)')) return;
         }
         return loadVideoAsBlob(id);
       }
@@ -1111,7 +1141,7 @@
         return function loadVideoAsBlob(id, onGiveUp, priorNotes) {
           with (deps) {
         // ทางแก้เมื่อเบราว์เซอร์ (เช่น Brave) บล็อก fetch ข้ามโดเมนจาก service worker:
-        // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง แล้วเล่นจากไฟล์ในเครื่อง (ไม่มี seek ก่อนโหลดครบ)
+        // หน้าเว็บดึงไฟล์เต็มเป็น blob ด้วย Bearer เอง พร้อมเริ่มเล่นส่วนต้นทันทีที่พร้อม (ดูระหว่างโหลดทั้งไฟล์)
         // onGiveUp = เรียกเมื่อขั้นโหลดทั้งไฟล์ล้มทุกทาง เพื่อให้ผู้เรียกวินิจฉัยต่อได้
         // priorNotes = บันทึกการลองแหล่งก่อนหน้า แนบไปกับข้อความล้มเพื่อให้เห็นภาพรวม
         const prior = priorNotes && priorNotes.length ? ' การลองสำรองก่อนหน้า: ' + priorNotes.join(' · ') : '';
@@ -1120,10 +1150,57 @@
         if (auth.mode === 'none' && !(Number(fileMetaOf(id) && fileMetaOf(id).size) > 0)) { showStreamFailure('ต้องลงชื่อเข้าใช้หรือตั้งค่า API key ก่อนจึงจะโหลดทั้งไฟล์ได้' + prior); if (onGiveUp) onGiveUp(); return; }
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
-        const transfer = videoBlobTransfer = {id: id, session: mediaSession, startedAt: Date.now(), controller: new AbortController()};
+        const transfer = videoBlobTransfer = {
+          id: id,
+          session: mediaSession,
+          startedAt: Date.now(),
+          controller: new AbortController(),
+          previewStarted: false,
+          previewUrl: null,
+          previewChunks: 0,
+          waitingForMore: false,
+          finished: false,
+          resumeTime: 0,
+          wasPaused: false,
+          lastLoaded: 0,
+          lastTotal: 0
+        };
         const cacheScope = typeof videoCacheScope === 'function' ? videoCacheScope() : null;
         const cacheMeta = fileMetaOf(id);
         const active = function () { return videoBlobTransfer === transfer && transfer.session === mediaSession && id === vidCurrentId && videoModal.classList.contains('show'); };
+        const revokePreviewUrl = function () {
+          if (transfer.previewUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            try { URL.revokeObjectURL(transfer.previewUrl); } catch (_) {}
+          }
+          transfer.previewUrl = null;
+        };
+        const resetProgressivePreview = function () {
+          revokePreviewUrl();
+          if (transfer.previewStarted) {
+            transfer.previewStarted = false;
+            transfer.previewChunks = 0;
+            transfer.waitingForMore = false;
+            vidPlayer.oncanplay = null;
+            vidPlayer.onerror = null;
+            vidPlayer.onended = null;
+            vidPlayer.ontimeupdate = null;
+            vidPlayer.pause();
+            vidPlayer.removeAttribute('src');
+            vidPlayer.load();
+            vidPlayer.style.display = 'none';
+          }
+        };
+        const isPlayableStreamHeader = function (head) {
+          if (!head || head.length < 4) return false;
+          const webm = head[0] === 26 && head[1] === 69 && head[2] === 223 && head[3] === 163;
+          if (webm) return true;
+          const mp4 = head.length >= 8 && head[4] === 102 && head[5] === 116 && head[6] === 121 && head[7] === 112;
+          if (mp4 && typeof readMp4CodecInfo === 'function') {
+            const info = readMp4CodecInfo(head);
+            return !!(info && info.playable);
+          }
+          return false;
+        };
         const btn = document.getElementById('vidBlob');
         const cancel = document.getElementById('vidCancelBlob');
         if (btn) btn.disabled = true;
@@ -1141,22 +1218,152 @@
         const workerSource = {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}};
         // หากแหล่งตรงเพิ่งติดโควตา ให้ข้ามไปเริ่มดึงผ่าน Worker 6 ช่องขนานทันทีโดยไม่ต้องรอติด 403 ซ้ำ
         const sources = auth.mode === 'none' ? [workerSource] : (directBlocked ? [workerSource, directSource] : [directSource, workerSource]);
-        const progressBlob = function (loaded, total) { if (active()) renderVideoBlobProgress(loaded, total); };
+        const progressBlob = function (loaded, total) {
+          transfer.lastLoaded = loaded;
+          transfer.lastTotal = total;
+          if (active()) renderVideoBlobProgress(loaded, total);
+        };
+        const mountProgressiveSlice = function (sliceParts, sliceCount, mimeType, hasMoreGetter) {
+          if (!active() || transfer.finished || sliceCount <= transfer.previewChunks) return;
+          if (transfer.previewStarted) {
+            const cur = Number(vidPlayer.currentTime);
+            if (Number.isFinite(cur) && cur > 0) transfer.resumeTime = cur;
+          }
+          const partialBlob = new Blob(sliceParts, {type: mimeType || 'video/mp4'});
+          const prevUrl = transfer.previewUrl;
+          const nextPreviewUrl = URL.createObjectURL(partialBlob);
+          transfer.previewUrl = nextPreviewUrl;
+          transfer.previewChunks = sliceCount;
+          transfer.previewStarted = true;
+          transfer.waitingForMore = false;
+          if (prevUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            try { URL.revokeObjectURL(prevUrl); } catch (_) {}
+          }
+          vidPlayer.removeAttribute('crossorigin');
+          vidPlayer.style.display = 'block';
+          if (transfer.lastLoaded > 0) renderVideoBlobProgress(transfer.lastLoaded, transfer.lastTotal);
+          const advanceIfMore = function () {
+            if (!active() || transfer.finished || transfer.previewUrl !== nextPreviewUrl) return;
+            const cur = Number(vidPlayer.currentTime);
+            if (Number.isFinite(cur) && cur > 0) transfer.resumeTime = cur;
+            if (!hasMoreGetter()) {
+              transfer.waitingForMore = true;
+              if (typeof vidLoading !== 'undefined' && vidLoading && vidLoading.classList) vidLoading.classList.add('show');
+            }
+          };
+          vidPlayer.onloadedmetadata = function () {
+            if (!active() || transfer.finished || transfer.previewUrl !== nextPreviewUrl) return;
+            try { applyNativeVideoAspect(); } catch (_) {}
+          };
+          vidPlayer.oncanplay = function () {
+            if (!active() || transfer.finished || transfer.previewUrl !== nextPreviewUrl) return;
+            try { applyNativeVideoAspect(); } catch (_) {}
+            if (typeof vidLoading !== 'undefined' && vidLoading && vidLoading.classList) vidLoading.classList.remove('show');
+            const fallbackResume = typeof videoResumePos !== 'undefined' ? Number(videoResumePos) || 0 : 0;
+            const targetTime = transfer.resumeTime > 0 ? transfer.resumeTime : fallbackResume;
+            if (targetTime > 0) {
+              try { vidPlayer.currentTime = targetTime; } catch (_) {}
+              transfer.resumeTime = 0;
+            }
+            if (!transfer.wasPaused && typeof vidPlayer.play === 'function') {
+              Promise.resolve(vidPlayer.play()).catch(function () {});
+            }
+          };
+          vidPlayer.ontimeupdate = function () {
+            if (!active() || transfer.finished || transfer.previewUrl !== nextPreviewUrl) return;
+            const cur = Number(vidPlayer.currentTime);
+            if (Number.isFinite(cur) && cur > 0) transfer.resumeTime = cur;
+            if (vidPlayer.buffered && vidPlayer.buffered.length > 0) {
+              try {
+                const bufEnd = vidPlayer.buffered.end(vidPlayer.buffered.length - 1);
+                if (bufEnd > 0 && cur >= bufEnd - 1.2) {
+                  transfer.wasPaused = !!vidPlayer.paused;
+                  hasMoreGetter();
+                }
+              } catch (_) {}
+            }
+          };
+          vidPlayer.onended = advanceIfMore;
+          vidPlayer.onerror = advanceIfMore;
+          vidPlayer.preload = 'auto';
+          vidPlayer.src = nextPreviewUrl;
+        };
         const loadSingle = function () {
+          resetProgressivePreview();
+          let singleStreamable = null;
+          const onSingleChunk = function (chunks, loaded, total, mimeType) {
+            if (!active() || transfer.finished || (total > 0 && loaded >= total)) return;
+            if (singleStreamable === null && loaded >= 65536) {
+              const cap = Math.min(loaded, 1048576);
+              const head = new Uint8Array(cap);
+              let offset = 0;
+              for (let i = 0; i < chunks.length && offset < cap; i++) {
+                const part = chunks[i];
+                const take = Math.min(part.byteLength, cap - offset);
+                head.set(part.subarray(0, take), offset);
+                offset += take;
+              }
+              singleStreamable = isPlayableStreamHeader(head);
+            }
+            if (singleStreamable && loaded >= 2097152 && (!transfer.previewStarted || transfer.waitingForMore)) {
+              mountProgressiveSlice(chunks.slice(), chunks.length, mimeType, function () {
+                if (chunks.length > transfer.previewChunks) {
+                  mountProgressiveSlice(chunks.slice(), chunks.length, mimeType, function () { return false; });
+                  return true;
+                }
+                return false;
+              });
+            }
+          };
           return fetch(directUrl, { headers: directHeaders, signal: transfer.controller.signal })
             .then(function (res) {
               if (!active()) { transfer.controller.abort(); const error = new Error('Cancelled'); error.name = 'AbortError'; throw error; }
               if (!res.ok) throw new Error('HTTP ' + res.status);
-              return readVideoBlobResponse(res, transfer.controller.signal, progressBlob);
+              return readVideoBlobResponse(res, transfer.controller.signal, progressBlob, onSingleChunk);
             });
         };
         const size = Number(fileMetaOf(id).size);
         const attemptParallel = function (source) {
           // เบราว์เซอร์ที่รองรับ OPFS จะเขียนทุกช่วงลงดิสก์ระหว่างโหลด แล้วเล่นจากไฟล์บนดิสก์
-          // ลดแรมสูงสุด ไม่เช่นนั้นไฟล์ใหญ่จะทำให้แท็บถูกฆ่า (Aw, Snap) ตอนประกอบ Blob เต็ม
+          // พร้อมเปิดเล่นส่วนต้น (Contiguous Prefix Blob) ทันทีที่ส่วนหัวพร้อม โดยไม่ต้องรอโหลดครบ 100%
+          resetProgressivePreview();
+          const MAX_PREVIEW_CHUNKS = 16;
+          const prefixParts = [];
+          let contiguousCount = 0;
+          let completedCount = 0;
+          let streamablePrefix = null;
+          let detectedMime = 'video/mp4';
+          const tryMountPrefix = function () {
+            if (!active() || transfer.finished || !streamablePrefix || contiguousCount < 1) return false;
+            if (contiguousCount <= transfer.previewChunks) return false;
+            mountProgressiveSlice(prefixParts.slice(0, contiguousCount), contiguousCount, detectedMime, tryMountPrefix);
+            return true;
+          };
+          const handleChunkReady = function (index, start, chunk, totalChunks, mimeType) {
+            completedCount++;
+            if (mimeType) detectedMime = mimeType;
+            if (index < MAX_PREVIEW_CHUNKS) {
+              prefixParts[index] = chunk;
+              while (contiguousCount < MAX_PREVIEW_CHUNKS && prefixParts[contiguousCount]) {
+                contiguousCount++;
+              }
+            }
+            if (completedCount >= totalChunks) return;
+            if (index === 0 && streamablePrefix === null && chunk && typeof chunk.slice === 'function') {
+              streamablePrefix = false;
+              Promise.resolve(chunk.slice(0, Math.min(chunk.size || 0, 1048576)).arrayBuffer()).then(function (buf) {
+                if (!active() || transfer.finished || completedCount >= totalChunks) return;
+                streamablePrefix = isPlayableStreamHeader(new Uint8Array(buf));
+                if (streamablePrefix) tryMountPrefix();
+              }).catch(function () {});
+            } else if (streamablePrefix === true && (!transfer.previewStarted || transfer.waitingForMore)) {
+              tryMountPrefix();
+            }
+          };
+          const rangeOpts = Object.assign({}, source.rangeOpts, {onChunkReady: handleChunkReady});
           return openVideoTempWriter().then(function (temp) {
             const assembled = readVideoBlobRanges(source.url, source.headers, size, transfer.controller.signal, progressBlob,
-              temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null, source.rangeOpts);
+              temp ? function (index, start, chunk) { return temp.write(chunk, start); } : null, rangeOpts);
             return temp
               ? assembled.then(function () {
                   // Do not commit a completed temp file after the player was closed or switched to another file.
@@ -1185,7 +1392,17 @@
           return tryNext();
         } : loadSingle;
         return load().then(async function (blob) {
-            if (!active()) return;
+            transfer.finished = true;
+            if (!active()) { revokePreviewUrl(); return; }
+            if (transfer.previewStarted) {
+              const liveTime = Number(vidPlayer.currentTime);
+              const nextResume = Number.isFinite(liveTime) && liveTime > 0 ? liveTime : (transfer.resumeTime > 0 ? transfer.resumeTime : 0);
+              if (nextResume > 0) {
+                if (typeof videoResumePos !== 'undefined') videoResumePos = nextResume;
+                else deps.videoResumePos = nextResume;
+              }
+            }
+            revokePreviewUrl();
             const nextUrl = URL.createObjectURL(blob);
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
@@ -1204,7 +1421,9 @@
             }
           })
           .catch(function (err) {
-            if (!active()) return;
+            transfer.finished = true;
+            if (!active()) { revokePreviewUrl(); return; }
+            resetProgressivePreview();
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
             if (err && err.name === 'AbortError') { if (btn) btn.disabled = false; return; }

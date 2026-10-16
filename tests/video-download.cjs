@@ -211,3 +211,97 @@ test('browsers without OPFS keep assembling the video in memory',async()=>{
   await ctx.loadVideoAsBlob('fileA');
   assert.deepEqual(played,['blob:video']);
 });
+
+test('streamable videos start playing from the downloaded prefix while remaining chunks are still downloading and resume seamlessly on completion',async()=>{
+  const {ctx,api,el,played}=setup();
+  const size=20*1048576;
+  ctx.fileMetaOf=()=>({size});
+  ctx.renderVideoBlobProgress=api.renderVideoBlobProgress;
+  let urlSeq=0;
+  const createdUrls=[],revokedUrls=[];
+  ctx.URL={
+    createObjectURL:b=>{const u='blob:v'+(++urlSeq);createdUrls.push({url:u,size:b.size});return u;},
+    revokeObjectURL:u=>{revokedUrls.push(u);}
+  };
+  const loadingClasses=new Set(['show']);
+  ctx.vidLoading={classList:{add:c=>loadingClasses.add(c),remove:c=>loadingClasses.delete(c),contains:c=>loadingClasses.has(c)}};
+  let playCalls=0;
+  ctx.vidPlayer.play=()=>{playCalls++;return Promise.resolve();};
+  let releaseLastChunk;
+  ctx.fetch=async(url,opts)=>{
+    const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);
+    const start=Number(m[1]),end=Number(m[2]),len=end-start+1;
+    if(start===16777216){
+      await new Promise(resolve=>{releaseLastChunk=resolve;});
+    }
+    const buf=new Uint8Array(len);
+    if(start===0){buf[0]=26;buf[1]=69;buf[2]=223;buf[3]=163;}
+    return {
+      ok:true,status:206,
+      headers:{get:k=>{k=String(k).toLowerCase();return k==='content-range'?'bytes '+start+'-'+end+'/'+size:k==='content-type'?'video/webm':k==='content-length'?String(len):null;}},
+      body:{cancel:async()=>{},getReader:()=>{let done=false;return {read:async()=>done?{done:true}:(done=true,{value:buf,done:false}),cancel:async()=>{},releaseLock(){}};}}
+    };
+  };
+  const loadPromise=ctx.loadVideoAsBlob('fileA');
+  for(let i=0;i<40&&(!ctx.videoBlobTransfer||!ctx.videoBlobTransfer.previewStarted);i++){
+    await new Promise(r=>setImmediate(r));
+  }
+  assert.equal(ctx.videoBlobTransfer.previewStarted,true,'progressive playback started before chunk 3 finished');
+  assert.equal(ctx.vidPlayer.style.display,'block');
+  assert.equal(ctx.vidPlayer.src,'blob:v1');
+  assert.equal(played.length,0,'final tryVideoSrc has not been called yet');
+  ctx.vidPlayer.oncanplay();
+  assert.equal(loadingClasses.has('show'),false,'blocking spinner overlay hidden during progressive playback');
+  assert.equal(playCalls,1);
+  assert.match(el('vidErrorStatus').textContent,/กำลังเล่นระหว่างโหลดทั้งไฟล์/);
+  assert.equal(el('vidErrorStatus').hidden,false);
+  ctx.vidPlayer.currentTime=42.5;
+  releaseLastChunk();
+  await loadPromise;
+  assert.equal(ctx.videoResumePos,42.5,'playback position preserved when switching to completed file');
+  assert.ok(revokedUrls.includes('blob:v1'),'temporary progressive preview URL revoked on completion');
+  assert.deepEqual(played,['blob:v2'],'final completed file handed to tryVideoSrc');
+});
+
+test('reaching the end of the initial prefix swaps in newly downloaded contiguous chunks and continues playback before the full download finishes',async()=>{
+  const {ctx}=setup();
+  const size=20*1048576;
+  ctx.fileMetaOf=()=>({size});
+  let urlSeq=0;
+  const created=[],revoked=[];
+  ctx.URL={
+    createObjectURL:b=>{const u='blob:p'+(++urlSeq);created.push({url:u,size:b.size});return u;},
+    revokeObjectURL:u=>revoked.push(u)
+  };
+  let releaseSecond,releaseThird;
+  ctx.fetch=async(url,opts)=>{
+    const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);
+    const start=Number(m[1]),end=Number(m[2]),len=end-start+1;
+    if(start===8388608) await new Promise(r=>{releaseSecond=r;});
+    if(start===16777216) await new Promise(r=>{releaseThird=r;});
+    const buf=new Uint8Array(len);
+    if(start===0){buf[0]=26;buf[1]=69;buf[2]=223;buf[3]=163;}
+    return {
+      ok:true,status:206,
+      headers:{get:k=>{k=String(k).toLowerCase();return k==='content-range'?'bytes '+start+'-'+end+'/'+size:k==='content-type'?'video/webm':k==='content-length'?String(len):null;}},
+      body:{cancel:async()=>{},getReader:()=>{let done=false;return {read:async()=>done?{done:true}:(done=true,{value:buf,done:false}),cancel:async()=>{},releaseLock(){}};}}
+    };
+  };
+  const loadPromise=ctx.loadVideoAsBlob('fileA');
+  for(let i=0;i<40&&(!ctx.videoBlobTransfer||!ctx.videoBlobTransfer.previewStarted);i++){
+    await new Promise(r=>setImmediate(r));
+  }
+  assert.equal(ctx.vidPlayer.src,'blob:p1');
+  assert.equal(created[0].size,8388608,'first preview has chunk 0 (8 MiB)');
+  releaseSecond();
+  for(let i=0;i<20;i++) await new Promise(r=>setImmediate(r));
+  ctx.vidPlayer.currentTime=19.75;
+  ctx.vidPlayer.onended();
+  assert.equal(ctx.vidPlayer.src,'blob:p2','onended advances preview to include chunk 1');
+  assert.equal(created[1].size,16777216,'second preview has chunks 0+1 (16 MiB)');
+  assert.ok(revoked.includes('blob:p1'));
+  ctx.vidPlayer.oncanplay();
+  assert.equal(ctx.vidPlayer.currentTime,19.75,'resumes at exact timestamp where chunk 0 ended');
+  releaseThird();
+  await loadPromise;
+});

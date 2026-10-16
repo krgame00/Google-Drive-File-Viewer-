@@ -696,6 +696,41 @@
     - ทดสอบรันการคำนวณและวัดขนาดจริงในเบราว์เซอร์ พบว่า `fitsExactW: true`, `fitsExactH: true`, และ `virtualMeetsDesktopThreshold: true` ครบทุกประเภทหน้าจอ
     - บันทึกภาพ Screenshot ยืนยันการเรนเดอร์ในโหมดแนวนอน (Step 3566)
 
+### 35. Audit & Integration: `apply_project_fixes.py` (Turbo Edition & Progressive Blob Playback) (`2026-10-17`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ที่มาของงาน:** ผู้ใช้อัปโหลดไฟล์ zip `media_1792178828947_62beb7e4.zip` บรรจุสคริปต์ `apply_project_fixes.py` ("สคริปต์อัปเดตโค้ด ชุดทดสอบ ฟีเจอร์ต่อยอด 8 ข้อ และระบบเร่งความเร็วสตรีม/โหลดทั้งคลิปสูงสุด Turbo Edition") พร้อมระบุ "ช่วยดูหน่อย"
+- **การตรวจสอบและวิเคราะห์เปรียบเทียบเชิงลึก (Deep Comparative Audit):**
+  1. **ส่วนที่รวมอยู่ใน Repository ปัจจุบันแล้ว (100% Identical / Already Merged):**
+     - `app-core.js`: เชื่อมต่อปุ่มลัด VLC (`openInExternalPlayer`), สำเนาเข้า Drive (`copyVideoToMyDrive`), พรีวิว Google (`fallbackIframe`), bridge accessors และ helpers ครบถ้วน
+     - `index.html`: Preconnect Cloudflare Worker/Google CDN, `preload="auto"`, ปุ่ม Toolbar และ `<script defer>` สำหรับโมดูลคลัง
+     - `styles.css`: สไตล์รองรับ 16:9 / 9:16, fullscreen ratio, ปุ่ม 40px/44px
+     - `drive-explorer.js`: ดึง `videoMediaMetadata(width,height)` มาพร้อมรายการไฟล์
+     - `collection-viewer.js`: โหลด on-demand เมื่อคลังยังไม่พร้อม และข้ามการวาดชิปเมื่อพับการ์ด
+     - `cloudflare-drive-worker.mjs`: `confirmUrlCache` (จำ URL uuid ไม่ต้องผ่านฟอร์ม HTML 10 นาที), `parallelFiles` LRU Map, revision header และ tail EOF
+     - `drive-stream-sw.js`: `rememberParallelFile`, `parallelFiles` LRU Map, และ tail EOF
+     - `tests/helpers/load-media-lightbox-api.cjs`, `tests/public-worker.cjs`, `tests/video-layout.cjs`: โค้ดตรงกัน 100%
+  2. **ความเสี่ยงและการป้องกัน Regression ที่ตรวจพบในสคริปต์ (Prevented Regressions):**
+     - ⚠️ `media-lightbox.js`: สคริปต์นี้เป็นเวอร์ชันเดิมที่ยังเรียก `fitVideoPreview()` ก่อน `applyPreviewAspect(id)` หากนำสคริปต์ไปรันตรงๆ จะทำให้เกิด Regression ทับการแก้ไขลำดับ Aspect ที่ทำไว้ใน Section 33 -> **ป้องกันไว้ได้โดยไม่เขียนทับ**
+     - ⚠️ `calculatePreviewLayout`: ในสคริปต์ระบุสเกลเก่า `minWidth = 800, minHeight = 420` ซึ่งพิสูจน์แล้วว่าทำให้ปุ่ม Material 3 ของ Google Drive โดนเฉือนขาดครึ่งก้อน (เพราะปุ่มลึกถึง 452px) ขณะที่ปัจจุบันโปรเจกต์ใช้ `960x540` ที่แก้หายขาดแล้ว -> **รักษาเกณฑ์ 960x540 ไว้คงเดิม**
+  3. **ฟีเจอร์ระดับพรีเมียมใหม่ที่ดึงมารวมเข้าโปรเจกต์ (New Turbo Feature Incorporated):**
+     - 🌟 **Progressive Prefix Blob Playback (`patch_progressive_blob_playback`):**
+       - สำหรับโหมด "โหลดทั้งไฟล์แทนการสตรีม" เดิมผู้ใช้ต้องรอจนโหลดครบ 100% ของไฟล์ (เช่น 300MB - 1GB) จึงจะเริ่มเล่นได้
+       - ฟังก์ชันนี้ปรับปรุง `readVideoBlobResponse`, `readVideoBlobRanges` และ `createVideoBlobRunner` ให้ตรวจจับ Header วิดีโอสตรีมมิ่ง (MP4/WebM) ทันทีที่โหลด Prefix ก้อนแรก (2-8 MB) เสร็จ
+       - สร้าง `Blob` ชิ้นส่วนต้น (`blob:v1`) แล้วเริ่มเล่นคลิปให้ผู้ใช้ดูได้ทันทีระหว่างที่ส่วนที่เหลือยังดาวน์โหลดต่อเนื่องในพื้นหลัง (Progressive Mounting)
+       - แสดงสถานะ `"กำลังเล่นระหว่างโหลดทั้งไฟล์: 16 MB / 150 MB (10%) · 8 MB/s · เหลือประมาณ 16 วินาที"` บน Progress Bar
+       - เมื่อชิ้นส่วนถัดไปโหลดเสร็จ หรือเมื่อถึงรอยต่อของช่วงเดิม จะทำการสลับขยายช่วงใหม่อย่างต่อเนื่อง และเมื่อโหลดครบ 100% จะส่งมอบเข้าไฟล์เต็มโดยจำเวลาที่เล่นค้างไว้ (`videoResumePos`) อย่างไร้รอยต่อ
+- **การปรับปรุงชุดทดสอบและ Cache Buster:**
+  - เพิ่มเคสทดสอบ 2 ข้อใน `tests/video-download.cjs`:
+    1. `streamable videos start playing from the downloaded prefix while remaining chunks are still downloading and resume seamlessly on completion`
+    2. `reaching the end of the initial prefix swaps in newly downloaded contiguous chunks and continues playback before the full download finishes`
+  - ปรับ Cache Buster ใน `index.html` เป็น `?v=20261014-r11`
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests ทั้งหมด:** `node --test tests/*.cjs` ผ่านครบถ้วน **162/162 tests PASS (0 failures, duration 23.2s)**
+  - **Video Download Tests:** `node --test tests/video-download.cjs` ผ่านครบถ้วน **28/28 tests PASS**
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+
+
 
 
 
