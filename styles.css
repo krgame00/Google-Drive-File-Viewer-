@@ -791,8 +791,8 @@
     .media-nav:disabled { opacity: 0.3; pointer-events: none; }
     .pdf-controls.lb-pdf-controls { position: absolute; z-index: 3; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(20,20,20,.88); backdrop-filter: blur(12px); }
     .pdf-controls.lb-pdf-controls button { min-width: 44px; min-height: 44px; }
-    .lightbox[data-viewer="pdf"] #pdfStage { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: flex-start; padding: max(68px, calc(env(safe-area-inset-top) + 60px)) 16px max(78px, calc(env(safe-area-inset-bottom) + 68px)); overflow: auto; background: transparent; touch-action: none; }
-    .lightbox[data-viewer="pdf"] #pdfCanvas { max-width: none; max-height: none; transform-origin: center; touch-action: none; }
+    .lightbox[data-viewer="pdf"] #pdfStage { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: max(68px, calc(env(safe-area-inset-top) + 60px)) 16px max(78px, calc(env(safe-area-inset-bottom) + 68px)); overflow: auto; background: transparent; touch-action: pan-y; scroll-behavior: smooth; overscroll-behavior: contain; }
+    .lightbox[data-viewer="pdf"] #pdfCanvas { max-width: none; max-height: none; transform-origin: center; touch-action: none; margin: auto; display: block; box-shadow: 0 4px 24px rgba(0,0,0,.65); }
     .lightbox[data-viewer="pdf"] #pdfStage[hidden], .lightbox[data-viewer="pdf"] #pdfControls[hidden] { display: none !important; }
     .pdf-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #fff; font-size: .9rem; pointer-events: none; }
     .pdf-loading[hidden] { display: none !important; }

@@ -265,6 +265,12 @@
         return 0;
       }
 
+      function swipeNavigateVerticalFor(dy, dx, threshold) {
+        threshold = threshold || 40;
+        if (Math.abs(dy) > threshold && Math.abs(dy) > Math.abs(dx) * 1.2) return dy < 0 ? 1 : -1;
+        return 0;
+      }
+
       function setImageControlsVisible(visible) {
         const controls = document.querySelectorAll ? document.querySelectorAll('.lightbox .lb-ui') : [];
         const focusEl = document.activeElement;
@@ -366,6 +372,82 @@
         if (typeof lbPrev !== 'undefined' && lbPrev) lbPrev.disabled = false;
         if (typeof lbNext !== 'undefined' && lbNext) lbNext.disabled = false;
         pdfInLightbox = false;
+        if (typeof pdfScrollToBottomOnRender !== 'undefined') pdfScrollToBottomOnRender = false;
+        if (typeof updatePdfFitButtonState === 'function') updatePdfFitButtonState();
+      }
+
+      function updatePdfFitButtonState() {
+        const btn = document.getElementById('pdfFit');
+        if (!btn) return;
+        const isWidth = pdfFitMode === 'width';
+        btn.textContent = isWidth ? 'พอดีกว้าง' : 'พอดีหน้า';
+        btn.setAttribute('aria-label', isWidth ? 'พอดีกว้าง (เลื่อนหน้าแนวตั้ง)' : 'พอดีหน้า (เต็มจอ)');
+        btn.title = isWidth ? 'พอดีกว้าง (เลื่อนแนวตั้ง) · กดเพื่อสลับเป็นพอดีหน้า (คีย์บอร์ด: W)' : 'พอดีหน้า · กดเพื่อสลับเป็นพอดีกว้างเลื่อนดู (คีย์บอร์ด: W)';
+        btn.setAttribute('aria-pressed', isWidth ? 'true' : 'false');
+      }
+
+      function togglePdfFitMode() {
+        pdfFitMode = (pdfFitMode === 'width') ? 'page' : 'width';
+        updatePdfFitButtonState();
+        resetImageView();
+        if (pdfStage) pdfStage.scrollTop = 0;
+        renderPdfPage();
+        return pdfFitMode;
+      }
+
+      function handlePdfWheel(e) {
+        if (!pdfInLightbox || !pdfDocument || !pdfDocument.numPages) return false;
+        if (imageView.scale > 1.05) return false;
+        const dy = e && e.deltaY ? e.deltaY : 0;
+        const dx = e && e.deltaX ? e.deltaX : 0;
+        const now = Date.now();
+        if (typeof lastPdfWheelTime === 'undefined') lastPdfWheelTime = 0;
+
+        if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > 20) {
+          if (now - lastPdfWheelTime < 260) {
+            if (e && e.preventDefault) e.preventDefault();
+            return false;
+          }
+          lastPdfWheelTime = now;
+          if (e && e.preventDefault) e.preventDefault();
+          return stepPdfPage(dx > 0 ? 1 : -1, false);
+        }
+
+        if (Math.abs(dy) < 15) return false;
+
+        if (pdfFitMode === 'page') {
+          if (now - lastPdfWheelTime < 260) {
+            if (e && e.preventDefault) e.preventDefault();
+            return false;
+          }
+          lastPdfWheelTime = now;
+          if (e && e.preventDefault) e.preventDefault();
+          return stepPdfPage(dy > 0 ? 1 : -1, false);
+        }
+
+        if (pdfStage) {
+          const atBottom = pdfStage.scrollTop + pdfStage.clientHeight >= pdfStage.scrollHeight - 6;
+          const atTop = pdfStage.scrollTop <= 4;
+          if (dy > 0 && atBottom) {
+            if (now - lastPdfWheelTime < 260) {
+              if (e && e.preventDefault) e.preventDefault();
+              return false;
+            }
+            lastPdfWheelTime = now;
+            if (e && e.preventDefault) e.preventDefault();
+            return stepPdfPage(1, false);
+          }
+          if (dy < 0 && atTop) {
+            if (now - lastPdfWheelTime < 260) {
+              if (e && e.preventDefault) e.preventDefault();
+              return false;
+            }
+            lastPdfWheelTime = now;
+            if (e && e.preventDefault) e.preventDefault();
+            return stepPdfPage(-1, false);
+          }
+        }
+        return false;
       }
 
       function loadPdfLibrary() {
@@ -402,7 +484,13 @@
           const nextPage = pdfPageNumber + dir;
           if (nextPage >= 1 && nextPage <= pdfDocument.numPages) {
             pdfPageNumber = nextPage;
-            if (pdfStage) pdfStage.scrollTop = 0;
+            if (pdfStage) {
+              if (dir < 0 && pdfFitMode === 'width') {
+                if (typeof pdfScrollToBottomOnRender !== 'undefined') pdfScrollToBottomOnRender = true;
+              } else {
+                pdfStage.scrollTop = 0;
+              }
+            }
             resetImageView();
             updatePdfNavState();
             renderPdfPage();
@@ -462,6 +550,10 @@
           await renderTask.promise;
           if (renderVersion === pdfRenderVersion) {
             updatePdfNavState();
+            if (typeof pdfScrollToBottomOnRender !== 'undefined' && pdfScrollToBottomOnRender && pdfStage) {
+              pdfScrollToBottomOnRender = false;
+              pdfStage.scrollTop = Math.max(0, pdfStage.scrollHeight - pdfStage.clientHeight);
+            }
           }
         } catch (error) {
           if (renderVersion !== pdfRenderVersion) return;
@@ -483,6 +575,7 @@
         pdfControls.hidden = false;
         pdfPageNumber = 1;
         pdfFitMode = 'page';
+        if (typeof updatePdfFitButtonState === 'function') updatePdfFitButtonState();
         pdfLoadingState(true, 'กำลังเตรียมหน้า PDF…');
         try {
           const pdfjs = await loadPdfLibrary();
@@ -526,6 +619,7 @@
           const baseScale = pdfFitMode ? fitPdfScale(page) : pdfScale;
           pdfScale = Math.min(4, Math.max(0.25, baseScale * multiplier));
           pdfFitMode = null;
+          if (typeof updatePdfFitButtonState === 'function') updatePdfFitButtonState();
           resetImageView();
           renderPdfPage();
         });
@@ -564,6 +658,7 @@
         document.body.style.overflow = 'hidden';
         pdfPageNumber = 1;
         pdfFitMode = 'page';
+        if (typeof updatePdfFitButtonState === 'function') updatePdfFitButtonState();
         pdfLoadingState(true, 'กำลังโหลด PDF…');
         updatePdfNavState();
         updateLbCount();
@@ -723,12 +818,16 @@
     resetImageView,
     imageGestureMode,
     swipeNavigateFor,
+    swipeNavigateVerticalFor,
     setImageControlsVisible,
     cancelImageTap,
     handleImageTap,
     attachPersonalButtons,
     fallbackIframe,
     resetPdfViewer,
+    updatePdfFitButtonState,
+    togglePdfFitMode,
+    handlePdfWheel,
     loadPdfLibrary,
     updatePdfNavState,
     stepPdfPage,

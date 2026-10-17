@@ -195,6 +195,8 @@
       let pdfFitMode = 'page';
       let pdfRenderVersion = 0;
       let pdfInLightbox = false;
+      let lastPdfWheelTime = 0;
+      let pdfScrollToBottomOnRender = false;
 
       let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
 
@@ -946,6 +948,11 @@
         if (!api || typeof api.handleImageTap !== "function") { return undefined; }
         return api.handleImageTap(...args);
       }
+      function swipeNavigateVerticalFor(...args) {
+        const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+        if (!api || typeof api.swipeNavigateVerticalFor !== "function") { return 0; }
+        return api.swipeNavigateVerticalFor(...args);
+      }
 
       const imgPointers = new Map();
       let imgGesture = null;
@@ -960,7 +967,14 @@
           const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
           imgGesture = { mode: 'pinch', startDist: d, startScale: imageView.scale, midX: (pts[0].x + pts[1].x) / 2, midY: (pts[0].y + pts[1].y) / 2, panX: imageView.x, panY: imageView.y };
         } else {
-          imgGesture = { mode: imageGestureMode(1, imageView.scale), startX: e.clientX, startY: e.clientY, panX: imageView.x, panY: imageView.y };
+          imgGesture = {
+            mode: imageGestureMode(1, imageView.scale),
+            startX: e.clientX,
+            startY: e.clientY,
+            panX: imageView.x,
+            panY: imageView.y,
+            startScrollTop: (pdfStage && pdfInLightbox) ? pdfStage.scrollTop : 0
+          };
         }
         try { lightbox.setPointerCapture(e.pointerId); } catch (_) {}
       });
@@ -982,6 +996,9 @@
           const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
           imageView = clampImagePan({ scale: imageView.scale, x: imgGesture.panX + dx, y: imgGesture.panY + dy }, vw, vh);
           applyImageView();
+        } else if (pdfInLightbox && pdfFitMode === 'width' && imgGesture.mode === 'swipe' && imgPointers.size === 1) {
+          const dy = e.clientY - imgGesture.startY;
+          if (pdfStage) pdfStage.scrollTop = imgGesture.startScrollTop - dy;
         }
       });
 
@@ -991,8 +1008,20 @@
         if (imgGesture && imgGesture.mode === 'swipe') {
           const dx = e.clientX - imgGesture.startX, dy = e.clientY - imgGesture.startY;
           const moved = Math.abs(dx) + Math.abs(dy) >= 8;
-          const dir = moved ? swipeNavigateFor(dx, dy) : 0;
-          if (dir && pdfInLightbox) {
+          let dir = moved ? swipeNavigateFor(dx, dy) : 0;
+          if (!dir && pdfInLightbox && moved) {
+            const vDir = swipeNavigateVerticalFor(dy, dx);
+            if (vDir) {
+              if (pdfFitMode === 'page') {
+                stepPdfPage(vDir, false);
+              } else if (pdfStage) {
+                const atBottom = pdfStage.scrollTop + pdfStage.clientHeight >= pdfStage.scrollHeight - 8;
+                const atTop = pdfStage.scrollTop <= 6;
+                if (vDir > 0 && atBottom) stepPdfPage(1, false);
+                else if (vDir < 0 && atTop) stepPdfPage(-1, false);
+              }
+            }
+          } else if (dir && pdfInLightbox) {
             stepPdfPage(dir, true);
           } else if (dir) navigateMedia('image', dir);
           handleImageTap(e.clientX, e.clientY, moved);
@@ -1592,6 +1621,21 @@
         if (!api || typeof api.zoomPdf !== "function") { return undefined; }
         return api.zoomPdf(...args);
       }
+      function togglePdfFitMode(...args) {
+        const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+        if (!api || typeof api.togglePdfFitMode !== "function") { return undefined; }
+        return api.togglePdfFitMode(...args);
+      }
+      function updatePdfFitButtonState(...args) {
+        const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+        if (!api || typeof api.updatePdfFitButtonState !== "function") { return undefined; }
+        return api.updatePdfFitButtonState(...args);
+      }
+      function handlePdfWheel(...args) {
+        const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+        if (!api || typeof api.handlePdfWheel !== "function") { return false; }
+        return api.handlePdfWheel(...args);
+      }
       document.getElementById('pdfPrev').addEventListener('click', function () {
         stepPdfPage(-1, true);
       });
@@ -1600,8 +1644,13 @@
       });
       document.getElementById('pdfZoomIn').addEventListener('click', function () { zoomPdf(1.2); });
       document.getElementById('pdfZoomOut').addEventListener('click', function () { zoomPdf(1 / 1.2); });
-      document.getElementById('pdfFit').addEventListener('click', function () { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); });
+      document.getElementById('pdfFit').addEventListener('click', function () { togglePdfFitMode(); });
       window.addEventListener('resize', function () { if (pdfDocument && pdfFitMode) renderPdfPage(); }, { passive: true });
+      if (pdfStage) {
+        pdfStage.addEventListener('wheel', function (e) {
+          if (pdfInLightbox) handlePdfWheel(e);
+        }, { passive: false });
+      }
 
       function fallbackPdfToDrive(...args) {
         const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
@@ -1656,7 +1705,44 @@
             if (e.key === 'PageDown') { stepPdfPage(1, false); return; }
             if (e.key === '+' || e.key === '=') { zoomPdf(1.2); return; }
             if (e.key === '-') { zoomPdf(1 / 1.2); return; }
-            if (e.key === 'r' || e.key === 'R' || e.key === '0') { pdfFitMode = 'page'; resetImageView(); renderPdfPage(); return; }
+            if (e.key === 'r' || e.key === 'R' || e.key === '0') { pdfFitMode = 'page'; resetImageView(); updatePdfFitButtonState(); renderPdfPage(); return; }
+            if (e.key === 'w' || e.key === 'W') { togglePdfFitMode(); return; }
+            if (e.key === 'ArrowDown') {
+              if (pdfFitMode === 'page') { stepPdfPage(1, false); return; }
+              if (pdfStage) {
+                const atBottom = pdfStage.scrollTop + pdfStage.clientHeight >= pdfStage.scrollHeight - 8;
+                if (atBottom) { stepPdfPage(1, false); return; }
+                pdfStage.scrollTop += 80;
+                return;
+              }
+            }
+            if (e.key === 'ArrowUp') {
+              if (pdfFitMode === 'page') { stepPdfPage(-1, false); return; }
+              if (pdfStage) {
+                const atTop = pdfStage.scrollTop <= 6;
+                if (atTop) { stepPdfPage(-1, false); return; }
+                pdfStage.scrollTop -= 80;
+                return;
+              }
+            }
+            if (e.key === ' ' || e.code === 'Space') {
+              e.preventDefault();
+              const dir = e.shiftKey ? -1 : 1;
+              if (pdfFitMode === 'page') { stepPdfPage(dir, false); return; }
+              if (pdfStage) {
+                const pageDelta = Math.max(100, pdfStage.clientHeight * 0.8);
+                if (dir > 0) {
+                  const atBottom = pdfStage.scrollTop + pdfStage.clientHeight >= pdfStage.scrollHeight - 8;
+                  if (atBottom) { stepPdfPage(1, false); return; }
+                  pdfStage.scrollTop += pageDelta;
+                } else {
+                  const atTop = pdfStage.scrollTop <= 6;
+                  if (atTop) { stepPdfPage(-1, false); return; }
+                  pdfStage.scrollTop -= pageDelta;
+                }
+                return;
+              }
+            }
           }
           if (e.key === "ArrowLeft") { navigateMedia("image", -1); return; }
           if (e.key === "ArrowRight") { navigateMedia("image", 1); return; }
@@ -2341,6 +2427,8 @@
         pdfPageNumber: { get() { return pdfPageNumber; }, set(value) { pdfPageNumber = value; } },
         pdfScale: { get() { return pdfScale; }, set(value) { pdfScale = value; } },
         pdfFitMode: { get() { return pdfFitMode; }, set(value) { pdfFitMode = value; } },
+        lastPdfWheelTime: { get() { return lastPdfWheelTime; }, set(value) { lastPdfWheelTime = value; } },
+        pdfScrollToBottomOnRender: { get() { return pdfScrollToBottomOnRender; }, set(value) { pdfScrollToBottomOnRender = value; } },
         pdfRenderVersion: { get() { return pdfRenderVersion; }, set(value) { pdfRenderVersion = value; } },
         currentDocUrl: { get() { return currentDocUrl; }, set(value) { currentDocUrl = value; } },
         imageView: { get() { return imageView; }, set(value) { imageView = value; } },

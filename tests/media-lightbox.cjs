@@ -28,12 +28,12 @@ const requiredApi = requireMediaModule();
 const exportedNames = [
   'mediaList','navigateMedia','openLightbox','loadOriginalImage','prefetchNextImage','fallbackImage',
   'toggleLightboxFullscreen','closeLightbox','updateLbCount','clampImageScale','clampImagePan','applyImageView',
-  'resetImageView','imageGestureMode','swipeNavigateFor','setImageControlsVisible','cancelImageTap','handleImageTap',
-  'attachPersonalButtons','fallbackIframe','resetPdfViewer','loadPdfLibrary','updatePdfNavState','stepPdfPage',
+  'resetImageView','imageGestureMode','swipeNavigateFor','swipeNavigateVerticalFor','setImageControlsVisible','cancelImageTap','handleImageTap',
+  'attachPersonalButtons','fallbackIframe','resetPdfViewer','updatePdfFitButtonState','togglePdfFitMode','handlePdfWheel','loadPdfLibrary','updatePdfNavState','stepPdfPage',
   'renderPdfPage','openPdfBlob','pdfLoadingState','fitPdfScale','zoomPdf','fallbackPdfToDrive','openPdfDocument',
   'revokeCurrentDoc','openDocument','fallbackDocIframe'
 ];
-assert.equal(exportedNames.length, 34, 'all 34 public module functions are listed');
+assert.equal(exportedNames.length, 38, 'all 38 public module functions are listed');
 for (const name of exportedNames) assert.equal(typeof requiredApi[name], 'function', 'required API exports ' + name);
 
 function fn(name) {
@@ -70,6 +70,7 @@ function setup(extra = {}) {
   const ctx = {
     Promise, Date, Math, Number, String, Object, Array, Set, Map, Error,
     console: { warn() {}, error() {} },
+    lastPdfWheelTime: 0, pdfScrollToBottomOnRender: false,
     document: {
       body: { style: { overflow: '' } }, fullscreenElement: null,
       getElementById: get, createElement: tag => el(tag),
@@ -269,6 +270,105 @@ test('fallbackDocIframe clears loading and PDF state, revokes current doc, and o
   assert.equal(ctx.vidLoading.classList.contains('show'),false);assert.equal(ctx.vidFrame.style.display,'block');
   assert.equal(ctx.vidFrame.src,'https://drive.google.com/file/d/doc-id/preview');
   assert.equal(resets,1);assert.equal(revokes,1);
+});
+
+test('swipeNavigateVerticalFor detects vertical swipe direction and respects threshold', () => {
+  const {ctx}=setup();install(ctx,'swipeNavigateVerticalFor');
+  assert.equal(ctx.swipeNavigateVerticalFor(-50, 10), 1, 'swiping up steps forward');
+  assert.equal(ctx.swipeNavigateVerticalFor(50, 10), -1, 'swiping down steps backward');
+  assert.equal(ctx.swipeNavigateVerticalFor(-20, 10), 0, 'below threshold ignored');
+  assert.equal(ctx.swipeNavigateVerticalFor(-50, 50), 0, 'diagonal or horizontal dominates');
+});
+
+test('togglePdfFitMode toggles between page and width and updates button label', () => {
+  const {ctx,get}=setup();const calls=[];
+  ctx.pdfFitMode = 'page';
+  ctx.pdfStage = get('pdfStage');
+  ctx.resetImageView = () => calls.push('reset');
+  ctx.renderPdfPage = () => calls.push('render');
+  const fitBtn = get('pdfFit');
+  install(ctx,'updatePdfFitButtonState');
+  install(ctx,'togglePdfFitMode');
+  ctx.togglePdfFitMode();
+  assert.equal(ctx.pdfFitMode, 'width');
+  assert.equal(fitBtn.textContent, 'พอดีกว้าง');
+  assert.equal(fitBtn.attrs['aria-pressed'], 'true');
+  assert.deepEqual(calls, ['reset', 'render']);
+  calls.length = 0;
+  ctx.togglePdfFitMode();
+  assert.equal(ctx.pdfFitMode, 'page');
+  assert.equal(fitBtn.textContent, 'พอดีหน้า');
+  assert.equal(fitBtn.attrs['aria-pressed'], 'false');
+  assert.deepEqual(calls, ['reset', 'render']);
+});
+
+test('handlePdfWheel steps pages in fit mode, navigates boundaries in width mode, and debounces rapid wheeling', () => {
+  const {ctx,get}=setup();const stepped=[];
+  ctx.pdfInLightbox = true;
+  ctx.pdfDocument = { numPages: 5 };
+  ctx.imageView = { scale: 1, x: 0, y: 0 };
+  ctx.pdfFitMode = 'page';
+  ctx.pdfStage = get('pdfStage');
+  ctx.pdfStage.scrollTop = 0; ctx.pdfStage.clientHeight = 500; ctx.pdfStage.scrollHeight = 1000;
+  ctx.stepPdfPage = (dir, allow) => { stepped.push([dir, allow]); return true; };
+  install(ctx,'handlePdfWheel');
+
+  // Page mode: vertical wheel down -> step forward
+  ctx.handlePdfWheel({ deltaY: 40 });
+  assert.deepEqual(stepped.pop(), [1, false]);
+
+  // Debounce: rapid call within 260ms is ignored
+  ctx.handlePdfWheel({ deltaY: 40 });
+  assert.equal(stepped.length, 0);
+
+  // After cooldown, vertical wheel up -> step backward
+  ctx.lastPdfWheelTime = 0;
+  ctx.handlePdfWheel({ deltaY: -40 });
+  assert.deepEqual(stepped.pop(), [-1, false]);
+
+  // Width mode: scrolling inside page does not step
+  ctx.pdfFitMode = 'width';
+  ctx.pdfStage.scrollTop = 200;
+  ctx.lastPdfWheelTime = 0;
+  assert.equal(ctx.handlePdfWheel({ deltaY: 40 }), false);
+  assert.equal(stepped.length, 0);
+
+  // Width mode: scrolling past bottom steps forward
+  ctx.pdfStage.scrollTop = 500; // scrollTop + clientHeight == scrollHeight
+  ctx.lastPdfWheelTime = 0;
+  assert.equal(ctx.handlePdfWheel({ deltaY: 40 }), true);
+  assert.deepEqual(stepped.pop(), [1, false]);
+
+  // Width mode: scrolling at top steps backward
+  ctx.pdfStage.scrollTop = 0;
+  ctx.lastPdfWheelTime = 0;
+  assert.equal(ctx.handlePdfWheel({ deltaY: -40 }), true);
+  assert.deepEqual(stepped.pop(), [-1, false]);
+
+  // Zoomed canvas: scale > 1.05 ignores wheel
+  ctx.imageView.scale = 2;
+  ctx.lastPdfWheelTime = 0;
+  assert.equal(ctx.handlePdfWheel({ deltaY: 40 }), false);
+});
+
+test('stepPdfPage sets pdfScrollToBottomOnRender when moving backward in width mode', () => {
+  const {ctx,get}=setup();
+  ctx.pdfInLightbox = true;
+  ctx.pdfDocument = { numPages: 5 };
+  ctx.pdfPageNumber = 3;
+  ctx.pdfFitMode = 'width';
+  ctx.pdfStage = get('pdfStage');
+  ctx.pdfStage.scrollTop = 0;
+  ctx.resetImageView = () => {};
+  ctx.updatePdfNavState = () => {};
+  ctx.renderPdfPage = () => {};
+  install(ctx,'stepPdfPage');
+  ctx.stepPdfPage(-1, false);
+  assert.equal(ctx.pdfPageNumber, 2);
+  assert.equal(ctx.pdfScrollToBottomOnRender, true);
+  ctx.stepPdfPage(1, false);
+  assert.equal(ctx.pdfPageNumber, 3);
+  assert.equal(ctx.pdfStage.scrollTop, 0);
 });
 
 (async () => {

@@ -919,6 +919,53 @@
   - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
   - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
 
+### 41. เพิ่มโหมดเลื่อนดูเอกสาร PDF แบบหน้าเดียวต่อเนื่อง พร้อมรองรับ Wheel Scroll, Vertical Swipe Gesture และสลับพอดีหน้าหรือพอดีกว้าง (Single-Page Scrolling & Fit Mode Toggle) /Poteto Mode
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาและความต้องการ (Problem & Requirement):**
+  - ผู้ใช้ระบุความต้องการ: *"เราทำให้ดูไฟล์ pdf แบบเลื่อนดูหน้าเดียวได้ด้วยหน่อย /Poteto Mode"*
+  - เดิมทีตัวอ่าน PDF บังคับให้ผู้ใช้ต้องคลิกปุ่มลูกศร ‹ หรือ › ด้านล่างเพื่อเปลี่ยนหน้าเท่านั้น
+  - ล้อเมาส์ (Mouse Wheel) หรือ Trackpad เลื่อนขึ้นลงในหน้าจอไม่เปลี่ยนหน้าเมื่ออยู่ในโหมดพอดีจอ
+  - การปัดนิ้วในแนวตั้ง (Vertical Swipe) บนจอมือถือไม่ทำงาน เนื่องจากระบบดักจับเฉพาะการปัดแนวนอน
+  - ปัญหาการสลับโหมดขยาย: ปุ่ม `#pdfFit` รองรับเฉพาะการตั้งค่าเป็น `page` (พอดีทั้งหน้า) แต่ไม่มีการสลับเป็น `width` (พอดีความกว้าง) เพื่อให้อ่านตัวหนังสือขนาดใหญ่และเลื่อนลงได้
+- **การวิเคราะห์ตามหลักการ Poteto Mode (Principles Applied):**
+  1. **principle-experience-first:** ผู้ใช้สามารถเลื่อนอ่านเอกสารหน้าเดียวได้อย่างเป็นธรรมชาติ หมุนล้อเมาส์ลงเพื่อไปยังหน้าถัดไป หรือเลื่อนอ่านเนื้อหาจนสุดหน้าแล้วพลิกหน้าต่อเนื่อง
+  2. **principle-model-the-domain:** ออกแบบสถานะการจัดวางเอกสาร `pdfFitMode` ให้รองรับทั้ง `'page'` (พอดีจอ) และ `'width'` (พอดีความกว้าง) พร้อมฟังก์ชัน `togglePdfFitMode()`
+  3. **principle-foundational-thinking:** จัดการอีเวนต์ลูกล้อเมาส์ `handlePdfWheel` โดยกำหนด Cooldown 260ms เพื่อป้องกันการข้ามหน้าเร็วเกินไปเมื่อหมุนล้อเมาส์ต่อเนื่อง
+  4. **principle-test-behavior-not-implementation:** ทดสอบพฤติกรรมจริงของการเปลี่ยนหน้า การตรวจจับทิศทางการปัด และการสลับสถานะของปุ่ม
+  5. **principle-prove-it-works:** ทดสอบด้วยชุดทดสอบอัตโนมัติครบถ้วนและยืนยันผลจริง
+- **การแก้ไข (Implementation Details):**
+  1. **`media-lightbox.js`:**
+     - เพิ่มฟังก์ชัน `swipeNavigateVerticalFor(dy, dx, threshold)` สำหรับตรวจจับการปัดนิ้วแนวตั้ง
+     - เพิ่มฟังก์ชัน `updatePdfFitButtonState()` สำหรับอัปเดตข้อความปุ่ม `#pdfFit` ระหว่าง "พอดีหน้า" และ "พอดีกว้าง" พร้อมค่า `aria-pressed`
+     - เพิ่มฟังก์ชัน `togglePdfFitMode()` สำหรับสลับระหว่างโหมดพอดีหน้าและโหมดพอดีกว้าง
+     - เพิ่มฟังก์ชัน `handlePdfWheel(e)` พร้อม Cooldown 260ms และการตรวจจับขอบบนขอบล่างของหน้ากระดาษ
+     - ปรับปรุง `stepPdfPage` ให้ตั้งค่า `pdfScrollToBottomOnRender` เมื่อถอยกลับหน้าก่อนหน้าในโหมดกว้าง เพื่อให้จุดอ่านต่อเนื่องจากด้านล่างของหน้าก่อน
+     - ส่งออกฟังก์ชันใหม่ 4 ฟังก์ชันผ่าน `appApi.media` (รวม 38 ฟังก์ชันสาธารณะ)
+  2. **`app-core.js`:**
+     - เชื่อมต่อตัวแปรสถานะ `lastPdfWheelTime` และ `pdfScrollToBottomOnRender` เข้าสู่ `GDVLightboxApi`
+     - ผูกอีเวนต์ `wheel` เข้ากับ `#pdfStage` ด้วยตัวเลือก `{ passive: false }`
+     - ปรับปรุง `pointermove` และ `pointerup` ให้รองรับการเลื่อนและการปัดแนวตั้งในโหมด PDF
+     - ปรับปรุงคีย์บอร์ดชอร์ตคัต: รองรับ `ArrowDown`, `ArrowUp`, `Space`, `Shift+Space`, และปุ่ม `W` สำหรับสลับโหมดขยาย
+     - ผูกปุ่ม `#pdfFit` เข้ากับ `togglePdfFitMode()`
+  3. **`styles.css`:**
+     - ปรับปรุง `#pdfStage` ให้จัดกึ่งกลาง `justify-content: center` และเปิดการทำงานสัมผัส `touch-action: pan-y` พร้อม `scroll-behavior: smooth`
+     - จัดกึ่งกลาง `#pdfCanvas` ด้วย `margin: auto; display: block;` พร้อมเงาขอบกระดาษที่นุ่มนวล
+  4. **`index.html`:**
+     - เพิ่มข้อความ Tooltip บนปุ่ม `#pdfFit` และอัปเดต Cache Buster เป็น `?v=20261014-r17`
+  5. **`tests/media-lightbox.cjs`:**
+     - เพิ่ม 4 เคสทดสอบใหม่:
+       1. `swipeNavigateVerticalFor detects vertical swipe direction and respects threshold`
+       2. `togglePdfFitMode toggles between page and width and updates button label`
+       3. `handlePdfWheel steps pages in fit mode, navigates boundaries in width mode, and debounces rapid wheeling`
+       4. `stepPdfPage sets pdfScrollToBottomOnRender when moving backward in width mode`
+     - อัปเดตรายการส่งออก `exportedNames` ครบ 38 รายการ
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests ทั้งหมด:** `node --test tests/*.cjs` ผ่านครบถ้วน **166/166 tests PASS (0 failures, duration 22.9s)**
+  - **Lightbox & PDF Tests:** `node --test tests/media-lightbox.cjs` ผ่านครบถ้วน **18/18 tests PASS (74ms)**
+  - **Image Viewer Tests:** `node --test tests/image-viewer.cjs` ผ่านครบถ้วน (79ms)
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+
+
 
 
 
