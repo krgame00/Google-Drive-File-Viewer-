@@ -54,7 +54,6 @@
       async get(id, meta = {}, scope) {
         if (!store || !scope || !cap()) return null;
         return serial(async () => {
-          await trimTo(cap());
           const key = keyOf(id,scope), record = await store.get(key);
           if (!record) return null;
           if (!record.blob || record.blob.size !== record.size || (Number(meta.size) > 0 && Number(meta.size) !== record.size) || (meta.modifiedTime && meta.modifiedTime !== record.modifiedTime)) { await store.remove(key); return null; }

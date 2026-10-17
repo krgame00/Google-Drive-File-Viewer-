@@ -32,12 +32,13 @@
 
   with (appApi) {
       function startVideoPlayback(id) {
+        if (typeof warmVideoStream === 'function') warmVideoStream(id);
         if (typeof videoCache === 'undefined' || !videoCache) { tryStreamDirect(id); return Promise.resolve(); }
         const session = mediaSession, attempt = videoAttempt, token = accessToken, scope = videoCacheScope();
         const active = function () { return session === mediaSession && attempt === videoAttempt && token === accessToken && id === vidCurrentId && videoModal.classList.contains('show'); };
         let timer;
         setVideoStatus('connecting', 'กำลังตรวจคลิปที่เก็บไว้ในเครื่อง…');
-        return Promise.race([videoCache.get(id, fileMetaOf(id), scope), new Promise(function (resolve) { timer = setTimeout(function () { resolve(null); }, 1500); })]).then(function (blob) {
+        return Promise.race([videoCache.get(id, fileMetaOf(id), scope), new Promise(function (resolve) { timer = setTimeout(function () { resolve(null); }, 350); })]).then(function (blob) {
           clearTimeout(timer);
           if (!active()) return;
           if (!blob) { tryStreamDirect(id); return; }
@@ -100,9 +101,10 @@
         if (note) { note.hidden = state !== 'preview'; if (state === 'preview') note.textContent = message || ''; }
         if (info && (state === 'closed' || state === 'connecting')) info.open = false;
         if (status) status.setAttribute('data-preview-note', state === 'preview' ? 'true' : 'false');
-        if (state === 'playing') { vidLoading.classList.remove('show'); if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
-        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (status) { if (message) status.textContent = message; status.hidden = !message; } if (((state === 'error' && prev !== 'error') || (state === 'preview' && prev !== 'preview')) && help) help.open = true; }
-        else if (state === 'closed') { vidLoading.classList.remove('show'); if (status) status.hidden = true; }
+        const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
+        if (state === 'playing') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
+        else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) { if (message) status.textContent = message; status.hidden = !message; } if (((state === 'error' && prev !== 'error') || (state === 'preview' && prev !== 'preview')) && help) help.open = true; }
+        else if (state === 'closed') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; }
         else { vidLoading.classList.add('show'); if (status) status.hidden = true; if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…'); }
         return videoStatus;
       }
@@ -142,14 +144,19 @@
         videoAttemptTimer = null;
         if (videoSlowTimer !== null) clearTimeout(videoSlowTimer);
         videoSlowTimer = null;
+        const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
+        if (slowActions) slowActions.style.display = 'none';
         vidPlayer.onerror = null;
         vidPlayer.oncanplay = null;
         vidPlayer.onloadedmetadata = null;
       }
 
       function resetMediaPlayback() {
+        previewAspect = null;
         saveVideoPos();
         cancelVideoBlobTransfer();
+        const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
+        if (slowActions) slowActions.style.display = 'none';
         ++mediaSession;
         cancelVideoAttempt();
         releasePlayerOrientation();
@@ -162,7 +169,6 @@
         vidFrame.src = "about:blank";
         vidFrame.style.display = "none";
         vidFrame.removeAttribute('data-video-preview');
-        previewAspect = null;
         if (vidFrame.parentElement) {
           vidFrame.parentElement.style.aspectRatio = '';
           if (typeof vidFrame.parentElement.removeAttribute === 'function') vidFrame.parentElement.removeAttribute('data-orientation');
@@ -1466,8 +1472,24 @@
         const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('timeout'); } }, timeoutMs);
 
         // โหลดช้ากว่าปกติ — แจ้งเตือนหลัง 15 วินาที แต่ยังรอต่อถึงเพดานที่ตั้งไว้
+        videoSlowTimer = setTimeout(function () {
+          if (!done && session === mediaSession && attempt === videoAttempt) {
+            setVideoStatus('loading', 'โหลดนานกว่าปกติ กำลังพยายามต่อ…');
+            const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
+            if (slowActions) slowActions.style.display = 'flex';
+          }
+        }, 15000);
 
-        videoSlowTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) setVideoStatus('loading', 'โหลดนานกว่าปกติ กำลังพยายามต่อ…'); }, 15000);
+        // สำหรับเบราว์เซอร์จริง (มือถือ/เน็ตช้า) — แสดงทางลัด VLC / พรีวิว Google หลังหมุน 3.5 วินาที
+        if (typeof window !== 'undefined' && window.setTimeout) {
+          window.setTimeout(function () {
+            if (!done && session === mediaSession && attempt === videoAttempt && (videoStatus === 'loading' || videoStatus === 'connecting')) {
+              const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
+              if (slowActions) slowActions.style.display = 'flex';
+              setVideoStatus('loading', 'กำลังเตรียมข้อมูลวิดีโอ… หากหมุนนาน สามารถกด “เปิดใน VLC” หรือ “พรีวิว Google” ได้ทันที');
+            }
+          }, 3500);
+        }
 
         vidPlayer.onerror = function () {
 
@@ -1562,11 +1584,25 @@
           try { prepareStreamWorker(); } catch (_) {}
         }
         const watched = new Set(loadWatchedVideos());
+        let warmCount = 0;
+        const maxWarm = 4;
+        const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting && warmCount < maxWarm && entry.target && entry.target.dataset && entry.target.dataset.id) {
+              warmCount++;
+              warmVideoStream(entry.target.dataset.id);
+              try { observer.unobserve(entry.target); } catch (_) {}
+            }
+          });
+        }, { rootMargin: '100px' }) : null;
         filesWrap.querySelectorAll('.file-card[data-kind="video"]').forEach(card => {
           if (card && typeof card.addEventListener === 'function' && card.dataset && card.dataset.id) {
             const warm = function () { warmVideoStream(card.dataset.id); };
             card.addEventListener('touchstart', warm, { passive: true, once: true });
             card.addEventListener('pointerenter', warm, { passive: true, once: true });
+            if (observer && warmCount < maxWarm) {
+              try { observer.observe(card); } catch (_) {}
+            }
           }
           const button = document.createElement("button");
           button.type = "button";

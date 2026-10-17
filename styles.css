@@ -961,7 +961,10 @@
 
     }
 
-    .vid-loading-text { font-size: 0.82rem; opacity: 0.9; }
+    .vid-loading-text { font-size: 0.82rem; opacity: 0.9; text-align: center; max-width: 90%; line-height: 1.4; }
+    .vid-slow-actions { display: none; margin-top: 6px; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .vid-slow-actions button { font-size: 12px; padding: 6px 12px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; color: #fff; cursor: pointer; transition: background 0.15s; }
+    .vid-slow-actions button:hover, .vid-slow-actions button:active { background: rgba(255,255,255,0.28); }
 
 
 

@@ -1134,6 +1134,14 @@
       if (vidExternalPlayerBtn) vidExternalPlayerBtn.addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
       });
+      const vidSlowVlcBtn = document.getElementById('vidSlowVlc');
+      if (vidSlowVlcBtn) vidSlowVlcBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+      });
+      const vidSlowPreviewBtn = document.getElementById('vidSlowPreview');
+      if (vidSlowPreviewBtn) vidSlowPreviewBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
+      });
       const vidCopyDriveBtn = document.getElementById('vidCopyDrive');
       if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
