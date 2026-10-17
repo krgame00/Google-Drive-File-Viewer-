@@ -2171,7 +2171,7 @@
       .pdf-controls.lb-pdf-controls { max-width: calc(100vw - 16px); gap: 2px; padding: 4px; }
       .pdf-controls.lb-pdf-controls button { min-width: 40px; min-height: 44px; padding: 4px; }
       .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
-      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 38px; padding: 6px 8px; font-size: 12px; margin-left: 0; white-space: nowrap; flex-shrink: 0; }
+      #vidMinimize, #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 38px; padding: 6px 8px; font-size: 12px; margin-left: 0; white-space: nowrap; flex-shrink: 0; }
       .video-box .ratio:has(iframe[style*="display: block"]) {
         aspect-ratio: var(--video-aspect, 16 / 9);
         width: min(100%, calc(var(--video-max-h, 65dvh) * var(--video-aspect, 16 / 9)));
@@ -2205,7 +2205,7 @@
       .video-box { max-height: 100dvh; width: 100%; border-radius: 6px; }
       .video-toolbar { padding: 4px 8px; gap: 4px; }
       .video-toolbar .lb-close, .video-toolbar .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 20px; }
-      #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
+      #vidMinimize, #vidFullscreen, #vidAspectToggle, #vidQuickPreview { min-height: 34px; padding: 4px 8px; font-size: 11px; }
       .video-box .ratio {
         --video-max-h: calc(100dvh - 84px);
         max-height: var(--video-max-h);
@@ -2220,4 +2220,126 @@
       .video-footer { padding: 4px 10px; gap: 4px; }
       .video-info summary { min-height: 28px; padding: 2px 0; }
     }
-  
+
+    /* ===== Minimized Corner Dock / Floating Mini Player ===== */
+    .video-modal.minimized {
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      pointer-events: none !important;
+      align-items: flex-end !important;
+      justify-content: flex-end !important;
+      padding: 16px !important;
+      z-index: 99 !important;
+    }
+    .video-modal.minimized .video-box {
+      pointer-events: auto !important;
+      width: 320px !important;
+      max-width: calc(100vw - 32px) !important;
+      max-height: 80vh !important;
+      border-radius: 12px !important;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.18), 0 0 20px var(--accent-glow) !important;
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+      animation: slideUpCorner 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes slideUpCorner {
+      from { transform: translateY(20px) scale(0.95); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .video-modal.minimized .video-box:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 42px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.28), 0 0 26px var(--accent-glow) !important;
+    }
+    .video-modal.minimized .media-nav,
+    .video-modal.minimized #vidFullscreen,
+    .video-modal.minimized #vidAspectToggle,
+    .video-modal.minimized #vidQuickPreview,
+    .video-modal.minimized #vidOpenTab,
+    .video-modal.minimized #vidInfo,
+    .video-modal.minimized #vidHelp,
+    .video-modal.minimized #vidSlowActions,
+    .video-modal.minimized #vidMinimizeBlob {
+      display: none !important;
+    }
+    .video-modal.minimized .video-toolbar {
+      padding: 6px 10px !important;
+      background: rgba(18, 18, 24, 0.96) !important;
+      border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      overflow: visible !important;
+    }
+    .video-modal.minimized .video-toolbar .lb-close {
+      position: static !important;
+      width: 28px !important;
+      height: 28px !important;
+      min-width: 28px !important;
+      min-height: 28px !important;
+      font-size: 18px !important;
+      margin-left: auto !important;
+      order: 99 !important;
+      border-radius: 6px !important;
+    }
+    .video-modal.minimized #vidMinimize {
+      padding: 2px 10px !important;
+      font-size: 11px !important;
+      font-weight: 600 !important;
+      background: var(--accent) !important;
+      color: #fff !important;
+      border: none !important;
+      border-radius: 6px !important;
+      min-height: 28px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+    }
+    .video-modal.minimized .video-footer {
+      padding: 6px 10px !important;
+      background: rgba(18, 18, 24, 0.96) !important;
+      border-top: 1px solid rgba(255,255,255,0.08) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 4px !important;
+    }
+    .video-modal.minimized .video-title {
+      font-size: 11px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      max-width: 100% !important;
+    }
+    .video-modal.minimized .vid-loading {
+      padding: 8px !important;
+      gap: 6px !important;
+      background: rgba(0,0,0,0.88) !important;
+    }
+    .video-modal.minimized .vid-loading .spinner {
+      width: 22px !important;
+      height: 22px !important;
+      border-width: 2px !important;
+    }
+    .video-modal.minimized .vid-loading-text {
+      font-size: 11px !important;
+      text-align: center !important;
+      line-height: 1.3 !important;
+      max-height: 38px !important;
+      overflow: hidden !important;
+    }
+    .video-modal.minimized #vidCancelBlob {
+      padding: 2px 8px !important;
+      font-size: 10px !important;
+      min-height: 24px !important;
+      margin-top: 2px !important;
+    }
+    @media (max-width: 680px) {
+      .video-modal.minimized {
+        padding: 8px !important;
+        padding-bottom: 74px !important;
+      }
+      .video-modal.minimized .video-box {
+        width: 260px !important;
+        max-width: calc(100vw - 16px) !important;
+      }
+    }
+

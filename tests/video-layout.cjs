@@ -12,14 +12,33 @@ function setup(){
     getAttribute:k=>ratioAttrs.get(k)
   };
   const aspectBtn={textContent:'สลับแนว ↕↔'};
-  const player={videoWidth:1920,videoHeight:1080,style:{display:'block'}};
+  const player={videoWidth:1920,videoHeight:1080,style:{display:'block'},pause(){},removeAttribute(){},load(){}};
   const toasts=[],opened=[];
   const bridge={
     vidPlayer:player,
     previewAspect:null,
     mediaSession:0,
+    mediaPreviousOverflow:'',
+    videoBlobTransfer:null,
+    videoAttempt:0,
+    videoAttemptTimer:null,
+    videoSlowTimer:null,
+    videoStatus:'closed',
+    saveVideoPos:()=>{},
+    resetPdfViewer:()=>{},
+    vidLoading:{classList:{remove(){},add(){}}},
+    vidOpenTab:{},
+    currentVideoUrl:null,
+    revokeCurrentDoc:()=>{},
+    revokeCurrentVideo:()=>{},
+    renderContinueWatching:()=>{},
+    loadContinueWatching:()=>[],
+    vidProgressBar:{style:{}},
+    filesWrap:{before(){}},
     vidCurrentId:'fileA',
     accessToken:'test-token',
+    apiKey:'test-key',
+    tokenExpiry:Date.now()+60000,
     mediaThumbs:{},
     vidTitle:{textContent:'คลิปทดสอบ.mp4'},
     lsGet:k=>(k in store?store[k]:null),
@@ -27,12 +46,13 @@ function setup(){
     showToast:msg=>toasts.push(msg),
     openVideo:(id,name)=>opened.push({id,name}),
     fileMetaOf:()=>null,
-    vidFrame:{parentElement:ratio,getAttribute:key=>attrs.get(key),style:{setProperty(){}}},
-    videoModal:{querySelector:()=>box,classList:{contains:()=>true}},
+    vidFrame:{parentElement:ratio,getAttribute:key=>attrs.get(key),removeAttribute:k=>attrs.delete(k),style:{setProperty(){}}},
+    videoModal:{querySelector:()=>box,classList:{contains:()=>true},setAttribute(){}},
+    setVideoStatus:()=>{},
     document:{
       fullscreenElement:null,
       getElementById:id=>id==='vidAspectToggle'?aspectBtn:null,
-      createElement:()=>({click(){calls.push('vlc-click');}})
+      createElement:()=>({click(){calls.push('vlc-click');},appendChild(){}})
     },
     window:{screen:{orientation:{lock:value=>{calls.push(value);return Promise.resolve();},unlock:()=>calls.push('unlock')}}},
     fetch:async()=>({ok:true,json:async()=>({})}),
@@ -166,3 +186,67 @@ test('copyVideoToMyDrive copies file via Drive API and opens the new copy when q
   assert.deepEqual(opened,[{id:'copiedFile123',name:'สำเนาคลิป.mp4'}]);
   assert(toasts.some(t=>t.includes('ทำสำเนาเข้า Drive สำเร็จ')));
 });
+
+test('minimizeVideo and restoreVideo toggle minimized state, update button text and adjust body overflow',()=>{
+  const {api,bridge,box}=setup();
+  const modalClasses=new Set(['show']);
+  bridge.videoModal.classList={
+    contains:cls=>modalClasses.has(cls),
+    add:cls=>modalClasses.add(cls),
+    remove:cls=>modalClasses.delete(cls)
+  };
+  const minBtn={textContent:'− ย่อมุมจอ',setAttribute(k,v){this[k]=v;}};
+  const origGet=bridge.document.getElementById;
+  bridge.document.getElementById=id=>id==='vidMinimize'?minBtn:origGet(id);
+  bridge.document.body={style:{overflow:'hidden'}};
+
+  assert.equal(api.isVideoMinimized(),false);
+  const minResult=api.minimizeVideo();
+  assert.equal(minResult,true);
+  assert.equal(api.isVideoMinimized(),true);
+  assert(modalClasses.has('minimized'));
+  assert.equal(minBtn.textContent,'⤢ ขยายเต็ม');
+  assert.equal(bridge.document.body.style.overflow,'');
+
+  const restResult=api.restoreVideo();
+  assert.equal(restResult,true);
+  assert.equal(api.isVideoMinimized(),false);
+  assert(!modalClasses.has('minimized'));
+  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+  assert.equal(bridge.document.body.style.overflow,'hidden');
+
+  api.toggleMinimizeVideo();
+  assert.equal(api.isVideoMinimized(),true);
+  api.toggleMinimizeVideo();
+  assert.equal(api.isVideoMinimized(),false);
+});
+
+test('closeVideo and openVideo cleanly reset minimized state',()=>{
+  const {api,bridge}=setup();
+  const modalClasses=new Set(['show','minimized']);
+  bridge.videoModal.classList={
+    contains:cls=>modalClasses.has(cls),
+    add:cls=>modalClasses.add(cls),
+    remove:cls=>modalClasses.delete(cls)
+  };
+  const minBtn={textContent:'⤢ ขยายเต็ม',setAttribute(k,v){this[k]=v;}};
+  const origGet=bridge.document.getElementById;
+  bridge.document.getElementById=id=>id==='vidMinimize'?minBtn:origGet(id);
+  bridge.document.body={style:{overflow:''}};
+  bridge.lightbox={classList:{contains:()=>false}};
+
+  api.closeVideo();
+  assert.equal(api.isVideoMinimized(),false);
+  assert(!modalClasses.has('minimized'));
+  assert(!modalClasses.has('show'));
+  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+
+  modalClasses.add('show');
+  modalClasses.add('minimized');
+  minBtn.textContent='⤢ ขยายเต็ม';
+  api.openVideo('fileNext','วิดีโอถัดไป.mp4');
+  assert.equal(api.isVideoMinimized(),false);
+  assert(!modalClasses.has('minimized'));
+  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+});
+

@@ -1123,7 +1123,27 @@
       const togglePreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePreviewAspect(...args) : undefined;
       const openInExternalPlayer = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openInExternalPlayer(...args) : undefined;
       const copyVideoToMyDrive = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.copyVideoToMyDrive(...args) : undefined;
+      const isVideoMinimized = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.isVideoMinimized(...args) : false;
+      const minimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.minimizeVideo(...args) : undefined;
+      const restoreVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.restoreVideo(...args) : undefined;
+      const toggleMinimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleMinimizeVideo(...args) : undefined;
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
+      const vidMinimizeBtn = document.getElementById('vidMinimize');
+      if (vidMinimizeBtn) vidMinimizeBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleMinimizeVideo();
+      });
+      const vidMinimizeBlobBtn = document.getElementById('vidMinimizeBlob');
+      if (vidMinimizeBlobBtn) vidMinimizeBlobBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        minimizeVideo();
+      });
+      const videoBoxEl = videoModal.querySelector('.video-box');
+      if (videoBoxEl) videoBoxEl.addEventListener('click', function (e) {
+        if (!videoModal.classList.contains('minimized')) return;
+        if (e.target && e.target.closest && e.target.closest('#vidClose, #vidCancelBlob, #vidMinimize, .lb-close, button')) return;
+        restoreVideo();
+      });
       const vidAspectToggleBtn = document.getElementById('vidAspectToggle');
       if (vidAspectToggleBtn) vidAspectToggleBtn.addEventListener('click', togglePreviewAspect);
       const vidQuickPreviewBtn = document.getElementById('vidQuickPreview');
@@ -1597,7 +1617,7 @@
 
       vidClose.addEventListener("click", closeVideo);
 
-      videoModal.addEventListener("click", function (e) { if (e.target === videoModal) closeVideo(); });
+      videoModal.addEventListener("click", function (e) { if (e.target === videoModal && !videoModal.classList.contains("minimized")) closeVideo(); });
 
 
 

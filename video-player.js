@@ -194,6 +194,15 @@
       function openVideo(id, name) {
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
+        if (videoModal && videoModal.classList && videoModal.classList.remove) videoModal.classList.remove('minimized');
+        const minBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidMinimize') : null;
+        if (minBtn) {
+          minBtn.textContent = '− ย่อมุมจอ';
+          if (typeof minBtn.setAttribute === 'function') {
+            minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
+            minBtn.setAttribute('title', 'ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ');
+          }
+        }
         resetMediaPlayback();
 
                     vidCurrentId = id;
@@ -739,6 +748,64 @@
         } catch (_) { failed(); return Promise.resolve(); }
       }
 
+      function isVideoMinimized() {
+        return !!(videoModal && videoModal.classList && videoModal.classList.contains('minimized'));
+      }
+
+      function minimizeVideo() {
+        if (!videoModal || !videoModal.classList || !videoModal.classList.contains('show')) return false;
+        if (typeof document !== 'undefined') {
+          if (document.fullscreenElement && videoModal.contains && videoModal.contains(document.fullscreenElement) && document.exitFullscreen) {
+            Promise.resolve(document.exitFullscreen()).catch(function () {});
+          }
+          const box = videoModal.querySelector && videoModal.querySelector('.video-box');
+          if (box && box.classList && box.classList.remove) box.classList.remove('pseudo-fullscreen');
+          const fsBtn = document.getElementById ? document.getElementById('vidFullscreen') : null;
+          if (fsBtn) { fsBtn.textContent = 'เต็มจอ'; fsBtn.setAttribute('aria-pressed', 'false'); }
+          const minBtn = document.getElementById ? document.getElementById('vidMinimize') : null;
+          if (minBtn) {
+            minBtn.textContent = '⤢ ขยายเต็ม';
+            if (typeof minBtn.setAttribute === 'function') {
+              minBtn.setAttribute('aria-label', 'ขยายเครื่องเล่นกลับขนาดเต็ม');
+              minBtn.setAttribute('title', 'คลิกเพื่อขยายเครื่องเล่นกลับเป็นขนาดปกติ');
+            }
+          }
+          if (document.body && document.body.style) {
+            document.body.style.overflow = (typeof lightbox !== 'undefined' && lightbox && lightbox.classList && lightbox.classList.contains("show")) ? "hidden" : (typeof mediaPreviousOverflow !== 'undefined' ? mediaPreviousOverflow : "");
+          }
+        }
+        videoModal.classList.add('minimized');
+        if (typeof showToast === 'function') {
+          showToast('ย่อเครื่องเล่นไว้มุมจอแล้ว (แตะที่หน้าต่างมุมจอเพื่อขยายกลับ)');
+        }
+        return true;
+      }
+
+      function restoreVideo() {
+        if (!videoModal || !videoModal.classList || !videoModal.classList.contains('minimized')) return false;
+        videoModal.classList.remove('minimized');
+        if (typeof document !== 'undefined') {
+          if (document.body && document.body.style) document.body.style.overflow = "hidden";
+          const minBtn = document.getElementById ? document.getElementById('vidMinimize') : null;
+          if (minBtn) {
+            minBtn.textContent = '− ย่อมุมจอ';
+            if (typeof minBtn.setAttribute === 'function') {
+              minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
+              minBtn.setAttribute('title', 'ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ');
+            }
+          }
+        }
+        applyVideoAspect();
+        if (typeof fitVideoPreview === 'function') {
+          try { requestAnimationFrame(fitVideoPreview); } catch (_) { fitVideoPreview(); }
+        }
+        return true;
+      }
+
+      function toggleMinimizeVideo() {
+        return isVideoMinimized() ? restoreVideo() : minimizeVideo();
+      }
+
       function prepareStreamWorker() {
         if (!window.isSecureContext || !('serviceWorker' in navigator) || location.protocol === 'file:') return Promise.resolve(false);
         if (!streamWorkerReady) {
@@ -1139,8 +1206,10 @@
           } catch (_) {}
         }
         const cancel = document.getElementById('vidCancelBlob');
+        const minBlob = document.getElementById('vidMinimizeBlob');
         const button = document.getElementById('vidBlob');
         if (cancel) cancel.hidden = true;
+        if (minBlob) minBlob.hidden = true;
         if (button) button.disabled = false;
         if (showMessage) setVideoStatus('error', 'ยกเลิกการโหลดแล้ว เลือกลองใหม่หรือใช้พรีวิว Google');
       }
@@ -1221,8 +1290,10 @@
         };
         const btn = document.getElementById('vidBlob');
         const cancel = document.getElementById('vidCancelBlob');
+        const minBlob = document.getElementById('vidMinimizeBlob');
         if (btn) btn.disabled = true;
         if (cancel) cancel.hidden = false;
+        if (minBlob) minBlob.hidden = false;
         vidPlayer.pause(); vidPlayer.removeAttribute('src'); vidPlayer.load(); vidPlayer.style.display = 'none';
         vidFrame.src = 'about:blank'; vidFrame.style.display = 'none'; vidFrame.removeAttribute('data-video-preview');
         previewAspect = null; vidPlayer.playerAspect = null; applyVideoAspect();
@@ -1424,6 +1495,8 @@
             const nextUrl = URL.createObjectURL(blob);
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
+            const minBlob = document.getElementById('vidMinimizeBlob');
+            if (minBlob) minBlob.hidden = true;
             if (btn) btn.disabled = false;
             revokeCurrentVideo();
             currentVideoUrl = nextUrl;
@@ -1444,6 +1517,8 @@
             resetProgressivePreview();
             videoBlobTransfer = null;
             if (cancel) cancel.hidden = true;
+            const minBlob2 = document.getElementById('vidMinimizeBlob');
+            if (minBlob2) minBlob2.hidden = true;
             if (err && err.name === 'AbortError') { if (btn) btn.disabled = false; return; }
             setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')' + prior);
             if (btn) btn.disabled = false;
@@ -1680,7 +1755,10 @@
           section.id = "continueWatching";
           section.className = "favorite-folders";
           if (drawerMount) drawerMount.appendChild(section);
-          else document.getElementById("browserCard").before(section);
+          else {
+            const card = document.getElementById("browserCard");
+            if (card && typeof card.before === 'function') card.before(section);
+          }
         } else if (drawerMount && section.parentElement !== drawerMount) {
           drawerMount.appendChild(section);
         }
@@ -1768,6 +1846,12 @@
         if (box && box.classList && box.classList.remove) box.classList.remove('pseudo-fullscreen');
         const btn = document.getElementById ? document.getElementById('vidFullscreen') : null;
         if (btn) { btn.textContent = 'เต็มจอ'; btn.setAttribute('aria-pressed', 'false'); }
+        const minBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidMinimize') : null;
+        if (minBtn) {
+          minBtn.textContent = '− ย่อมุมจอ';
+          if (typeof minBtn.setAttribute === 'function') minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
+        }
+        if (videoModal && videoModal.classList && videoModal.classList.remove) videoModal.classList.remove('minimized');
         resetMediaPlayback();
         vidCurrentId = null;
         document.body.style.overflow = lightbox.classList.contains("show") ? "hidden" : mediaPreviousOverflow;
@@ -1827,6 +1911,10 @@
     togglePreviewAspect,
     openInExternalPlayer,
     copyVideoToMyDrive,
+    isVideoMinimized,
+    minimizeVideo,
+    restoreVideo,
+    toggleMinimizeVideo,
     applyNativeVideoAspect,
     togglePlayerFullscreen,
     prepareStreamWorker,

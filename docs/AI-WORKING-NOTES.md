@@ -823,6 +823,59 @@
   - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
   - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
 
+### 39. Corner-Docked Floating Mini-Player for Whole-File Downloads & Playback (`2026-10-17`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหา / ความต้องการ (Problem & Requirement):**
+  - ผู้ใช้ระบุความต้องการ: *"ตอนกดโหลดทั้งไฟล์เราทำให้กดย่อได้ไหมให้ค้างหว้มุมจอ"*
+  - เดิมทีเมื่อผู้ใช้กด "โหลดทั้งไฟล์แทน" (Parallel Blob Download 4 ท่อ) หรือเปิดเล่นคลิป หน้าต่างวิดีโอ (`#videoModal`) จะแสดงผลแบบ Modal เต็มหน้าจอและล็อก Scroll ของทั้งหน้าเว็บ (`body { overflow: hidden }`)
+  - หากผู้ใช้กดปิด Modal (`closeVideo()`) ตัวทรานสเฟอร์ดาวน์โหลดจะถูกยกเลิก (`cancelVideoBlobTransfer()`) ทันที ทำให้ผู้ใช้ไม่สามารถเลื่อนอ่านเอกสาร ท่องโฟลเดอร์ หรือค้นหาคลิปอื่นระหว่างรอโหลดไฟล์ขนาดใหญ่ (เช่น 500 MB – 2 GB) ได้
+- **การวิเคราะห์และออกแบบสถาปัตยกรรม (Root-Cause & Architectural Design):**
+  1. **Non-destructive Minimized State:**
+     - การย่อหน้าต่างจะต้อง **ไม่ทำลาย Session หรือปิด Modal** แต่เป็นการสลับคลาส `.minimized` บน `#videoModal`
+     - ใน `videoBlobTransfer` มีเงื่อนไขการทำงานว่า `active = () => videoModal.classList.contains('show')` การคงคลาส `.show` ไว้แล้วเพิ่ม `.minimized` ทำให้ท่อดาวน์โหลด 4 ท่อและ Progressive Blob Playback ยังคงวิ่งต่อเนื่องเต็มสปีดในเบื้องหลัง
+  2. **Page Interaction & Floating Widget Layout:**
+     - เมื่อเข้าสู่สถานะ `.minimized`:
+       - ปลดล็อก Scroll ของหน้าเว็บ (`document.body.style.overflow = ""`) เพื่อให้ผู้ใช้เลื่อนดูหน้าหลักได้ตามปกติ
+       - คอนเทนเนอร์ `#videoModal` เปลี่ยนฉากหลังเป็นโปร่งใส (`background: transparent`) และตั้ง `pointer-events: none` เพื่อให้คลิกทะลุไปยังเนื้อหาเว็บด้านหลังได้ทั้งหมด
+       - กล่อง `.video-box` ลอยอยู่ที่มุมขวาล่างของจอภาพ (`bottom: 18px; right: 18px; width: 320px; z-index: 99; pointer-events: auto;`) พร้อมเงา Glow และแอนิเมชัน `slideUpCorner`
+       - ซ่อนเครื่องมือที่ไม่จำเป็นในมุมมองย่อ (ปุ่มเต็มจอ, แถบเปลี่ยนอัตราส่วน, เมนูตัวช่วย, คอนโทรลล่าช้า) เหลือเฉพาะหน้าจอวิดีโอ/สถานะดาวน์โหลด หัวข้อคลิป และปุ่ม `⤢ ขยายเต็ม`
+       - ปรับแต่งการแสดงผลบนมือถือ (`@media (max-width: 680px)`): ปรับขนาดลงเหลือ `width: 260px` และยกตัวขึ้นเหนือบาร์ล่างของมือถือ (`padding-bottom: 74px`) ป้องกันการบัง `#mobileBar`
+  3. **Dual Action Triggers & Seamless Toggle:**
+     - เพิ่มปุ่ม `"− ย่อมุมจอ"` บนแถบเครื่องมือหลัก (`.video-toolbar`)
+     - เพิ่มปุ่มลัด `"🗗 ย่อไว้มุมจอระหว่างโหลด"` (`#vidMinimizeBlob`) ปรากฏขึ้นอัตโนมัติในหน้าต่างกำลังโหลดทั้งไฟล์
+     - คลิกที่กล่องวิดีโอย่อ หรือคลิกปุ่ม `⤢ ขยายเต็ม` จะทำการ Restore กลับมาเป็น Modal ขนาดเต็ม พร้อมล็อก Scroll และจัดสัดส่วนวิดีโอ (`fitVideoPreview`) คืนค่าสมบูรณ์
+     - เมื่อปิดเครื่องเล่น (`closeVideo()`) หรือเปิดคลิปใหม่ (`openVideo()`) จะทำการรีเซ็ตคลาส `.minimized` และปุ่มควบคุมกลับเป็นค่าเริ่มต้นเสมอ
+- **การแก้ไข (Implementation Details):**
+  1. **`index.html`:**
+     - เพิ่มปุ่ม `<button id="vidMinimize">− ย่อมุมจอ</button>` ใน `.video-toolbar`
+     - เพิ่มปุ่ม `<button id="vidMinimizeBlob" hidden>🗗 ย่อไว้มุมจอระหว่างโหลด</button>` ใน `.vid-loading`
+     - อัปเดต Cache Buster เป็น `?v=20261014-r15`
+  2. **`styles.css`:**
+     - เพิ่มสไตล์ CSS สำหรับ `.video-modal.minimized`, `.video-modal.minimized .video-box`, และจัดการ responsive เหนือ `#mobileBar`
+     - เพิ่มคีย์เฟรมแอนิเมชัน `slideUpCorner` เพื่อความนุ่มนวลในการย่อ/ขยาย
+  3. **`video-player.js`:**
+     - เพิ่มฟังก์ชัน `isVideoMinimized()`, `minimizeVideo()`, `restoreVideo()`, `toggleMinimizeVideo()`
+     - ปรับ `loadVideoAsBlob` ให้แสดงปุ่ม `#vidMinimizeBlob` ทันทีที่เริ่มดาวน์โหลด
+     - ปรับ `cancelVideoBlobTransfer` และตัวจัดการข้อผิดพลาด/ดาวน์โหลดเสร็จให้ซ่อน `#vidMinimizeBlob`
+     - ปรับ `closeVideo` ให้เคลียร์คลาส `.minimized` และรีเซ็ตข้อความปุ่ม
+     - เพิ่ม Safety Null-check ให้กับ `document.getElementById("browserCard")` ใน `renderContinueWatching()`
+     - ส่งออกฟังก์ชัน minimize/restore ออกทางโมดูล API
+  4. **`app-core.js`:**
+     - ผูกอีเวนต์คลิกสำหรับ `#vidMinimize` และ `#vidMinimizeBlob`
+     - เพิ่ม Event Listener ให้คลิกบนกล่องวิดีโอย่อเพื่อขยายกลับขนาดปกติ
+     - ป้องกันไม่ให้การคลิกฉากหลังโปร่งใสขณะย่อไปกระตุ้นการปิด Modal
+  5. **`tests/video-layout.cjs`:**
+     - เพิ่ม 2 เคสทดสอบ:
+       1. `minimizeVideo and restoreVideo toggle minimized state, update button text and adjust body overflow`
+       2. `closeVideo and openVideo cleanly reset minimized state`
+     - เพิ่ม `apiKey` และ `tokenExpiry` ใน Mock Bridge Setup
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests ทั้งหมด:** `node --test tests/*.cjs` ผ่านครบถ้วน **164/164 tests PASS (0 failures, duration 22.8s)**
+  - **Video Layout Tests:** `node --test tests/video-layout.cjs` ผ่านครบถ้วน **13/13 tests PASS (85ms)**
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+
+
 
 
 
