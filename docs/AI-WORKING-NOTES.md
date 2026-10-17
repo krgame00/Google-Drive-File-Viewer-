@@ -796,6 +796,34 @@
   - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
   - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
 
+### 38. VLC External Player Seek Freeze Resolution (`video-player.js`, `tests/video-layout.cjs`) (`2026-10-17`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบ (Problem Statement):**
+  - ผู้ใช้แจ้งปัญหา: *"ผมกดข้ามไปตอนเปิด ในvlc แล้วมันค้างไปเลย มันจะแก้ยังไง"* (Seeking or skipping forward in VLC freezes or hangs playback completely)
+- **การวิเคราะห์หาสาเหตุที่แท้จริง (Root-Cause Analysis):**
+  1. **ขาดพารามิเตอร์ `&continuous=1` ใน `openInExternalPlayer`:**
+     - ใน `video-player.js` บรรทัดที่ 627 สร้างสตรีมลิงก์สำหรับ VLC เป็น `https://google-drive-file-viewer.missnlpp9.workers.dev/?id=TARGET_ID` โดยไม่มี `&continuous=1`
+     - ขณะที่ใน `cloudflare-drive-worker.mjs` บรรทัดที่ 310 จะเปิดท่อสตรีมต่อเนื่อง (`createContinuousMediaResponse`) เฉพาะเมื่อคำขอส่ง `continuous=1` เข้ามาเท่านั้น
+     - เมื่อผู้ใช้กดข้าม (Seek) ใน VLC ตัวเล่น VLC จะเปิดการเชื่อมต่อใหม่ด้วยคำขอ Range ปลายเปิด เช่น `Range: bytes=452819200-`
+     - เนื่องจากไม่มี `continuous=1` ตัว Worker จึงตัดช่วงข้อมูลให้เหลือเพียงก้อน 8 MiB (`bytes 452819200-461207807/total`) ตามฟังก์ชัน `boundedMediaRange` แล้วปิดการเชื่อมต่อทันทีหลังส่งครบ 8 MiB
+     - เมื่อ VLC เล่นชิ้นส่วน 8 MiB จบ (ประมาณ 3–6 วินาทีตามบิตเรต) และพบว่าสตรีมสิ้นสุดกะทันหัน โมดูล Demuxer ของ VLC จึงค้างรอข้อมูล (Stall/Freeze) หรือไม่สามารถถอดรหัส Keyframe ถัดไปได้
+  2. **พฤติกรรม Network Caching และ Demuxer ข้าม Keyframe ในแอป VLC:**
+     - ในแอป VLC (โดยเฉพาะบน Android / iOS) ค่า Network Caching เริ่มต้นมักต่ำเกินไป (300ms) ทำให้เมื่อผู้ใช้กดข้ามช่วงบนเน็ตไร้สาย สตรีมที่เชื่อมต่อใหม่ยังไม่ทันสะสมข้อมูลบัฟเฟอร์ VLC จึงกระตุกหรือค้าง
+- **การแก้ไข (Implementation Details):**
+  1. **`video-player.js`:**
+     - เพิ่ม `&continuous=1` เข้าใน `streamUrl` ของ `openInExternalPlayer(id)` เป็น `https://google-drive-file-viewer.missnlpp9.workers.dev/?id=...&continuous=1`
+     - เมื่อ VLC ขอ Range เริ่มต้นหรือกด Seek ข้ามช่วง ตัว Worker จะส่งคืน Response 206 แบบสตรีมต่อเนื่องไปจนจบไฟล์ (`Content-Length: total - seekOffset`) พร้อมระบบ Pipelined Read-Ahead ทำให้ VLC ได้รับข้อมูลต่อเนื่องตลอดช่วงการกดข้าม
+  2. **`tests/video-layout.cjs`:**
+     - ปรับปรุงเคสทดสอบ `openInExternalPlayer builds vlc:// stream URL for Cloudflare Worker and triggers link` ให้ตรวจรับรอง `&continuous=1`
+  3. **Cache Buster:**
+     - ปรับเวอร์ชัน Cache Buster ใน `index.html` เป็น `?v=20261014-r14` ทั้งไฟล์สไตล์และสคริปต์
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests ทั้งหมด:** `node --test tests/*.cjs` ผ่านครบถ้วน **162/162 tests PASS (0 failures, duration 23.0s)**
+  - **Video Layout Tests:** `node --test tests/video-layout.cjs` ผ่านครบถ้วน **11/11 tests PASS (84ms)**
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+
+
 
 
 

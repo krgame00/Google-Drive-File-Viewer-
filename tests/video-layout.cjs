@@ -147,7 +147,7 @@ test('togglePreviewAspect flips between portrait 9:16 and landscape 16:9 and per
 test('openInExternalPlayer builds vlc:// stream URL for Cloudflare Worker and triggers link',()=>{
   const {api,calls,toasts}=setup();
   const url=api.openInExternalPlayer('fileVLC');
-  assert.equal(url,'vlc://https://google-drive-file-viewer.missnlpp9.workers.dev/?id=fileVLC');
+  assert.equal(url,'vlc://https://google-drive-file-viewer.missnlpp9.workers.dev/?id=fileVLC&continuous=1');
   assert(calls.includes('vlc-click'));
   assert.equal(toasts.length,1);
 });

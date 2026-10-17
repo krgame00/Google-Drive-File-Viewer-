@@ -624,7 +624,7 @@
       function openInExternalPlayer(id) {
         const targetId = id || vidCurrentId;
         if (!targetId) return null;
-        const streamUrl = 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(targetId);
+        const streamUrl = 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(targetId) + '&continuous=1';
         const vlcUrl = 'vlc://' + streamUrl;
         if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
           Promise.resolve(navigator.clipboard.writeText(streamUrl)).catch(function () {});
