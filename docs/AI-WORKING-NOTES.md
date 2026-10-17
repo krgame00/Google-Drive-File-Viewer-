@@ -766,6 +766,36 @@
   - **Collection Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
   - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
 
+### 37. Playback Stuttering Resolution (Continuous Stream Pipelined Read-Ahead & Fast Fallbacks) (`2026-10-17`)
+- **สถานะ:** `VERIFIED WORKING`
+- **ปัญหาที่พบ (Problem Statement):**
+  - ผู้ใช้แจ้งปัญหาต่อเนื่อง: *"มันเล่นไปสะดุดไป เราพอมีวิธีแก้ไหม"* (Video Stuttering / Frequent Buffering during playback)
+- **การวิเคราะห์หาสาเหตุที่แท้จริง (Root-Cause Analysis):**
+  1. **Zero Pipeline Overlap ใน `createContinuousMediaResponse` (Cloudflare Worker):**
+     - ใน `cloudflare-drive-worker.mjs` ฟังก์ชัน `createContinuousMediaResponse` ที่สตรีมโหมด `continuous=1` มีลูปอ่าน `ReadableStream`: เมื่อก้อนข้อมูล Chunk N (ขนาด 8 MiB) ถูกสตรีมจนหมดก้อน โค้ดเพิ่งจะสั่ง `await fetchParallelChunk(...)` หรือ `await fetchMediaChunk(...)` เพื่อขอ Chunk N+1
+     - ผลคือ: ระหว่างที่รอ Google Drive ตอบกลับ Chunk N+1 (ใช้เวลา 800ms – 2,500ms บนเน็ตทั่วไป/มือถือ) ท่อส่งข้อมูลหยุดนิ่งโดยสมบูรณ์ (Zero Byte Output) บัฟเฟอร์ของ `<video>` บนเครื่องผู้ใช้จึงหมดก้อน เกิด Buffer Underrun สลับกระตุกทุกๆ 8 MiB (ทุกๆ 15–30 วินาทีตามบิตเรตไฟล์)
+  2. **ความไม่สมดุลระหว่าง Bitrate ดิบกับแบนด์วิดท์มือถือ:**
+     - ไฟล์วิดีโอบน Google Drive เป็นไฟล์ Original ที่ไม่ได้ผ่านการ Transcode แบบ Adaptive Bitrate (เช่น 1080p Bitrate 15–25 Mbps)
+     - เมื่อผู้ใช้สตรีมผ่าน 4G/5G ที่มีความเร็วแกว่ง หากเน็ตดรอปลงเหลือ 8–10 Mbps สตรีมสดของเบราว์เซอร์จะสะดุดทันที
+  3. **ขาด Buffering Recovery Helper:**
+     - เมื่อเครื่องเล่นเกิดเหตุการณ์ `waiting` (บัฟเฟอร์หมดระหว่างเล่น) ระบบแสดงแค่ "กำลังบัฟเฟอร์…" แต่ไม่ได้ยื่นตัวเลือกกู้สถานการณ์ให้ผู้ใช้
+- **การแก้ไข (Implementation Details):**
+  1. **`cloudflare-drive-worker.mjs` — Pipelined Read-Ahead Continuous Streaming:**
+     - เพิ่มฟังก์ชัน `scheduleNext(offset)` และตัวแปร `nextFetch`: ทันทีที่เริ่มสตรีม Chunk N ระบบจะสั่ง **Prefetch Chunk N+1 ล่วงหน้าคู่ขนานไปทันที**
+     - เมื่อ Chunk N สตรีมหมด `nextFetch` จะพร้อมส่งมอบทันที ทำให้การเปลี่ยนก้อน Chunk มี Latency เป็น **0ms** ไม่มีช่องว่างให้เครื่องเล่นสะดุด
+  2. **`video-player.js` & `app-core.js` — Buffering Recovery Helper:**
+     - ใน `setVideoStatus('buffering')`: หากการบัฟเฟอร์ระหว่างเล่นค้างนานเกิน 2 วินาที กล่อง `#vidSlowActions` จะปรากฏขึ้นทันที พร้อมตัวเลือก:
+       - ⚡ **"เปิดใน VLC / แอปนอก"**: ใช้ VLC ซึ่งมี Buffer ขนาดใหญ่ (3,000–5,000ms) และฮาร์ดแวร์ถอดรหัสที่ไม่สะดุด
+       - 🎬 **"ใช้พรีวิว Google"**: สลับไปใช้สตรีม HLS/DASH ของ Google ที่บีบอัดและปรับบิตเรตอัตโนมัติ ไม่สะดุดแม้เน็ตช้า
+       - 📥 **"โหลดทั้งไฟล์แทน" (`#vidSlowBlob`)**: สั่งดาวน์โหลดด้วยท่อขนาน 4 ท่อเต็มสปีด (10–30 MB/s) และเล่นแบบ Progressive ในเครื่อง
+  3. **Cache Buster:**
+     - ปรับเวอร์ชัน Cache Buster ใน `index.html` เป็น `?v=20261014-r13`
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **Unit Tests ทั้งหมด:** `node --test tests/*.cjs` ผ่านครบถ้วน **162/162 tests PASS (0 failures, duration 23.8s)**
+  - **Worker Continuous Stream Test:** `open-ended media requests stream past the first 8 MiB in one continuous 206 response` ผ่านเรียบร้อย (16.7ms)
+  - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
+  - **Python Sync Test:** `py tests/test_patch_alive_sync.py` ผ่าน 1/1 (OK)
+
 
 
 

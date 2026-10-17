@@ -105,7 +105,19 @@
         if (state === 'playing') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
         else if (state === 'error' || state === 'preview') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) { if (message) status.textContent = message; status.hidden = !message; } if (((state === 'error' && prev !== 'error') || (state === 'preview' && prev !== 'preview')) && help) help.open = true; }
         else if (state === 'closed') { vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; }
-        else { vidLoading.classList.add('show'); if (status) status.hidden = true; if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…'); }
+        else {
+          vidLoading.classList.add('show');
+          if (status) status.hidden = true;
+          if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…');
+          if (state === 'buffering' && typeof window !== 'undefined' && window.setTimeout) {
+            window.setTimeout(function () {
+              if (videoStatus === 'buffering') {
+                if (slowActions) slowActions.style.display = 'flex';
+                if (loadingText) loadingText.textContent = 'วิดีโอกำลังบัฟเฟอร์… หากเน็ตสะดุด แนะนำเปิดใน VLC หรือใช้พรีวิว Google';
+              }
+            }, 2000);
+          }
+        }
         return videoStatus;
       }
 

@@ -189,6 +189,16 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
   let currentEnd = firstEnd;
   let reader = current.body ? current.body.getReader() : null;
   let nextStart = firstEnd + 1n;
+  function scheduleNext(offset) {
+    if (offset >= total) return null;
+    const end = offset + BigInt(MEDIA_CHUNK_BYTES) - 1n < total - 1n ? offset + BigInt(MEDIA_CHUNK_BYTES) - 1n : total - 1n;
+    return (useParallel ? fetchParallelChunk(id, offset, end, signal, fetchImpl) : Promise.resolve(null))
+      .then(function (outcome) {
+        if (outcome && outcome.res) return outcome;
+        return fetchMediaChunk(id, 'bytes=' + offset + '-', signal, fetchImpl);
+      }).catch(function () { return null; });
+  }
+  let nextFetch = scheduleNext(nextStart);
   const stream = new ReadableStream({
     async pull(controller) {
       try {
@@ -200,13 +210,8 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
             reader = null;
           }
           if (nextStart >= total) { controller.close(); return; }
-          let outcome = null;
-          if (useParallel) {
-            outcome = await fetchParallelChunk(id, nextStart, nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n < total - 1n ? nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n : total - 1n, signal, fetchImpl);
-          }
-          if (!outcome || !outcome.res) {
-            outcome = await fetchMediaChunk(id, 'bytes=' + nextStart + '-', signal, fetchImpl);
-          }
+          const outcome = nextFetch ? await nextFetch : await scheduleNext(nextStart);
+          nextFetch = null;
           if (!outcome || !outcome.res || outcome.res.status !== 206) throw new Error('mediaContinuationFailed');
           const match = (outcome.res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
           if (!match || BigInt(match[1]) !== nextStart || BigInt(match[2]) < nextStart || BigInt(match[2]) >= total || (match[3] !== '*' && BigInt(match[3]) !== total)) {
@@ -217,6 +222,7 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
           currentEnd = BigInt(match[2]);
           reader = current.body ? current.body.getReader() : null;
           nextStart = currentEnd + 1n;
+          nextFetch = scheduleNext(nextStart);
           if (!reader) continue;
         }
       } catch (error) {
@@ -226,6 +232,7 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
     cancel() {
       if (abortController) abortController.abort();
       try { if (reader) reader.cancel().catch(() => {}); } catch (_) {}
+      try { if (nextFetch) nextFetch.then(function (o) { if (o && o.res && o.res.body) o.res.body.cancel().catch(function () {}); }); } catch (_) {}
     }
   });
   const headers = new Headers(cors);

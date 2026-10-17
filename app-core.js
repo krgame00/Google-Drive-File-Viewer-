@@ -1142,6 +1142,10 @@
       if (vidSlowPreviewBtn) vidSlowPreviewBtn.addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
       });
+      const vidSlowBlobBtn = document.getElementById('vidSlowBlob');
+      if (vidSlowBlobBtn) vidSlowBlobBtn.addEventListener('click', function () {
+        if (videoModal.classList.contains('show') && vidCurrentId) requestVideoBlob(vidCurrentId);
+      });
       const vidCopyDriveBtn = document.getElementById('vidCopyDrive');
       if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
         if (videoModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
