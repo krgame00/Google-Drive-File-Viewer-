@@ -5,10 +5,12 @@ function setup(){return setupApi();}
 function setupApi(){
   const els={},el=id=>els[id]||(els[id]={hidden:true,disabled:false,style:{},textContent:'',setAttribute(){},removeAttribute(){},load(){},pause(){}});
   const played=[];
+  const store={},toasts=[];
   const bridge={Blob,AbortController,videoStatus:'idle',currentVideoUrl:null,formatSize:bytes=>{const n=Number(bytes);if(!n||!Number.isFinite(n))return '';if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(1)+' GB';},videoBlobTransfer:null,mediaSession:1,vidCurrentId:'fileA',accessToken:'test',apiKey:'',previewAspect:null,fileMetaOf:()=>({size:0}),
     document:{getElementById:el},videoModal:{classList:{contains:()=>true}},vidPlayer:el('vidPlayer'),vidFrame:el('vidFrame'),
     authParams:()=>({mode:'bearer'}),cancelVideoAttempt(){},applyVideoAspect(){},revokeCurrentVideo(){},
     tryVideoSrc:url=>played.push(url),
+    lsGet:k=>(k in store?store[k]:null),lsSet:(k,v)=>{store[k]=String(v);},showToast:msg=>toasts.push(msg),
     URL:{createObjectURL:()=> 'blob:video',revokeObjectURL(){}},setVideoStatus:(state,message)=>{bridge.videoStatus=state;el('vidLoadingText').textContent=message||''},
     showStreamFailure:message=>{el('vidErrorStatus').textContent=message},describeCodecSupport:()=>'',deviceCodecSupport:()=>null};
   const api=loadVideoPlayerApi(bridge);
@@ -304,4 +306,43 @@ test('reaching the end of the initial prefix swaps in newly downloaded contiguou
   assert.equal(ctx.vidPlayer.currentTime,19.75,'resumes at exact timestamp where chunk 0 ended');
   releaseThird();
   await loadPromise;
+});
+
+test('download turbo mode enables 6 parallel connections for direct source and reports active worker pipes',async()=>{
+  const {ctx,api}=setupApi();
+  const size=60*1048576;
+  ctx.fileMetaOf=()=>({size});
+  let active=0,maxConcurrent=0,priorityHeader=null;
+  const progressCalls=[];
+  ctx.renderVideoBlobProgress=(loaded,total,pipes)=>{
+    progressCalls.push({loaded,total,pipes});
+  };
+  ctx.fetch=async(url,opts)=>{
+    const m=opts.headers.Range.match(/^bytes=(\d+)-(\d+)$/);
+    active++;
+    maxConcurrent=Math.max(maxConcurrent,active);
+    if(opts.priority) priorityHeader=opts.priority;
+    await new Promise(r=>setTimeout(r,5));
+    try{
+      return rangeResponse(Number(m[1]),Number(m[2]),size);
+    }finally{
+      active--;
+    }
+  };
+  assert.equal(api.isDownloadTurboEnabled(),true);
+  await ctx.loadVideoAsBlob('fileA');
+  assert.equal(maxConcurrent,6,'turbo mode connects across 6 parallel connections');
+  assert.equal(priorityHeader,'high','high fetch priority is requested');
+  assert.ok(progressCalls.some(p=>p.pipes===6||p.pipes===5||p.pipes===4),'active worker pipes reported to progress');
+});
+
+test('toggleDownloadTurbo persists preference in localStorage and toggles between turbo and standard',async()=>{
+  const {ctx,api}=setupApi();
+  assert.equal(api.isDownloadTurboEnabled(),true,'defaults to turbo enabled');
+  const next=api.toggleDownloadTurbo();
+  assert.equal(next,false);
+  assert.equal(api.isDownloadTurboEnabled(),false);
+  const next2=api.toggleDownloadTurbo();
+  assert.equal(next2,true);
+  assert.equal(api.isDownloadTurboEnabled(),true);
 });

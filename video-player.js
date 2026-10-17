@@ -806,6 +806,42 @@
         return isVideoMinimized() ? restoreVideo() : minimizeVideo();
       }
 
+      function isDownloadTurboEnabled() {
+        try {
+          const v = typeof lsGet === 'function' ? lsGet('gdv_download_turbo') : null;
+          return v === null ? true : (v === 'true' || v === '1');
+        } catch (_) { return true; }
+      }
+
+      function updateTurboUI() {
+        if (typeof document === 'undefined' || !document.getElementById) return;
+        const turbo = isDownloadTurboEnabled();
+        const btn = document.getElementById('vidTurboBlob');
+        if (btn) {
+          btn.textContent = turbo ? '⚡ สปีดสูงสุด (6 ท่อ)' : 'สปีดปกติ (4 ท่อ)';
+          if (typeof btn.setAttribute === 'function') {
+            btn.setAttribute('aria-pressed', turbo ? 'true' : 'false');
+            btn.setAttribute('title', turbo ? 'โหมดสปีดสูงสุด (6 ท่อขนานเต็มสูบ) — คลิกเพื่อสลับเป็น 4 ท่อ' : 'โหมดสปีดปกติ (4 ท่อขนาน) — คลิกเพื่อเร่งเป็นสปีดสูงสุด 6 ท่อ');
+          }
+        }
+      }
+
+      function setDownloadTurboEnabled(enabled) {
+        try {
+          if (typeof lsSet === 'function') lsSet('gdv_download_turbo', enabled ? 'true' : 'false');
+        } catch (_) {}
+        updateTurboUI();
+      }
+
+      function toggleDownloadTurbo() {
+        const next = !isDownloadTurboEnabled();
+        setDownloadTurboEnabled(next);
+        if (typeof showToast === 'function') {
+          showToast(next ? '⚡ เปิดโหมดสปีดสูงสุดแล้ว (ดาวน์โหลด 6 ท่อขนานเต็มสูบ)' : 'สลับกลับโหมดดาวน์โหลดปกติ (4 ท่อ)');
+        }
+        return next;
+      }
+
       function prepareStreamWorker() {
         if (!window.isSecureContext || !('serviceWorker' in navigator) || location.protocol === 'file:') return Promise.resolve(false);
         if (!streamWorkerReady) {
@@ -1058,7 +1094,7 @@
       }
 
       function readVideoBlobRanges(url, headers, size, signal, onProgress, onChunk, opts) {
-        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (ค่าเริ่ม: 4 คำขอ × 8 MiB; ปรับได้ผ่าน opts {chunk, limit, retries, onChunkReady})
+        // โหลดไฟล์เต็มด้วยหลายคำขอช่วงพร้อมกัน (ค่าเริ่ม: 4 คำขอ × 8 MiB; ปรับได้ผ่าน opts {chunk, limit, retries, onChunkReady, priority})
         // ไม่ส่ง onChunk: ประกอบเป็น Blob ในแรมตามลำดับเดิม  |  ส่ง onChunk(index, start, blob):
         // ส่งต่อทุกช่วงให้ผู้เรียก (เช่น เขียนลงดิสก์) แล้วคืนค่า content-type แทน Blob
         // โยน AbortError เมื่อผู้ใช้ยกเลิก ส่วนความล้มเหลวอื่นให้ผู้เรียกตกกลับไปโหลดเชื่อมต่อเดียว
@@ -1069,10 +1105,11 @@
         const parts = onChunk ? null : new Array(chunks);
         const loaded = new Array(chunks).fill(0);
         let type = '';
+        let activeWorkers = 0;
         const progress = function () {
           let sum = 0;
           for (let i = 0; i < chunks; i++) sum += loaded[i];
-          onProgress(Math.min(sum, size), size);
+          onProgress(Math.min(sum, size), size, activeWorkers);
         };
         // หน่วงก่อนรีไทร (สคริปต์ทดสอบไม่มี setTimeout จึงเดินต่อทันที)
         const pause = function (ms) {
@@ -1083,7 +1120,9 @@
         const fetchChunk = function (index, attempt) {
           const start = index * CHUNK;
           const end = Math.min(start + CHUNK, size) - 1;
-          return fetch(url, {headers: Object.assign({}, headers, {Range: 'bytes=' + start + '-' + end}), signal: signal}).then(function (res) {
+          const fetchOpts = {headers: Object.assign({}, headers, {Range: 'bytes=' + start + '-' + end}), signal: signal};
+          if (cfg.priority) fetchOpts.priority = cfg.priority;
+          return fetch(url, fetchOpts).then(function (res) {
             if (res.status !== 206) {
               if (res.body) Promise.resolve(res.body.cancel()).catch(function () {});
               const error = new Error('range-status-' + res.status);
@@ -1123,7 +1162,10 @@
           if (next >= chunks) return Promise.resolve();
           const index = next++;
           const start = index * CHUNK;
+          activeWorkers++;
+          progress();
           return fetchChunk(index, 0).then(function (blob) {
+            activeWorkers = Math.max(0, activeWorkers - 1);
             if (writeError) throw writeError;
             if (onChunkReady) {
               try { onChunkReady(index, start, blob, chunks, type || 'video/mp4'); } catch (_) {}
@@ -1137,13 +1179,19 @@
             });
             pendingWrites.push(p);
             return worker();
+          }).catch(function (err) {
+            activeWorkers = Math.max(0, activeWorkers - 1);
+            throw err;
           });
         };
         const pool = [];
         for (let i = 0; i < Math.min(LIMIT, chunks); i++) pool.push(worker());
         return Promise.all(pool).then(function () {
           return Promise.all(pendingWrites);
-        }).then(function () { return onChunk ? type : new Blob(parts, {type: type || 'application/octet-stream'}); });
+        }).then(function () {
+          onProgress(size, size, 0);
+          return onChunk ? type : new Blob(parts, {type: type || 'application/octet-stream'});
+        });
       }
 
       function openVideoTempWriter() {
@@ -1165,7 +1213,7 @@
         } catch (_) { return Promise.resolve(null); }
       }
 
-      function renderVideoBlobProgress(loaded, total) {
+      function renderVideoBlobProgress(loaded, total, pipes) {
         const percent = total > 0 ? Math.min(100, Math.floor(loaded / total * 100)) : null;
         const elapsed = videoBlobTransfer ? (Date.now() - videoBlobTransfer.startedAt) / 1000 : 0;
         const speed = elapsed >= 1 && loaded > 0 ? loaded / elapsed : 0;
@@ -1173,7 +1221,8 @@
         const eta = remaining > 0 ? ' · เหลือประมาณ ' + (remaining < 60 ? remaining + ' วินาที' : Math.ceil(remaining / 60) + ' นาที') : '';
         const watching = !!(videoBlobTransfer && videoBlobTransfer.previewStarted);
         const prefix = watching ? 'กำลังเล่นระหว่างโหลดทั้งไฟล์: ' : 'กำลังโหลดทั้งไฟล์: ';
-        const text = prefix + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + formatSize(speed) + '/s' : '') + eta;
+        const pipeText = pipes && pipes > 1 ? ' · ⚡ ' + pipes + ' ท่อขนาน' : '';
+        const text = prefix + (formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + formatSize(speed) + '/s' : '') + pipeText + eta;
         const label = document.getElementById('vidLoadingText');
         const bar = document.getElementById('vidProgressBar');
         if (label) label.textContent = text;
@@ -1207,9 +1256,11 @@
         }
         const cancel = document.getElementById('vidCancelBlob');
         const minBlob = document.getElementById('vidMinimizeBlob');
+        const turboBtn = document.getElementById('vidTurboBlob');
         const button = document.getElementById('vidBlob');
         if (cancel) cancel.hidden = true;
         if (minBlob) minBlob.hidden = true;
+        if (turboBtn) turboBtn.hidden = true;
         if (button) button.disabled = false;
         if (showMessage) setVideoStatus('error', 'ยกเลิกการโหลดแล้ว เลือกลองใหม่หรือใช้พรีวิว Google');
       }
@@ -1291,9 +1342,11 @@
         const btn = document.getElementById('vidBlob');
         const cancel = document.getElementById('vidCancelBlob');
         const minBlob = document.getElementById('vidMinimizeBlob');
+        const turboBtn = document.getElementById('vidTurboBlob');
         if (btn) btn.disabled = true;
         if (cancel) cancel.hidden = false;
         if (minBlob) minBlob.hidden = false;
+        if (turboBtn) { turboBtn.hidden = false; updateTurboUI(); }
         vidPlayer.pause(); vidPlayer.removeAttribute('src'); vidPlayer.load(); vidPlayer.style.display = 'none';
         vidFrame.src = 'about:blank'; vidFrame.style.display = 'none'; vidFrame.removeAttribute('data-video-preview');
         previewAspect = null; vidPlayer.playerAspect = null; applyVideoAspect();
@@ -1303,14 +1356,26 @@
         const directHeaders = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + accessToken } : {};
         const directRoute = auth.mode === 'bearer' ? 'bearer' : 'key';
         const directBlocked = typeof routeCooldown !== 'undefined' && routeCooldown && routeCooldown.blocked(id, accessToken ? 'signedin' : 'public', directRoute);
-        const directSource = {note: '', url: directUrl, headers: directHeaders};
-        const workerSource = {note: ' (ผ่านเซิร์ฟเวอร์สำรอง)', url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1', headers: {}, rangeOpts: {chunk: 4194304, limit: 6, retries: 3}};
+        const turbo = isDownloadTurboEnabled();
+        const directConcurrency = turbo ? 6 : 4;
+        const directSource = {
+          note: turbo ? ' (⚡ สปีดสูงสุด 6 ท่อ)' : '',
+          url: directUrl,
+          headers: directHeaders,
+          rangeOpts: {chunk: 8388608, limit: directConcurrency, retries: 2, priority: 'high'}
+        };
+        const workerSource = {
+          note: ' (ผ่านเซิร์ฟเวอร์สำรอง' + (turbo ? ' 6 ท่อ' : '') + ')',
+          url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1',
+          headers: {},
+          rangeOpts: {chunk: 4194304, limit: 6, retries: 3, priority: 'high'}
+        };
         // หากแหล่งตรงเพิ่งติดโควตา ให้ข้ามไปเริ่มดึงผ่าน Worker 6 ช่องขนานทันทีโดยไม่ต้องรอติด 403 ซ้ำ
         const sources = auth.mode === 'none' ? [workerSource] : (directBlocked ? [workerSource, directSource] : [directSource, workerSource]);
-        const progressBlob = function (loaded, total) {
+        const progressBlob = function (loaded, total, pipes) {
           transfer.lastLoaded = loaded;
           transfer.lastTotal = total;
-          if (active()) renderVideoBlobProgress(loaded, total);
+          if (active()) renderVideoBlobProgress(loaded, total, pipes);
         };
         const mountProgressiveSlice = function (sliceParts, sliceCount, mimeType, hasMoreGetter) {
           if (!active() || transfer.finished || sliceCount <= transfer.previewChunks) return;
@@ -1497,6 +1562,8 @@
             if (cancel) cancel.hidden = true;
             const minBlob = document.getElementById('vidMinimizeBlob');
             if (minBlob) minBlob.hidden = true;
+            const turboBtn = document.getElementById('vidTurboBlob');
+            if (turboBtn) turboBtn.hidden = true;
             if (btn) btn.disabled = false;
             revokeCurrentVideo();
             currentVideoUrl = nextUrl;
@@ -1519,6 +1586,8 @@
             if (cancel) cancel.hidden = true;
             const minBlob2 = document.getElementById('vidMinimizeBlob');
             if (minBlob2) minBlob2.hidden = true;
+            const turboBtn2 = document.getElementById('vidTurboBlob');
+            if (turboBtn2) turboBtn2.hidden = true;
             if (err && err.name === 'AbortError') { if (btn) btn.disabled = false; return; }
             setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')' + prior);
             if (btn) btn.disabled = false;
@@ -1915,6 +1984,10 @@
     minimizeVideo,
     restoreVideo,
     toggleMinimizeVideo,
+    isDownloadTurboEnabled,
+    updateTurboUI,
+    setDownloadTurboEnabled,
+    toggleDownloadTurbo,
     applyNativeVideoAspect,
     togglePlayerFullscreen,
     prepareStreamWorker,

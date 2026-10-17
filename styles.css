@@ -2151,8 +2151,8 @@
     }
     .video-footer { flex-shrink: 0; }
     .video-info { display: none; }
-    #vidCancelBlob { min-height: 44px; padding: 8px 16px; }
-    #vidCancelBlob[hidden] { display: none; }
+    #vidCancelBlob, #vidMinimizeBlob, #vidTurboBlob { min-height: 44px; padding: 8px 16px; }
+    #vidCancelBlob[hidden], #vidMinimizeBlob[hidden], #vidTurboBlob[hidden] { display: none; }
     .video-help { width: 100%; }
     .video-help summary { min-height: 44px; padding: 12px; cursor: pointer; color: var(--muted); font-size: 12px; }
     .video-help-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
@@ -2259,7 +2259,8 @@
     .video-modal.minimized #vidInfo,
     .video-modal.minimized #vidHelp,
     .video-modal.minimized #vidSlowActions,
-    .video-modal.minimized #vidMinimizeBlob {
+    .video-modal.minimized #vidMinimizeBlob,
+    .video-modal.minimized #vidTurboBlob {
       display: none !important;
     }
     .video-modal.minimized .video-toolbar {

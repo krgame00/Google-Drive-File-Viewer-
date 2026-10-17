@@ -1127,6 +1127,9 @@
       const minimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.minimizeVideo(...args) : undefined;
       const restoreVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.restoreVideo(...args) : undefined;
       const toggleMinimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleMinimizeVideo(...args) : undefined;
+      const isDownloadTurboEnabled = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.isDownloadTurboEnabled(...args) : true;
+      const setDownloadTurboEnabled = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.setDownloadTurboEnabled(...args) : undefined;
+      const toggleDownloadTurbo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleDownloadTurbo(...args) : undefined;
       document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
       const vidMinimizeBtn = document.getElementById('vidMinimize');
       if (vidMinimizeBtn) vidMinimizeBtn.addEventListener('click', function (e) {
@@ -1138,10 +1141,15 @@
         e.stopPropagation();
         minimizeVideo();
       });
+      const vidTurboBlobBtn = document.getElementById('vidTurboBlob');
+      if (vidTurboBlobBtn) vidTurboBlobBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleDownloadTurbo();
+      });
       const videoBoxEl = videoModal.querySelector('.video-box');
       if (videoBoxEl) videoBoxEl.addEventListener('click', function (e) {
         if (!videoModal.classList.contains('minimized')) return;
-        if (e.target && e.target.closest && e.target.closest('#vidClose, #vidCancelBlob, #vidMinimize, .lb-close, button')) return;
+        if (e.target && e.target.closest && e.target.closest('#vidClose, #vidCancelBlob, #vidMinimize, #vidTurboBlob, .lb-close, button')) return;
         restoreVideo();
       });
       const vidAspectToggleBtn = document.getElementById('vidAspectToggle');
