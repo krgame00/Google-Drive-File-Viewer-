@@ -144,4 +144,46 @@ assert(viewerJs.includes('randomBtn.addEventListener("click"'),'random button ha
 assert(viewerJs.includes('function collMatches('),'filter predicate extracted');
 assert(viewerJs.includes('function openCollectionItem('),'open flow extracted');
 assert(viewerJs.includes('gdv_coll_random_seen'),'random seen state is persisted to localStorage');
+
+// 4. Single-item pool: once seen, สุ่ม never re-opens the same item on the next click
+{
+  const s = createRandomEnv({}, [
+    { id: 'only', date: '1.8.69', dead: false, url: 'https://drive.google.com/drive/folders/only', title: 'ONLY' }
+  ]);
+  s.clickRandom();
+  assert.equal(s.opened.length, 1);
+  s.clickRandom();
+  s.clickRandom();
+  assert.equal(s.opened.length, 1, 'a single-item pool must not re-open the same item on every click');
+}
+
+// 5. Repeated wraps on a tiny pool never pick the item from the immediately previous click
+{
+  const s = createRandomEnv({}, [
+    { id: 'f1', date: '1.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f1', title: 'F1' },
+    { id: 'f2', date: '2.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f2', title: 'F2' }
+  ]);
+  let previous = null;
+  for(let i = 0; i < 10; i++){
+    s.clickRandom();
+    const current = s.opened[s.opened.length - 1];
+    assert.notEqual(current, previous, `click ${i + 1}: must never repeat the immediately previous pick`);
+    previous = current;
+  }
+}
+
+// 6. Desperation wrap prefers the least-recently-viewed item (manual views feed the recency rank)
+{
+  const s = createRandomEnv({}, [
+    { id: 'f1', date: '1.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f1', title: 'F1' },
+    { id: 'f2', date: '2.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f2', title: 'F2' },
+    { id: 'f3', date: '3.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f3', title: 'F3' }
+  ]);
+  s.env.openCollectionItem({ id: 'f3', title: 'F3' }); // viewed first (oldest)
+  s.env.openCollectionItem({ id: 'f2', title: 'F2' });
+  s.env.openCollectionItem({ id: 'f1', title: 'F1' }); // viewed last (newest)
+  s.clickRandom();
+  const pick = s.opened[s.opened.length - 1];
+  assert.equal(pick, 'f3', 'with every item already viewed, สุ่ม picks the least-recently-viewed item');
+}
 console.log('PASS collection random pick');

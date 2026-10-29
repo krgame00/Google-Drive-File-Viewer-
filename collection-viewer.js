@@ -581,7 +581,17 @@
         keepSet.forEach(function(id){ randomSeen.add(id); });
         unseen = fresh;
       } else {
-        unseen = candidates;
+        // ทางเลือกน้อยจนทับกันหมด: ห้ามสุ่มโป้งตัวล่าสุดทันที และเลือกจากครึ่งที่ไม่ได้ถูกสุ่มนานที่สุด
+        unseen = candidates.filter(function(c){ return c.id!==lastRandomId; });
+        if(unseen.length>1){
+          var rank=new Map(randomRecentIds.map(function(id,i){ return [id,i]; }));
+          var oldest=unseen.slice().sort(function(a,b){
+            var ra=rank.has(a.id)?rank.get(a.id):randomRecentIds.length;
+            var rb=rank.has(b.id)?rank.get(b.id):randomRecentIds.length;
+            return rb-ra;
+          }).slice(0, Math.max(1, Math.ceil(unseen.length/2)));
+          unseen = oldest;
+        }
       }
     }
     var pick = randomPick(unseen, avoidIds);
