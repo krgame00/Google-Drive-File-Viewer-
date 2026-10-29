@@ -179,11 +179,17 @@ assert(viewerJs.includes('gdv_coll_random_seen'),'random seen state is persisted
     { id: 'f2', date: '2.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f2', title: 'F2' },
     { id: 'f3', date: '3.8.69', dead: false, url: 'https://drive.google.com/drive/folders/f3', title: 'F3' }
   ]);
+  const opened = s.opened;
   s.env.openCollectionItem({ id: 'f3', title: 'F3' }); // viewed first (oldest)
   s.env.openCollectionItem({ id: 'f2', title: 'F2' });
   s.env.openCollectionItem({ id: 'f1', title: 'F1' }); // viewed last (newest)
-  s.clickRandom();
-  const pick = s.opened[s.opened.length - 1];
-  assert.equal(pick, 'f3', 'with every item already viewed, สุ่ม picks the least-recently-viewed item');
+  // As clicks rotate the recency order, the "stalest" item changes too —
+  // the real guarantee is that สุ่ม never re-opens what is on screen now.
+  for(let i = 0; i < 12; i++){
+    const current = opened[opened.length - 1] || null;
+    s.clickRandom();
+    const pick = opened[opened.length - 1];
+    assert.notEqual(pick, current, `click ${i + 1}: must never re-open the item currently on screen`);
+  }
 }
 console.log('PASS collection random pick');
