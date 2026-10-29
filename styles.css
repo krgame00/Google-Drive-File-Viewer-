@@ -2344,3 +2344,32 @@
       }
     }
 
+
+/* ===== Auto-next (playlist) strip — แถบเสนอตอนถัดไปเมื่อวิดีโอจบ ===== */
+.vid-nextup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(99, 102, 241, 0.16);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+.vid-nextup[hidden] { display: none; }
+.vid-nextup-label { color: #9ca3af; }
+.vid-nextup-name {
+  color: #e5e7eb;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 46%;
+}
+.vid-nextup-count {
+  color: #fbbf24;
+  font-weight: 700;
+  min-width: 2ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

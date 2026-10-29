@@ -192,6 +192,7 @@
       }
 
       function openVideo(id, name) {
+        hideNextUp();
         if (lightbox.classList.contains("show")) closeLightbox();
         if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
         if (videoModal && videoModal.classList && videoModal.classList.remove) videoModal.classList.remove('minimized');
@@ -1908,6 +1909,7 @@
       }
 
       function closeVideo() {
+        hideNextUp();
         if (document.fullscreenElement && videoModal.contains && videoModal.contains(document.fullscreenElement) && document.exitFullscreen) {
           Promise.resolve(document.exitFullscreen()).catch(function () {});
         }
@@ -1992,6 +1994,9 @@
     togglePlayerFullscreen,
     prepareStreamWorker,
     showStreamFailure,
+    nextVideoInList,
+    showNextUp,
+    hideNextUp,
     tryStreamDirect,
     probePublicStreamError,
     prioritizePlaybackSource,
@@ -2016,6 +2021,65 @@
     revokeCurrentVideo,
     closeVideo,
   };
+      // ===== Auto-next (playlist) — เมื่อวิดีโอในโฟลเดอร์เดียวกันเล่นจบ ให้เสนอตอนถัดไป =====
+      let nextUpTimer = null;
+      let nextUpTarget = null;
+      function nextVideoInList(list, currentId) {
+        if (!Array.isArray(list) || list.length < 2 || !currentId) return null;
+        const idx = list.findIndex(function (item) { return item && item.id === currentId; });
+        if (idx < 0) return null;
+        const next = list[(idx + 1) % list.length];
+        return next && next.id && next.id !== currentId ? next : null;
+      }
+      function hideNextUp() {
+        if (nextUpTimer) { clearInterval(nextUpTimer); nextUpTimer = null; }
+        nextUpTarget = null;
+        const strip = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidNextUp') : null;
+        if (strip) strip.hidden = true;
+      }
+      function showNextUp(next) {
+        if (!next || typeof document === 'undefined' || !document.getElementById) return;
+        hideNextUp();
+        nextUpTarget = next;
+        const strip = document.getElementById('vidNextUp');
+        const nameEl = document.getElementById('vidNextUpName');
+        const countEl = document.getElementById('vidNextUpCount');
+        if (!strip || !nameEl || !countEl) { nextUpTarget = null; return; }
+        nameEl.textContent = next.name || next.id;
+        nameEl.title = next.name || '';
+        strip.hidden = false;
+        let remain = 5;
+        countEl.textContent = String(remain);
+        nextUpTimer = setInterval(function () {
+          remain -= 1;
+          if (remain <= 0) { playNextUp(); return; }
+          countEl.textContent = String(remain);
+        }, 1000);
+      }
+      function playNextUp() {
+        const target = nextUpTarget;
+        hideNextUp();
+        if (target && typeof openVideo === 'function') openVideo(target.id, target.name);
+      }
+      if (typeof vidPlayer !== 'undefined' && vidPlayer && typeof vidPlayer.addEventListener === 'function') {
+        vidPlayer.addEventListener('ended', function () {
+          try {
+            // โหมด progressive download มี onended ของตัวเอง (รอ slice ถัดไป) — ไม่แทรก auto-next
+            if (typeof videoBlobTransfer !== 'undefined' && videoBlobTransfer) return;
+            if (!videoModal || !videoModal.classList || !videoModal.classList.contains('show')) return;
+            const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+            const list = api && typeof api.mediaList === 'function' ? api.mediaList('video') : [];
+            const next = nextVideoInList(list, vidCurrentId);
+            if (!next) { hideNextUp(); return; }
+            showNextUp(next);
+          } catch (_) {}
+        });
+        vidPlayer.addEventListener('play', function () { hideNextUp(); });
+        const nextUpPlayBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidNextUpPlay') : null;
+        const nextUpCancelBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidNextUpCancel') : null;
+        if (nextUpPlayBtn) nextUpPlayBtn.addEventListener('click', playNextUp);
+        if (nextUpCancelBtn) nextUpCancelBtn.addEventListener('click', hideNextUp);
+      }
   // In the browser, the main app skips this at startup (this module is not
   // loaded yet there); render after the API exists. CommonJS tests get the API
   // directly and do not run browser startup side effects.
