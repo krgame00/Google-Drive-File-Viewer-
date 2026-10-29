@@ -1329,6 +1329,109 @@
         return validatePersonalData(merged);
       }
 
+      // ===== ซิงก์ข้อมูลส่วนตัวข้ามเครื่อง (Google Drive appDataFolder) =====
+      // เก็บเป็นไฟล์ JSON ในพื้นที่ส่วนตัวของแอป (มองไม่เห็นใน Drive, ไม่นับโควตาที่ผู้ใช้เห็น)
+      // ผสานแบบ union ตาม id — ดูต่อ: เลือกตำแหน่งที่ดูไกลกว่า, ปกทำในเครื่องใดยังอยู่กับเครื่องนั้น
+      const PERSONAL_SYNC_NAME = "gdv-personal-sync.json";
+      let personalSyncFileId = lsGet("gdv_sync_file_id") || null;
+      let personalSyncPushTimer = null;
+      let personalSyncLastPushed = lsGet("gdv_sync_last_push") || "";
+      let personalSyncBusy = false;
+      let personalSyncLastError = "";
+      function personalSyncEnabled() { return !!accessToken; }
+      function personalSyncSnapshot() {
+        const data = readPersonalData();
+        return { format: "gdv-personal-sync", version: 1, updatedAt: Date.now(), favorites: data.favorites, watched: data.watched, continueWatching: data.continueWatching, watchLater: data.watchLater, hideCovers: data.hideCovers };
+      }
+      function mergePersonalSyncSnapshot(remote) {
+        const local = readPersonalData();
+        const keepFurthest = new Map();
+        local.continueWatching.concat(remote.continueWatching || []).forEach(item => {
+          const prev = keepFurthest.get(item.id);
+          if (!prev || (item.position || 0) > (prev.position || 0)) keepFurthest.set(item.id, item);
+        });
+        return mergePersonalData(local, {
+          format: "drive-viewer-personal", version: 1,
+          favorites: remote.favorites || [], watched: remote.watched || [],
+          continueWatching: Array.from(keepFurthest.values()),
+          watchLater: remote.watchLater || [], covers: [],
+          hideCovers: !!remote.hideCovers || local.hideCovers
+        });
+      }
+      async function personalSyncRemoteFileId() {
+        if (personalSyncFileId) return personalSyncFileId;
+        const url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=" + encodeURIComponent("name='" + PERSONAL_SYNC_NAME + "' and trashed=false") + "&fields=files(id)&pageSize=5";
+        const res = await fetch(url, { headers: { Authorization: "Bearer " + accessToken } });
+        if (!res.ok) throw new Error("syncListFailed");
+        const data = await res.json();
+        personalSyncFileId = (data.files && data.files[0] && data.files[0].id) || null;
+        if (personalSyncFileId) lsSet("gdv_sync_file_id", personalSyncFileId);
+        return personalSyncFileId;
+      }
+      async function pushPersonalSync(force) {
+        if (!personalSyncEnabled() || personalSyncBusy) return;
+        const snapshot = JSON.stringify(personalSyncSnapshot());
+        if (!force && snapshot === personalSyncLastPushed) return;
+        personalSyncBusy = true;
+        try {
+          let fileId = await personalSyncRemoteFileId();
+          if (!fileId) {
+            const create = await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder", {
+              method: "POST", headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" },
+              body: JSON.stringify({ name: PERSONAL_SYNC_NAME, mimeType: "application/json", parents: ["appDataFolder"] })
+            });
+            if (!create.ok) throw new Error("syncCreateFailed");
+            fileId = (await create.json()).id;
+            personalSyncFileId = fileId; lsSet("gdv_sync_file_id", fileId);
+          }
+          const upload = await fetch("https://www.googleapis.com/upload/drive/v3/files/" + encodeURIComponent(fileId) + "?uploadType=media", {
+            method: "PATCH", headers: { Authorization: "Bearer " + accessToken, "Content-Type": "application/json" }, body: snapshot
+          });
+          if (!upload.ok) throw new Error("syncPushFailed");
+          personalSyncLastPushed = snapshot; lsSet("gdv_sync_last_push", snapshot);
+          lsSet("gdv_sync_last", String(Date.now())); personalSyncLastError = "";
+        } catch (_) { personalSyncLastError = "push"; } finally { personalSyncBusy = false; renderPersonalSyncStatus(); }
+      }
+      function schedulePersonalSyncPush() {
+        if (!personalSyncEnabled()) return;
+        if (personalSyncPushTimer) clearTimeout(personalSyncPushTimer);
+        personalSyncPushTimer = setTimeout(function () { personalSyncPushTimer = null; pushPersonalSync(false).catch(function () {}); }, 4000);
+      }
+      async function pullPersonalSync() {
+        if (!personalSyncEnabled() || personalSyncBusy) return;
+        personalSyncBusy = true;
+        try {
+          const fileId = await personalSyncRemoteFileId();
+          if (!fileId) return;
+          const res = await fetch("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(fileId) + "?alt=media", { headers: { Authorization: "Bearer " + accessToken } });
+          if (!res.ok) throw new Error("syncPullFailed");
+          const remote = await res.json();
+          if (!remote || remote.format !== "gdv-personal-sync") return;
+          const before = JSON.stringify(readPersonalData());
+          applyPersonalData(mergePersonalSyncSnapshot(remote));
+          renderPersonalLibrary();
+          if (JSON.stringify(readPersonalData()) !== before) schedulePersonalSyncPush();
+          lsSet("gdv_sync_last", String(Date.now())); personalSyncLastError = "";
+        } catch (_) { personalSyncLastError = "pull"; } finally { personalSyncBusy = false; renderPersonalSyncStatus(); }
+      }
+      function renderPersonalSyncStatus() {
+        const el = typeof document !== 'undefined' && document.getElementById ? document.getElementById("gdvSyncStatus") : null;
+        if (!el) return;
+        if (!accessToken) { el.textContent = "ซิงก์ข้ามเครื่อง: ลงชื่อเข้าใช้ Google ก่อน"; return; }
+        const last = Number(lsGet("gdv_sync_last") || 0);
+        el.textContent = personalSyncLastError
+          ? "ซิงก์ข้ามเครื่องไม่สำเร็จ — กดซิงก์อีกครั้งเพื่อลองใหม่"
+          : last ? "ซิงก์ข้ามเครื่องล่าสุด: " + new Date(last).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })
+          : "ซิงก์ข้ามเครื่อง: พร้อมใช้ — กดซิงก์เพื่ออัปโหลดครั้งแรก";
+      }
+      let personalSyncPullAt = 0;
+      function schedulePersonalSyncPull() {
+        if (!personalSyncEnabled()) return;
+        if (Date.now() - personalSyncPullAt < 30000) return;
+        personalSyncPullAt = Date.now();
+        setTimeout(function () { pullPersonalSync().catch(function () {}); }, 1500);
+      }
+
       function applyPersonalData(input) {
         const data = validatePersonalData(input);
         const values = { gdv_favorites: data.favorites, gdv_watched: data.watched, gdv_continue: data.continueWatching, gdv_watch_later: data.watchLater, gdv_covers: data.covers, gdv_hide_covers: data.hideCovers };
@@ -1342,7 +1445,7 @@
       }
 
       function updatePersonalData(change) {
-        try { const data = readPersonalData(); change(data); applyPersonalData(data); return true; }
+        try { const data = readPersonalData(); change(data); applyPersonalData(data); schedulePersonalSyncPush(); return true; }
         catch (_) { alert("บันทึกไม่ได้ พื้นที่เก็บข้อมูลอาจเต็มหรือถูกปิดใช้งาน"); return false; }
       }
 
@@ -1453,6 +1556,9 @@
           if (!displayedFolderId) { status.textContent = "เปิดโฟลเดอร์ก่อนเปลี่ยนปก"; return; }
           if (updatePersonalData(state => { state.covers = state.covers.filter(x => x.id !== displayedFolderId); })) { refreshFolderCovers(); attachPersonalButtons(); status.textContent = "เปลี่ยนเป็นปกอัตโนมัติแล้ว"; }
         });
+        const syncStatus = document.createElement("p"); syncStatus.id = "gdvSyncStatus"; syncStatus.setAttribute("role", "status"); tools.appendChild(syncStatus);
+        makeButton("ซิงก์ข้ามเครื่องเดี๋ยวนี้", () => { pullPersonalSync().then(() => pushPersonalSync(true)).catch(function () {}); });
+        renderPersonalSyncStatus();
         const help = document.createElement("p"); help.textContent = "เลือกปกได้จากปุ่ม ใช้เป็นปกโฟลเดอร์ บนรูปภายในโฟลเดอร์ · ไฟล์สำรองไม่รวม API key หรือข้อมูลเข้าสู่ระบบ"; tools.appendChild(help);
       }
 
@@ -2258,7 +2364,7 @@
         // Live view of the main-app state owned by the index.html IIFE.
         // Getters/setters keep the video-player.js `with (appApi)` binding live.
         get accessToken() { return accessToken; },
-        set accessToken(value) { accessToken = value; },
+        set accessToken(value) { accessToken = value; if (value && typeof schedulePersonalSyncPull === "function") schedulePersonalSyncPull(); },
         get apiKey() { return apiKey; },
         set apiKey(value) { apiKey = value; },
         get tokenExpiry() { return tokenExpiry; },
@@ -2328,7 +2434,7 @@
         // The main IIFE owns the live state; drive-explorer.js owns the explorer functions.
         explorer: null,
         get accessToken() { return accessToken; },
-        set accessToken(value) { accessToken = value; },
+        set accessToken(value) { accessToken = value; if (value && typeof schedulePersonalSyncPull === "function") schedulePersonalSyncPull(); },
         get apiKey() { return apiKey; },
         set apiKey(value) { apiKey = value; },
         get clientId() { return clientId; },
