@@ -676,7 +676,7 @@
     while(true){
       let url="https://www.googleapis.com/drive/v3/files?q="+
         encodeURIComponent("'"+folderId+"' in parents and trashed=false and mimeType contains 'video/'")+
-        "&orderBy=name&pageSize=200&fields=files(id,name,mimeType,size,videoMediaMetadata(width,height)),nextPageToken";
+        "&orderBy=name&pageSize=200&fields=files(id,name,mimeType,size,thumbnailLink,videoMediaMetadata(width,height)),nextPageToken";
       if(pageToken) url+="&pageToken="+encodeURIComponent(pageToken);
       if(auth.mode==="key"&&appApi.apiKey) url+="&key="+encodeURIComponent(appApi.apiKey);
       const res=await fetch(url,{headers:auth.headers||{},signal:signal});
@@ -702,7 +702,11 @@
   function recoRenderPick(){
     if(!recoBody) return;
     const v=recoCurrent.video, c=recoCurrent.folder;
-    recoBody.innerHTML='<div class="reco-name">'+recoEsc(v.name)+'</div>'+
+    const thumb=v.thumbnailLink
+      ?'<div class="reco-media"><img class="reco-thumb" src="'+recoEsc(v.thumbnailLink)+'" alt="" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add(\'reco-media-empty\');this.remove();"></div>'
+      :'<div class="reco-media reco-media-empty"></div>';
+    recoBody.innerHTML=thumb+
+      '<div class="reco-name">'+recoEsc(v.name)+'</div>'+
       '<div class="reco-from">จากคลัง '+recoEsc(c.title||c.id)+'</div>';
     if(recoPlayBtn){ recoPlayBtn.hidden=false; recoPlayBtn.disabled=false; }
     if(recoRerollBtn) recoRerollBtn.disabled=false;

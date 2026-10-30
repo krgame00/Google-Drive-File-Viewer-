@@ -17,6 +17,7 @@ assert(viewerJs.indexOf('gdv_reco_seen')>=0&&viewerJs.indexOf('gdv_reco_recent')
 assert(viewerJs.indexOf('appApi.authParams()')>=0,'listing follows the shared auth route (token or key)');
 assert(viewerJs.indexOf('window.GDVVideoApi&&window.GDVVideoApi.video')>=0,'play-now opens via the video player bridge');
 assert(viewerJs.indexOf("mimeType contains 'video/'")>=0,'listing queries only video files');
+assert(/fields=files\([^)]*thumbnailLink/.test(viewerJs),'listing asks for thumbnails');
 
 // ===== pure helpers =====
 function extractFn(name){
@@ -144,13 +145,17 @@ function createRecoEnv(opts){
 
 (async ()=>{
 
-// 1. successful roll shows the pick; dead catalog entries are never listed
+// 1. successful roll shows the pick with its thumbnail; dead catalog entries are never listed
 {
-  const s=createRecoEnv({ filesByFolder:{ c1:[{id:'v1',name:'คลิปหนึ่ง'},{id:'v2',name:'คลิปสอง'}], c2:[{id:'v3',name:'คลิปสาม'}] } });
+  const s=createRecoEnv({ filesByFolder:{ c1:[{id:'v1',name:'คลิปหนึ่ง',thumbnailLink:'https://thumb.example/t1.jpg'},{id:'v2',name:'คลิปสอง',thumbnailLink:'https://thumb.example/t2.jpg'}], c2:[{id:'v3',name:'คลิปสาม'}] } });
   await s.clickReco();
   assert.equal(s.card.hidden,false,'roll opens the card');
   assert(s.body.innerHTML.includes('จากคลัง'),'card names the source collection');
   assert(recoName(s.body.innerHTML),'card shows the picked video name');
+  const hasThumb=s.body.innerHTML.includes('class="reco-thumb"');
+  const pickedT1=s.body.innerHTML.includes('thumb.example/t1.jpg');
+  const pickedT2=s.body.innerHTML.includes('thumb.example/t2.jpg');
+  assert(hasThumb?((pickedT1||pickedT2)&&!s.body.innerHTML.includes('t3')):'no img for a thumbnail-less pick','thumbnail matches the picked video or is omitted');
   assert.equal(s.urls.length,1,'a successful roll lists exactly one collection');
   assert(s.urls[0].includes('c1')||s.urls[0].includes('c2'),'listing targets an alive collection');
   assert(decodeURIComponent(s.urls[0]).includes("mimeType contains 'video/'"),'listing filters to videos');
