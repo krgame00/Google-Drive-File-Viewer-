@@ -67,6 +67,9 @@ assert(wrapped,'all-seen pool wraps around instead of failing');
 const wrapped2=recoPickVideo(vids,seenSet,['v1','v2','v3','v4'],null);
 assert(wrapped2,'recent-covered pool still offers something');
 assert(seenSet.size===0,'wrap-around clears the seen set so unseen-first restarts');
+const recentArr=['v1','v2','v3','v4'];
+recoPickVideo(vids,new Set(vids.map(v=>v.id)),recentArr,null);
+assert.equal(recentArr.length,0,'wrap-around also clears the recent list in place');
 for(let i=0;i<200;i++){
   const p=recoPickVideo([{id:'only'}],new Set(['only']),['only'],'only');
   assert.equal(p.id,'only','single seen video is still offered');
@@ -207,6 +210,37 @@ function createRecoEnv(opts){
   await s.clickReco();
   assert.equal(s.urls.length,0,'dead-only catalog never fetches');
   assert(s.body.innerHTML.includes('ลองกดเปลี่ยนอื่น')||s.body.innerHTML.includes('ไม่มีคลัง'),'dead-only catalog reports no openable collection');
+}
+
+// 7. auto-reset wipes stale recommendation memory on load
+{
+  const old=Date.now()-8*24*60*60*1000;
+  const s=createRecoEnv({ storage:{
+    gdv_reco_seen:JSON.stringify(['old1']),
+    gdv_reco_recent:JSON.stringify(['old1']),
+    gdv_reco_reset_at:String(old)
+  } });
+  assert.equal(s.store.gdv_reco_seen,'[]','stale seen set is wiped on load');
+  assert.equal(s.store.gdv_reco_recent,'[]','stale recent list is wiped on load');
+  assert(Number(s.store.gdv_reco_reset_at)>old,'reset timestamp is refreshed');
+}
+
+// 8. fresh memory survives the reset window
+{
+  const keep='["keep1"]';
+  const s=createRecoEnv({ storage:{
+    gdv_reco_seen:keep,
+    gdv_reco_recent:keep,
+    gdv_reco_reset_at:String(Date.now()-1000)
+  } });
+  assert.equal(s.store.gdv_reco_seen,keep,'recent memory is preserved within the window');
+  assert.equal(s.store.gdv_reco_recent,keep,'recent list is preserved within the window');
+}
+
+// 9. first-ever load plants the reset timer
+{
+  const s=createRecoEnv({});
+  assert(/\d{13,}/.test(s.store.gdv_reco_reset_at||''),'first load records the reset timestamp');
 }
 
 console.log('PASS recommend system');

@@ -617,6 +617,20 @@
   var recoRecentIds=(function(){ try{ var a=JSON.parse(appApi.lsGet(RECO_RECENT_LS)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } })();
   var recoSkipFolders=new Set(); // คลังที่ลิสต์แล้วไม่มีคลิป/ลิงก์ตาย — จำเฉพาะในแท็บนี้
   var recoCurrent=null, recoAbort=null;
+  var RECO_RESET_LS="gdv_reco_reset_at", RECO_RESET_MS=7*24*60*60*1000; // ลืมความจำการแนะนำเองทุก 7 วัน
+  var recoResetAt=Number(appApi.lsGet(RECO_RESET_LS))||0;
+
+  // รีระบบเอง: พ้นกำหนดแล้วล้าง seen/recent ให้เริ่มแนะนำใหม่สดๆ โดยไม่ต้องกดอะไร
+  function recoMaybeAutoReset(){
+    const now=Date.now();
+    if(recoResetAt&&now-recoResetAt<RECO_RESET_MS) return false;
+    recoSeen.clear(); recoRecentIds.length=0;
+    recoResetAt=now;
+    saveRecoState();
+    appApi.lsSet(RECO_RESET_LS,String(now));
+    return true;
+  }
+  recoMaybeAutoReset();
 
   function recoEsc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
 
@@ -650,7 +664,7 @@
     if(avoidId) avoid.add(avoidId);
     var unseen=videos.filter(function(v){ return !seen.has(v.id)&&!avoid.has(v.id); });
     if(!unseen.length) unseen=videos.filter(function(v){ return !avoid.has(v.id); });
-    if(!unseen.length){ seen.clear(); unseen=videos.filter(function(v){ return v.id!==avoidId; }); }
+    if(!unseen.length){ seen.clear(); if(recentIds) recentIds.length=0; unseen=videos.filter(function(v){ return v.id!==avoidId; }); }
     if(!unseen.length) unseen=videos.slice();
     return randomPick(unseen,null);
   }
