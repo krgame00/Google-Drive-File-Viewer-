@@ -604,6 +604,167 @@
     openRandomItem(pick);
   });
 
+  // ===== แนะนำให้ดู — สุ่มคลิปข้ามคลังจากแคตตาล็อกทั้งหมด (ปุ่มบนหัวเว็บ) =====
+
+  var recoBtn=document.getElementById("recoBtn");
+  var recoCard=document.getElementById("recoCard");
+  var recoBody=document.getElementById("recoBody");
+  var recoPlayBtn=document.getElementById("recoPlay");
+  var recoRerollBtn=document.getElementById("recoReroll");
+  var recoCloseBtn=document.getElementById("recoClose");
+  var RECO_SEEN_LS="gdv_reco_seen", RECO_RECENT_LS="gdv_reco_recent";
+  var recoSeen=new Set((function(){ try{ var a=JSON.parse(appApi.lsGet(RECO_SEEN_LS)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } })());
+  var recoRecentIds=(function(){ try{ var a=JSON.parse(appApi.lsGet(RECO_RECENT_LS)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } })();
+  var recoSkipFolders=new Set(); // คลังที่ลิสต์แล้วไม่มีคลิป/ลิงก์ตาย — จำเฉพาะในแท็บนี้
+  var recoCurrent=null, recoAbort=null;
+
+  function recoEsc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(ch){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]; }); }
+
+  function saveRecoState(){
+    appApi.lsSet(RECO_SEEN_LS, JSON.stringify(Array.from(recoSeen).slice(-400)));
+    appApi.lsSet(RECO_RECENT_LS, JSON.stringify(recoRecentIds.slice(0,50)));
+  }
+
+  function recoRememberVideo(id){
+    if(!id) return;
+    recoSeen.add(id);
+    recoRecentIds=[id].concat(recoRecentIds.filter(function(x){return x!==id;})).slice(0,50);
+    saveRecoState();
+  }
+
+  // pure: เลือกคลังจาก pool (alive แล้ว) — เลี่ยงโฟลเดอร์ที่ว่าง/พัง (skip) กับที่เพิ่งสุ่ม (avoid) ก่อน ค่อย fallback ตามลำดับ
+  function recoPickCollection(pool, skipIds, avoidIds){
+    if(!pool||!pool.length) return null;
+    var skip=new Set(skipIds||[]), avoid=new Set(avoidIds||[]);
+    var c=pool.filter(function(x){ return !skip.has(x.id)&&!avoid.has(x.id); });
+    if(!c.length) c=pool.filter(function(x){ return !skip.has(x.id); });
+    if(!c.length&&skip.size){ skip.clear(); c=pool.filter(function(x){ return !avoid.has(x.id); }); }
+    if(!c.length) c=pool.slice();
+    return randomPick(c,null);
+  }
+
+  // pure: เลือกคลิปจากโฟลเดอร์ — ยังไม่เคยแนะนำก่อน (unseen-first), เลี่ยงที่เพิ่งดูล่าสุด, ครบวงแล้วล้าง seen
+  function recoPickVideo(videos, seenSet, recentIds, avoidId){
+    if(!videos||!videos.length) return null;
+    var seen=seenSet||new Set(), avoid=new Set(recentIds||[]);
+    if(avoidId) avoid.add(avoidId);
+    var unseen=videos.filter(function(v){ return !seen.has(v.id)&&!avoid.has(v.id); });
+    if(!unseen.length) unseen=videos.filter(function(v){ return !avoid.has(v.id); });
+    if(!unseen.length){ seen.clear(); unseen=videos.filter(function(v){ return v.id!==avoidId; }); }
+    if(!unseen.length) unseen=videos.slice();
+    return randomPick(unseen,null);
+  }
+
+  async function recoListVideos(folderId, signal){
+    const auth=appApi.authParams();
+    if(auth.mode==="none"){ const e=new Error("ต้องลงชื่อเข้าใช้หรือใส่ API Key ก่อน"); e.kind="needauth"; throw e; }
+    let collected=[], pageToken=null;
+    while(true){
+      let url="https://www.googleapis.com/drive/v3/files?q="+
+        encodeURIComponent("'"+folderId+"' in parents and trashed=false and mimeType contains 'video/'")+
+        "&orderBy=name&pageSize=200&fields=files(id,name,mimeType,size,videoMediaMetadata(width,height)),nextPageToken";
+      if(pageToken) url+="&pageToken="+encodeURIComponent(pageToken);
+      if(auth.mode==="key"&&appApi.apiKey) url+="&key="+encodeURIComponent(appApi.apiKey);
+      const res=await fetch(url,{headers:auth.headers||{},signal:signal});
+      if(!res.ok){
+        const err=await res.json().catch(function(){ return {}; });
+        const failure=new Error((err.error&&err.error.message)||("HTTP "+res.status));
+        failure.status=res.status; throw failure;
+      }
+      const data=await res.json();
+      collected=collected.concat(data.files||[]);
+      pageToken=data.nextPageToken;
+      if(!pageToken) break;
+    }
+    return collected;
+  }
+
+  function recoRenderLoading(){
+    if(recoBody) recoBody.innerHTML='<div class="reco-loading">🎲 กำลังสุ่มหาคลิปที่น่าสนใจ…</div>';
+    if(recoPlayBtn){ recoPlayBtn.hidden=true; recoPlayBtn.disabled=true; }
+    if(recoRerollBtn) recoRerollBtn.disabled=true;
+  }
+
+  function recoRenderPick(){
+    if(!recoBody) return;
+    const v=recoCurrent.video, c=recoCurrent.folder;
+    recoBody.innerHTML='<div class="reco-name">'+recoEsc(v.name)+'</div>'+
+      '<div class="reco-from">จากคลัง '+recoEsc(c.title||c.id)+'</div>';
+    if(recoPlayBtn){ recoPlayBtn.hidden=false; recoPlayBtn.disabled=false; }
+    if(recoRerollBtn) recoRerollBtn.disabled=false;
+  }
+
+  function recoRenderFail(err){
+    if(!recoBody) return;
+    let msg;
+    if(err&&err.kind==="needauth") msg="ยังไม่ลงชื่อเข้าใช้และไม่มี API Key — เพิ่มอย่างใดอย่างหนึ่งก่อนถึงจะสุ่มแนะนำได้";
+    else if(err&&err.status===401) msg="เซสชันหมดอายุ — ลงชื่อเข้าใช้ใหม่แล้วลองอีกครั้ง";
+    else if(err&&err.status===403) msg="สิทธิ์/โควตา API ไม่พอสำหรับคลังนี้ — ลองกดเปลี่ยนอื่นอีกครั้ง";
+    else if(err&&err.status===404) msg="คลังในแคตตาล็อกถูกลบไปแล้ว — ลองกดเปลี่ยนอื่นอีกครั้ง";
+    else msg="สุ่มไม่สำเร็จ — ลองกดเปลี่ยนอื่นอีกครั้ง";
+    recoBody.innerHTML='<div class="reco-error">'+recoEsc(msg)+'</div>';
+    if(recoPlayBtn){ recoPlayBtn.hidden=true; recoPlayBtn.disabled=true; }
+    if(recoRerollBtn) recoRerollBtn.disabled=false;
+  }
+
+  async function recoRoll(){
+    if(!recoCard) return;
+    if(recoCurrent&&recoCurrent.video) recoRememberVideo(recoCurrent.video.id);
+    if(recoAbort) try{ recoAbort.abort(); }catch(_){}
+    const ctrl=(typeof AbortController!=="undefined")?new AbortController():null;
+    recoAbort=ctrl;
+    const signal=ctrl?ctrl.signal:undefined;
+    recoCard.hidden=false;
+    recoRenderLoading();
+    const pool=XBEP_COLLECTION.filter(function(c){ return !c.dead; });
+    const prevFolderId=recoCurrent?recoCurrent.folder.id:null;
+    const prevVideoId=recoCurrent&&recoCurrent.video?recoCurrent.video.id:null;
+    recoCurrent=null;
+    let lastErr=null;
+    for(let attempt=0;attempt<6;attempt++){
+      if(signal&&signal.aborted) return;
+      const coll=recoPickCollection(pool,recoSkipFolders,attempt===0?[prevFolderId]:[]);
+      if(!coll){ lastErr=new Error("ไม่มีคลังที่เปิดได้ในแคตตาล็อก"); break; }
+      try{
+        const videos=await recoListVideos(coll.id,signal);
+        if(signal&&signal.aborted) return;
+        if(!videos.length){ recoSkipFolders.add(coll.id); continue; }
+        const video=recoPickVideo(videos,recoSeen,recoRecentIds,prevVideoId);
+        if(!video){ recoSkipFolders.add(coll.id); continue; }
+        recoCurrent={video:video,folder:coll,list:videos};
+        recoRenderPick();
+        return;
+      }catch(e){
+        if(signal&&signal.aborted) return;
+        lastErr=e;
+        if(e.kind==="needauth"||e.status===401) break; // ปัญหาสิทธิ์รวม — ลองคลังอื่นก็เจอแบบเดิม
+        recoSkipFolders.add(coll.id);
+      }
+    }
+    recoRenderFail(lastErr);
+  }
+
+  function recoPlayCurrent(){
+    if(!recoCurrent||!recoCurrent.video) return;
+    recoRememberVideo(recoCurrent.video.id);
+    recoCard.hidden=true;
+    const api=window.GDVVideoApi&&window.GDVVideoApi.video;
+    if(api&&typeof api.openVideo==="function") api.openVideo(recoCurrent.video.id,recoCurrent.video.name);
+    else if(appApi.showToast) appApi.showToast("เปิดเครื่องเล่นไม่ได้ — ลองใหม่อีกครั้ง");
+  }
+
+  function recoHide(){
+    if(recoCard) recoCard.hidden=true;
+    if(recoAbort) try{ recoAbort.abort(); }catch(_){}
+  }
+
+  if(recoBtn) recoBtn.addEventListener("click", recoRoll);
+  if(recoRerollBtn) recoRerollBtn.addEventListener("click", recoRoll);
+  if(recoPlayBtn) recoPlayBtn.addEventListener("click", recoPlayCurrent);
+  if(recoCloseBtn) recoCloseBtn.addEventListener("click", recoHide);
+
+  // ===== Reco end =====
+
 
 
   

@@ -2379,3 +2379,50 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+/* ===== Reco (แนะนำให้ดู — สุ่มคลิปข้ามคลัง) ===== */
+.reco-card {
+  margin: -4px 0 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.reco-card[hidden] { display: none; }
+.reco-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.reco-title {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.reco-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.reco-close:hover { color: var(--text-strong); background: var(--surface-subtle); }
+.reco-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-strong);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.reco-from { font-size: 0.8rem; color: var(--muted); }
+.reco-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+.reco-loading { color: var(--muted); font-size: 0.9rem; }
+.reco-error { color: var(--badge-warn-text); font-size: 0.88rem; line-height: 1.5; }

@@ -32,7 +32,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261030-r1" />
+  <link rel="stylesheet" href="styles.css?v=20261030-r2" />
 
 </head>
 
@@ -73,6 +73,10 @@
             </div>
 
             <div style="display:inline-flex; align-items:center; gap:8px;">
+              <button type="button" id="recoBtn" class="btn-ghost btn-sm" title="สุ่มแนะนำคลิปจากทุกคลังในแคตตาล็อก" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+                <span>🎬</span>
+                <span>แนะนำให้ดู</span>
+              </button>
               <button type="button" id="myLibraryToggle" class="btn-ghost btn-sm" title="เปิดคลังของฉัน (ดูต่อ, ดูภายหลัง, รายการโปรด)" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px; position:relative;">
                 <span>⭐</span>
                 <span>คลังของฉัน</span>
@@ -89,6 +93,18 @@
           <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
 
         </header>
+
+        <div class="reco-card" id="recoCard" hidden>
+          <div class="reco-head">
+            <span class="reco-title">🎬 แนะนำให้ดู</span>
+            <button type="button" id="recoClose" class="reco-close" title="ปิดการ์ดแนะนำ" aria-label="ปิดการ์ดแนะนำ">×</button>
+          </div>
+          <div id="recoBody" aria-live="polite"></div>
+          <div class="reco-actions">
+            <button type="button" id="recoPlay" class="btn-primary" hidden>▶ ดูเลย</button>
+            <button type="button" id="recoReroll" class="btn-ghost btn-sm">⟳ เปลี่ยนอื่น</button>
+          </div>
+        </div>
 
 
 
@@ -483,7 +499,7 @@
   <script src="drive-explorer.js?v=20261014-r17"></script>
   <script src="media-lightbox.js?v=20261014-r17"></script>
   <script src="collections-data.js?v=20261014-r17" defer></script>
-  <script src="collection-viewer.js?v=20261014-r17" defer></script>
+  <script src="collection-viewer.js?v=20261030-r2" defer></script>
 
 </body>
 
