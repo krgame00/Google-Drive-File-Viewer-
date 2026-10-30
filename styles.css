@@ -207,6 +207,10 @@
 
     .logo svg { width: 28px; height: 28px; }
 
+    .logo strong { font-weight: 700; }
+
+    .logo-full { color: var(--muted); font-weight: 500; font-size: 0.9rem; border-left: 1px solid var(--border); padding-left: 10px; letter-spacing: 0; }
+
     header p {
 
       margin-top: 4px; color: var(--muted); font-size: 0.875rem;
@@ -1722,6 +1726,8 @@
           .card { padding: 16px; }
 
           .logo { font-size: 1.2rem; }
+
+          .logo-full { display: none; }
 
           header p { margin-left: 0; margin-top: 8px; }
 
