@@ -1490,7 +1490,7 @@
 
           open.innerHTML = `
             <div class="resume-thumb-box ${isVid ? 'is-video' : 'is-img'}${cachedThumb ? ' has-thumb' : ''}" aria-hidden="true">
-              <img class="resume-thumb-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
+              <img class="resume-thumb-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
               <span class="resume-play-glyph">${icon}</span>
             </div>
             <div class="resume-info">
