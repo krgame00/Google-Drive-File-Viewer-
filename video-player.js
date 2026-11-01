@@ -176,6 +176,7 @@
         vidPlayer.playbackRoute = null;
         vidPlayer.pause();
         vidPlayer.removeAttribute("src");
+        vidPlayer.removeAttribute('poster');
         vidPlayer.load();
         vidPlayer.style.display = "none";
         vidFrame.src = "about:blank";
@@ -189,6 +190,13 @@
         if (aspectBtn) aspectBtn.textContent = 'สลับแนว ↕↔';
         vidLoading.classList.remove("show");
         resetPdfViewer();
+      }
+
+      function cachedVideoThumb(id) {
+        if (typeof mediaThumbs !== 'undefined' && mediaThumbs && mediaThumbs[id]) return mediaThumbs[id];
+        try { const stored = lsGet('gdv_thumb_' + id); if (stored) return stored; } catch (_) {}
+        const meta = typeof fileMetaOf === 'function' ? fileMetaOf(id) : null;
+        return meta && meta.thumbnailLink ? meta.thumbnailLink : null;
       }
 
       function openVideo(id, name) {
@@ -230,6 +238,11 @@
               vidProgressBar.style.width = "0%";
 
               setVideoStatus("connecting", "กำลังเตรียมวิดีโอ…");
+
+              // โชว์เฟรมแรกจาก thumbnail ทันทีที่รู้จัก ระหว่างรอสตรีมจริง (กันจอดำ)
+              const openThumb = cachedVideoThumb(id);
+              if (openThumb) vidPlayer.poster = openThumb;
+              else vidPlayer.removeAttribute('poster');
 
               videoModal.classList.add("show");
               document.body.style.overflow = "hidden";
@@ -1395,6 +1408,7 @@
             try { URL.revokeObjectURL(prevUrl); } catch (_) {}
           }
           vidPlayer.removeAttribute('crossorigin');
+          vidPlayer.removeAttribute('poster');
           vidPlayer.style.display = 'block';
           if (transfer.lastLoaded > 0) renderVideoBlobProgress(transfer.lastLoaded, transfer.lastTotal);
           const advanceIfMore = function () {
@@ -1997,6 +2011,9 @@
     nextVideoInList,
     showNextUp,
     hideNextUp,
+    prefetchHeadFor,
+    prefetchNextUp,
+    cachedVideoThumb,
     tryStreamDirect,
     probePublicStreamError,
     prioritizePlaybackSource,
@@ -2041,6 +2058,7 @@
         if (!next || typeof document === 'undefined' || !document.getElementById) return;
         hideNextUp();
         nextUpTarget = next;
+        prefetchHeadFor(next);
         const strip = document.getElementById('vidNextUp');
         const nameEl = document.getElementById('vidNextUpName');
         const countEl = document.getElementById('vidNextUpCount');
@@ -2061,6 +2079,40 @@
         hideNextUp();
         if (target && typeof openVideo === 'function') openVideo(target.id, target.name);
       }
+      // ===== Prefetch หัวคลิปตอนถัดไป — ให้กด "ต่อไป" แล้วเริ่มเล่นทันที =====
+      // หน้าเว็บเป็นคนส่ง token ของไฟล์นั้นให้ SW เอง (ไฟล์เดียวจบ ไม่ครอบคลุมอย่างอื่น)
+      const prefetchedHeads = new Set();
+      function prefetchHeadFor(target) {
+        try {
+          if (!target || !target.id || prefetchedHeads.has(target.id)) return;
+          if (typeof accessToken === 'undefined' || !accessToken || !vidCurrentId) return;
+          if (typeof videoCacheLimit !== 'function' || videoCacheLimit() <= 0) return;
+          if (typeof videoCacheScope !== 'function' || !videoCacheScope()) return;
+          if (typeof navigator !== 'undefined' && navigator.connection && navigator.connection.saveData) return;
+          const worker = typeof navigator !== 'undefined' ? navigator.serviceWorker : null;
+          const controller = worker && worker.controller;
+          if (!controller || typeof controller.postMessage !== 'function') return;
+          const meta = typeof fileMetaOf === 'function' ? fileMetaOf(target.id) : null;
+          prefetchedHeads.add(target.id);
+          controller.postMessage({
+            type: 'drive-stream-prefetch',
+            id: target.id,
+            token: accessToken,
+            scope: videoCacheScope(),
+            size: meta && Number(meta.size) > 0 ? Number(meta.size) : 0,
+            modifiedTime: meta && meta.modifiedTime ? String(meta.modifiedTime) : '',
+            heads: true
+          });
+        } catch (_) {}
+      }
+      function prefetchNextUp() {
+        try {
+          const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+          const list = api && typeof api.mediaList === 'function' ? api.mediaList('video') : [];
+          const target = nextVideoInList(list, vidCurrentId);
+          if (target) prefetchHeadFor(target);
+        } catch (_) {}
+      }
       if (typeof vidPlayer !== 'undefined' && vidPlayer && typeof vidPlayer.addEventListener === 'function') {
         vidPlayer.addEventListener('ended', function () {
           try {
@@ -2074,7 +2126,12 @@
             showNextUp(next);
           } catch (_) {}
         });
-        vidPlayer.addEventListener('play', function () { hideNextUp(); });
+        vidPlayer.addEventListener('play', function () {
+          hideNextUp();
+          // เฟรมแรกขึ้นแล้ว — ไม่ต้องโชว์ poster อีก กันแฟลชตอนสลับ src
+          try { vidPlayer.removeAttribute('poster'); } catch (_) {}
+          prefetchNextUp();
+        });
         const nextUpPlayBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidNextUpPlay') : null;
         const nextUpCancelBtn = typeof document !== 'undefined' && document.getElementById ? document.getElementById('vidNextUpCancel') : null;
         if (nextUpPlayBtn) nextUpPlayBtn.addEventListener('click', playNextUp);

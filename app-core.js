@@ -1064,6 +1064,8 @@
       let videoBlobTransfer = null;
       const routeCooldown = window.GDVVideoCache ? window.GDVVideoCache.createRouteCooldown() : null;
       const videoCache = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({limit: videoCacheLimit}) : null;
+      // หัวคลิป (16 MiB แรกของคลิปที่สตรีม) SW เขียน/อ่านเอง — หน้าเว็บใช้แค่ดูสถิติกับล้าง
+      const headCacheAdmin = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({cacheName: 'gdv-video-heads-v1'}) : null;
       document.getElementById('videoCacheLimit').addEventListener('change', function (event) {
         lsSet('gdv_video_cache_gb', event.target.value);
         if (videoCache) videoCache.trim().then(refreshVideoCacheUI);
@@ -1072,7 +1074,10 @@
         const button = this;
         if (!videoCache) return;
         button.disabled = true;
-        videoCache.clear().then(function (cleared) { refreshVideoCacheUI(); showToast(cleared ? 'ล้างคลิปที่เก็บไว้แล้ว' : 'ล้างคลิปไม่สำเร็จ ลองอีกครั้ง'); }).finally(function () { button.disabled = false; });
+        Promise.all([videoCache.clear(), headCacheAdmin ? headCacheAdmin.clear() : Promise.resolve(false)]).then(function (results) {
+          refreshVideoCacheUI();
+          showToast(results[0] ? 'ล้างคลิปที่เก็บไว้แล้ว' : 'ล้างคลิปไม่สำเร็จ ลองอีกครั้ง');
+        }).finally(function () { button.disabled = false; });
       });
       refreshVideoCacheUI();
       function videoCacheLimit() {
@@ -1092,7 +1097,10 @@
         if (!select || !status) return;
         select.value = String(videoCacheLimit() / 1073741824);
         if (!videoCache || !videoCache.supported) { select.disabled = true; document.getElementById('clearVideoCache').disabled = true; status.textContent = 'เบราว์เซอร์นี้เก็บคลิปไว้เปิดซ้ำไม่ได้'; return; }
-        return videoCache.stats().then(function (stats) { status.textContent = stats.count + ' คลิป · ' + (formatSize(stats.bytes) || '0 B') + ' / ' + select.value + ' GB'; });
+        return Promise.all([videoCache.stats(), headCacheAdmin && headCacheAdmin.supported ? headCacheAdmin.stats() : Promise.resolve({bytes: 0, count: 0})]).then(function (results) {
+          const stats = results[0], heads = results[1];
+          status.textContent = stats.count + ' คลิป' + (heads.count ? ' + หัวคลิป ' + heads.count + ' ไฟล์' : '') + ' · ' + (formatSize(stats.bytes + heads.bytes) || '0 B') + ' / ' + select.value + ' GB';
+        });
       }
       const startVideoPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.startVideoPlayback(...args) : undefined;
       const playbackRouteRecords = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.playbackRouteRecords(...args) : undefined;
@@ -1252,7 +1260,18 @@
           if (!event.ports[0]) return;
           if (!event.data || event.data.type !== 'drive-stream-token') return;
           const allowed = event.data.id === vidCurrentId && videoModal.classList.contains('show') && Date.now() < tokenExpiry;
-          event.ports[0].postMessage({token: allowed ? accessToken : null});
+          // แนบ meta ของไฟล์ไปกับ token เพื่อให้ SW ตรวจความสดของ head cache ได้
+          let streamMeta = null;
+          if (allowed && vidCurrentId) {
+            try { streamMeta = fileMetaOf(vidCurrentId); } catch (_) { streamMeta = null; }
+          }
+          event.ports[0].postMessage({
+            token: allowed ? accessToken : null,
+            scope: allowed ? videoCacheScope() : null,
+            size: streamMeta && Number(streamMeta.size) > 0 ? Number(streamMeta.size) : 0,
+            modifiedTime: streamMeta && streamMeta.modifiedTime ? String(streamMeta.modifiedTime) : '',
+            heads: !!(allowed && videoCacheLimit() > 0 && videoCacheScope())
+          });
         });
       }
 

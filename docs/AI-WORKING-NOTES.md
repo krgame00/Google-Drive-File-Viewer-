@@ -965,6 +965,21 @@
   - **Image Viewer Tests:** `node --test tests/image-viewer.cjs` ผ่านครบถ้วน (79ms)
   - **Data Integrity:** `node tools/collection_data.js check` สองฝั่งตรงกันครบ **335 รายการ**
 
+### 42. เร่งความเร็วการโหลดวิดีโอรอบใหม่: Head-Start Cache, Prefetch ตอนถัดไป และ Poster Frame (`drive-stream-sw.js`, `app-core.js`, `video-player.js`, `index.html`) (`2026-11-02`)
+- **สถานะ:** `VERIFIED WORKING`
+- **โจทย์:** คลิปที่ "สตรีม" ไม่เคยถูกแคช (แคชเฉพาะไฟล์ที่กดโหลดทั้งไฟล์) ทำให้เปิดซ้ำช้าเท่าเดิมทุกครั้ง, ระบบ auto-next ไม่เคยดึงข้อมูลตอนถัดไปล่วงหน้า และผู้ใช้เห็นจอดำระหว่างเชื่อมต่อทั้งที่มี thumbnail แคชไว้
+- **การแก้ไข:**
+  1. **Head-start cache ใน `drive-stream-sw.js`:** เก็บชั้นข้อมูล 16 MiB แรกของทุกคลิปที่สตรีมไว้ใน Cache Storage `gdv-video-heads-v1` (กุญแจ `__video_head/<scope>/<id>` แบบเดียวกับ store ของ `video-cache.js` เพื่อให้หน้าเว็บอ่านสถิติ/ล้างได้) — เวลาสตรีม chunk แรกใช้ `body.tee()` แยกสายให้ผู้เล่นสายหนึ่ง อีกสาย drain เป็น Blob แล้ว `event.waitUntil()` เขียนลงแคช (LRU 512 MiB / 32 ไฟล์ / TTL 30 วัน) — ตอนเปิดซ้ำหรือ seek กลับช่วงต้นคลิป SW เสิร์ฟ 206 จาก blob slice พร้อม Content-Range จาก meta แล้วสั่ง read-ahead chunk ถัดไปทันที (ดึงโค้ด read-ahead เดิมออกเป็น `scheduleAheadChunk` ใช้ร่วมกัน)
+  2. **โปรโตคอล token reply ใหม่:** `requestToken` คืน object `{token, scope, size, modifiedTime, heads}` — หน้าเว็บ (`app-core.js`) แนบ meta จาก `fileMetaOf()` ไปด้วยเพื่อให้ SW ตรวจความสดของ head (size/modifiedTime ไม่ตรง → ลบทิ้งแล้วดึงจาก Drive ใหม่) และ `heads` เป็น consent ที่ผูกกับตั้งค่า budget (0 = ปิดหมด) — โปรโตคอลเก่า/ใหม่ผสมกันได้ทั้งสองทิศ (SW เก่าอ่านแค่ `.token`, หน้าเก่าไม่ส่ง field ใหม่ → head cache ไม่ทำงานแต่เล่นได้ปกติ)
+  3. **Prefetch ตอนถัดไป:** `prefetchHeadFor`/`prefetchNextUp` ใน `video-player.js` ส่ง message `{type:'drive-stream-prefetch', id, token, scope, size, modifiedTime}` ให้ SW (หน้าเว็บเป็นคนยื่น token ของไฟล์นั้นเอง) — SW ดึง `bytes=0-` แบบ parallel 4 ทาง + fallback เดี่ยว แล้วเขียนลง head cache — ผูกที่ event `play` และตอนโชว์ Next-Up พร้อม guard: มี token, budget > 0, ไม่ได้เปิด Data Saver (`navigator.connection.saveData`), มี scope, กันซ้ำด้วย Set ต่อ session + in-flight Map ใน SW
+  4. **Poster frame:** `openVideo` ตั้ง `vidPlayer.poster` จาก `mediaThumbs`/`localStorage gdv_thumb_<id>`/`fileMetaOf().thumbnailLink` แล้วลบตอน `resetMediaPlayback`, ตอน `play` ครั้งแรก และก่อนสลับ slice ใน `mountProgressiveSlice` (กันแฟลชระหว่าง progressive download)
+  5. **Preconnect:** เพิ่ม `<link rel="preconnect" href="https://www.googleapis.com" crossorigin>` ใน `index.html` ลด TCP+TLS รอบแรกของ fetch ใน SW (cold start)
+  6. **หน้าต่างตั้งค่า:** ปุ่ม "ล้างคลิปที่เก็บไว้" ล้าง `gdv-video-heads-v1` ด้วย และบรรทัดสถิติแสดงจำนวนหัวคลิปแยกหมวด (เช่น `3 คลิป + หัวคลิป 2 ไฟล์`)
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **เทสใหม่ `tests/head-cache.cjs` (10 เคส):** เขียน head ครั้งแรกแล้ว SW ใหม่เสิร์ฟจากดิสก์โดยไม่ยิง fetch อัปสตรีม, seek `bytes=5-` ได้ slice ถูกต้อง, invalidate เมื่อ size/modifiedTime ไม่ตรง, TTL หมดอายุ, `heads:false`/ไม่มี scope ไม่เขียนไม่เสิร์ฟ, token reply แบบเก่ายังเล่นได้, prefetch message สำเร็จ+กันซ้ำ (in-flight) และ message ไม่ครบเงื่อนไขถูกเมิน
+  - **เทส wiring `tests/video-head-prefetch.cjs`:** ตรวจ poster set/clear, guard ของ prefetch (saveData/budget/scope/dedup), การผูก `showNextUp`/`play`, token reply ฝั่ง `app-core.js`, ปุ่มล้างแคชคลุม head cache และ preconnect
+  - **Unit Tests ทั้งหมด:** `node --check` ผ่านทุกไฟล์ที่แก้ และ `node --test tests/*.cjs` ผ่านครบถ้วน **184/184 tests PASS (0 failures)** — อัปเดต `tests/stream-token.cjs` ให้ตรงโปรโตคอล reply แบบ object (รวมเคส legacy และ meta ครบ)
+
 
 
 
