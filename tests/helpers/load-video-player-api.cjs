@@ -10,7 +10,11 @@ const MODULE_PATH = require.resolve(path.join(__dirname, '..', '..', 'video-play
 function loadVideoPlayerApi(bridge = {}) {
   const previousWindow = global.window;
   const testWindow = bridge.window || {};
-  testWindow.GDVVideoApi = bridge;
+  // Bridge-first with globalThis fall-through: mirrors the old with(appApi)
+  // semantics, where a name the bridge did not provide resolved as a global.
+  testWindow.GDVVideoApi = new Proxy(bridge, {
+    get(target, key) { if (key in target) return target[key]; return globalThis[key]; }
+  });
   bridge.window = testWindow;
   try {
     global.window = testWindow;

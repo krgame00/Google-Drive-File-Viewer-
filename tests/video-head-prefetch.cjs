@@ -4,9 +4,9 @@ const appCoreJs=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 
 // Poster: the player shows the cached thumbnail while connecting, then drops it
-assert(playerJs.includes('vidPlayer.poster = openThumb'),'openVideo sets the poster from the cached thumbnail');
-assert(/vidPlayer\.removeAttribute\('poster'\);\r?\n        vidPlayer\.load\(\)/.test(playerJs),'resetMediaPlayback clears the poster');
-assert(/vidPlayer\.removeAttribute\('poster'\);\r?\n          vidPlayer\.style\.display = 'block'/.test(playerJs),'progressive slice swaps do not flash the poster');
+assert(playerJs.includes('app.vidPlayer.poster = openThumb'),'openVideo sets the poster from the cached thumbnail');
+assert(/app\.vidPlayer\.removeAttribute\('poster'\);\r?\n        app\.vidPlayer\.load\(\)/.test(playerJs),'resetMediaPlayback clears the poster');
+assert(/(?<![\w$.])vidPlayer\.removeAttribute\('poster'\);\r?\n          (?<![\w$.])vidPlayer\.style\.display = 'block'/.test(playerJs),'progressive slice swaps do not flash the poster');
 assert(playerJs.indexOf("removeAttribute('poster')")>=0,'poster cleanup exists');
 
 // Prefetch: the next episode head is fetched through the service worker
@@ -17,7 +17,7 @@ assert(playerJs.includes('videoCacheScope()'),'prefetch is account-scoped');
 assert(playerJs.includes('prefetchedHeads.has(target.id)'),'prefetch is deduplicated per session');
 assert(playerJs.includes('showNextUp(next)') && /showNextUp\(next\)\s*\{[\s\S]*?prefetchHeadFor\(next\)/.test(playerJs),'showing Next-Up prefetches that episode');
 assert(/addEventListener\('play', function \(\) \{[\s\S]*?prefetchNextUp\(\)/.test(playerJs),'starting playback prefetches the next episode');
-assert(playerJs.includes('nextVideoInList(list, vidCurrentId)'),'prefetch target follows the playlist order');
+assert(playerJs.includes('nextVideoInList(list, app.vidCurrentId)'),'prefetch target follows the playlist order');
 assert(/\r?\n    prefetchHeadFor,\r?\n/.test(playerJs)&&/\r?\n    prefetchNextUp,\r?\n/.test(playerJs)&&/\r?\n    cachedVideoThumb,\r?\n/.test(playerJs),'prefetch helpers are exported on the video API');
 
 // Token reply carries the head-cache metadata; the clear button covers both caches

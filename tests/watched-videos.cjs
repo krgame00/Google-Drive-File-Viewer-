@@ -32,9 +32,11 @@ const previousWindow = global.window;
 let player;
 try {
   global.window = { GDVVideoApi: bridge };
+  global.document = bridge.document;
   delete require.cache[playerModulePath];
   player = require(playerModulePath);
 } finally {
+  delete global.document;
   if (previousWindow === undefined) delete global.window;
   else global.window = previousWindow;
 }
@@ -50,11 +52,13 @@ data.set('gdv_watched', JSON.stringify(['ok', null, 3, '<bad>', 'ok']));
 assert.equal(player.loadWatchedVideos().length, 1);
 console.log('PASS watched persistence, reversible toggle and invalid storage');
 
+global.document = bridge.document;
 player.attachWatchedButtons();
 assert.equal(button['aria-pressed'], 'false');
 let stopped = false;
 button.click({ stopPropagation() { stopped = true; } });
 assert.equal(stopped, true);
 assert.equal(button['aria-pressed'], 'true');
+delete global.document;
 assert(player.loadWatchedVideos().includes('new-video'));
 console.log('PASS watched button updates accessibly without opening player');

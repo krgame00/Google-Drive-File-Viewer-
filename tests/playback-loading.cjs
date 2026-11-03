@@ -9,7 +9,7 @@ function setup(){const store=new Map(),els={};let now=100000;
  const ctx={Date:{now:()=>now},accessToken:'token',apiKey:'key',mediaSession:1,vidCurrentId:'A',videoBlobTransfer:null,vidPlayer:{paused:false,style:{display:'block'},src:'source'},
  videoModal:{classList:{contains:()=>true}},lsGet:k=>store.get(k)||null,lsSet:(k,v)=>store.set(k,v),document:{getElementById:el},
  fileMetaOf:()=>({size:'1073741824'}),window:{confirm:()=>false},loadVideoAsBlob:()=>{ctx.loads++},loads:0};
- vm.createContext(ctx);return {ctx,store,el,tick:n=>now+=n,run:n=>vm.runInContext(fn(n),ctx)};}
+ ctx.app=ctx;vm.createContext(ctx);return {ctx,store,el,tick:n=>now+=n,run:n=>vm.runInContext(fn(n),ctx)};}
 function setupApi(){const store=new Map(),els={};let now=100000;
  const el=id=>els[id]||(els[id]={textContent:'',style:{}});
  const bridge={Date:{now:()=>now},accessToken:'token',apiKey:'key',mediaSession:1,vidCurrentId:'A',videoBlobTransfer:null,

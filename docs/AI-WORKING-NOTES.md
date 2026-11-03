@@ -1004,12 +1004,12 @@
   3. เพิ่ม **`tests/next-up-wiring.cjs`** — behavior test ที่รัน wiring จริง: ยิง event `ended` บน fake player → การ์ดโชว์ + ชื่อตอนถัดไปถูกต้อง + grant ถูกโพสต์ไปที่ SW controller 1 ครั้ง + interval นับถอยหลังทำงาน; ยิง `play` → ยกเลิก + ซ่อน + เคลียร์ interval; ตรวจว่า app-core **ไม่มี** `addEventListener("ended"` อีกแล้ว (เทสนี้จะพังบนโค้ดก่อนแก้ — เป็น trap ของ BUG 2)
 - **หลักฐานการตรวจสอบ:** `node --check` ผ่าน, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures)**; ปรับ `tests/playlist-autonext.cjs` ให้ตัด slice ของ `nextVideoInList` ถูกบรรทัด (ฟังก์ชันย้ายเข้า with แล้วปิดด้วย 6-space)
 
-
-
-
-
-
-
-
-
+### 45. Slice 2a: แปลง video-player.js เป็น createVideoCenter(app) — เลิกใช้ with bridge ทั้งไฟล์, strict mode กลับมา (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (S2a จาก 6 slices ของ design docs/streaming-redesign.md)
+- **การแก้ไข:**
+  1. **โครงสร้างใหม่:** ครอบ body ทั้งไฟล์ด้วย `function createVideoCenter(app) { 'use strict'; ... }` — state ทุกตัวเข้าถึงผ่าน `app.<name>` แบบ explicit (584 จุด) ไม่มี bare identifier, ไม่มี with(appApi), ไม่มี DOM named access — คลาสบั๊ก dead-code (BUG 2) เกิดไม่ได้อีกเชิงโครงสร้าง; boot wrapper เผยแพร่ `window.GDVVideoApi.video` + alias `window.GDVVideo` และ export `createVideoCenter` สำหรับเทส
+  2. **Runner factories ย้ายไป top-level (non-strict):** createPublicStreamRunner/createVideoBlobRunner/createVideoSourceRunner คง bodies แบบ verbatim พร้อม with(deps) ตามเดิม แต่ scope เป็น Proxy แบบ live — deps (test stubs หรือ accessor bag) มาก่อน แล้ว fallbacks = module functions ทั้งหมด (76 ตัว) — คงสัญญา test-stub injection และ live-binding ครบ
+  3. **accessor bag เสริม:** เพิ่ม videoCacheLimit (แก้บั๊กชื่อโดน select element บัง — prefetch เคย return เงียบ ๆ), document, location, fetch, setTimeout, clearTimeout, navigator, window, Date, mediaThumbs, Image — เพื่อให้ชื่อที่เดิม with-fall-through ไป global/bridge ยังเข้าถึงได้ผ่าน app.* ทั้งเบราว์เซอร์และเทส
+  4. **เทส:** helpers/load-video-player-api ใช้ Proxy bridge-first + globalThis fall-through (เลียนแบบ with semantics); เทส vm-extraction (authenticated-stream, playback-loading, media-lifecycle, video-cache) ใส่ ctx.app=ctx; next-up-wiring ขยาย bridge (document/navigator); แก้ source-grep assertions ให้ตรงรูปแบบ app.*
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่าน, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures)**; busters: app-core r3 / video-player r2
 

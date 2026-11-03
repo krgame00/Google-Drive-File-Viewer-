@@ -21,6 +21,7 @@ const bridge = {
   lsSet: (key, value) => data.set(key, String(value)),
   lsRemove: key => data.delete(key),
   pruneVpos() {},
+  Date: Date,
   vidPlayer: { currentTime: 42, duration: 100, ended: false, style: { display: 'block' } },
   vidCurrentId: 'test-id',
   vidTitle: { textContent: 'Test video' }

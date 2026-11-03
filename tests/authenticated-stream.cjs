@@ -223,7 +223,7 @@ function playerSetup() {
     streamBlocked:()=>false,rememberStreamBlocked(){},clearStreamBlocked(){},
     showStreamFailure:message=>errors.push(message),
     tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
-  vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
+  ctx.app=ctx;vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
   return {ctx,sources,fallbacks,errors,ready:async(value)=>{ready(value);await Promise.resolve()}};
 }
 test('logged-in playback uses scoped local URL without exposing token',async()=>{

@@ -23,7 +23,7 @@ function player(){let streams=0;const played=[];const ctx={videoCache:{get:async
   } finally {
     if(priorWindow===undefined)delete global.window;else global.window=priorWindow;
   }
-  vm.createContext(ctx);
+  ctx.app=ctx;vm.createContext(ctx);
   vm.runInContext(fn('startVideoPlayback'),ctx);
   return {ctx,played,streams:()=>streams};
 }

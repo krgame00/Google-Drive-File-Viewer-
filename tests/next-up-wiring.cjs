@@ -26,6 +26,8 @@ test('firing ended shows the Next-Up strip and posts one prefetch grant', () => 
   const list = [{id: 'a', name: 'A'}, {id: 'b', name: 'B'}, {id: 'c', name: 'C'}];
   const bridge = {
     vidPlayer: player, videoModal: {classList: {contains: () => true}},
+    document: {getElementById: id => els[id] || null},
+    navigator: {serviceWorker: {controller: {postMessage(m) { posted.push(m); }}}},
     vidCurrentId: 'a', accessToken: 'tok',
     videoCacheLimit: () => 2147483648, videoCacheScope: () => 'public',
     fileMetaOf: () => ({size: 123, modifiedTime: '2026-01-01'}),
