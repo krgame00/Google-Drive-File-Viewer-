@@ -996,6 +996,14 @@
   - **เทสใหม่ `tests/head-cache-protocol.cjs` (7 เคส):** trap test ที่พังบนโค้ดเดิม — สตรีม → stats ผ่าน message → head **รอด**และยังเสิร์ฟได้โดยไม่ยิง upstream; ghost self-heal; at-touch LRU; heads-clear ลบทั้งแคช; `headCacheUrl` round-trip ตรงกับที่ SW เขียน; wire helpers (legacy token / probe attempt / grant); prefix-guard ของ browserStore (foreign entry ไม่ถูก validate และไม่ถูกกวาด)
   - **Unit Tests ทั้งหมด:** `node --check` ผ่านทุกไฟล์ที่แก้ และ `node --test tests/*.cjs` ผ่านครบถ้วน **191/191 tests PASS (0 failures)** — harnesses (authenticated-stream / stream-token / head-cache) เพิ่ม shim `importScripts` ให้โลก vm โหลด protocol ได้; อัปเดต `tests/video-head-prefetch.cjs` จาก grep headCacheAdmin → ตรวจว่าหน้าเว็บ**ไม่มี** handle ตรงของแคช SW อีกต่อไป
 
+### 44. ฟื้น BUG 2: ย้ายเซกชัน Next-Up/prefetch เข้าบล็อก `with` + ลบ immediate-advance listener ของ app-core (นโยบายเดียว: countdown-with-prefetch) (`2026-11-04`)
+- **สถานะ:** `VERIFIED WORKING` (ขั้นเล็กก่อน Slice 2a ของ design `docs/streaming-redesign.md`)
+- **การแก้ไข:**
+  1. ย้ายเซกชัน auto-next/Next-Up/prefetchHeadFor ทั้งก้อนจาก "หลัง export block (นอก `with`)" เข้ามา**ใน**บล็อก `with (appApi)` ของ video-player.js — bare identifier (`vidCurrentId`, `accessToken`, `videoCacheLimit` ฯลฯ) กลับมา resolve ผ่าน bridge ถูกต้อง → การ์ด Next-Up นับถอยหลัง 5 วิ + การส่ง `drive-stream-prefetch` ให้ SW ทำงานจริงในเบราว์เซอร์เป็นครั้งแรก
+  2. ลบ `ended`-listener แบบ immediate-advance ของ app-core.js (เปิดตอนถัดไปทันที ชนกับนโยบายของ player) — เหลือ listener `ended` เดียวในระบบ; side-effect ล้าง `gdv_vpos_<id>` ตอนเล่นจบถูกย้ายไปอยู่ใน ended-handler ของ player แทน
+  3. เพิ่ม **`tests/next-up-wiring.cjs`** — behavior test ที่รัน wiring จริง: ยิง event `ended` บน fake player → การ์ดโชว์ + ชื่อตอนถัดไปถูกต้อง + grant ถูกโพสต์ไปที่ SW controller 1 ครั้ง + interval นับถอยหลังทำงาน; ยิง `play` → ยกเลิก + ซ่อน + เคลียร์ interval; ตรวจว่า app-core **ไม่มี** `addEventListener("ended"` อีกแล้ว (เทสนี้จะพังบนโค้ดก่อนแก้ — เป็น trap ของ BUG 2)
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่าน, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures)**; ปรับ `tests/playlist-autonext.cjs` ให้ตัด slice ของ `nextVideoInList` ถูกบรรทัด (ฟังก์ชันย้ายเข้า with แล้วปิดด้วย 6-space)
+
 
 
 

@@ -1959,86 +1959,10 @@
 
       }
 
-  }
-
-  // Publish the extracted API back to the main app (bridge direction: module -> app).
-  appApi.video = {
-    startVideoPlayback,
-    playbackRouteRecords,
-    rememberPlaybackRoute,
-    preferredPlaybackRoute,
-    recordActivePlaybackRoute,
-    setVideoStatus,
-    handleDriveStreamError,
-    cancelVideoAttempt,
-    resetMediaPlayback,
-    openVideo,
-    streamBlocked,
-    rememberStreamBlocked,
-    clearStreamBlocked,
-    streamBlockVerdict,
-    shouldRememberStreamBlock,
-    deviceCodecSupport,
-    describeCodecSupport,
-    readMp4CodecInfo,
-    probeStreamEndpoint,
-    calculatePreviewLayout,
-    fitVideoPreview,
-    clampPreviewAspect,
-    loadCachedVideoAspect,
-    saveCachedVideoAspect,
-    applyPreviewAspect,
-    configurePreviewFullscreen,
-    lockHorizontalPlayerOrientation,
-    getPlayerAspect,
-    releasePlayerOrientation,
-    applyVideoAspect,
-    togglePreviewAspect,
-    openInExternalPlayer,
-    copyVideoToMyDrive,
-    isVideoMinimized,
-    minimizeVideo,
-    restoreVideo,
-    toggleMinimizeVideo,
-    isDownloadTurboEnabled,
-    updateTurboUI,
-    setDownloadTurboEnabled,
-    toggleDownloadTurbo,
-    applyNativeVideoAspect,
-    togglePlayerFullscreen,
-    prepareStreamWorker,
-    showStreamFailure,
-    nextVideoInList,
-    showNextUp,
-    hideNextUp,
-    prefetchHeadFor,
-    prefetchNextUp,
-    cachedVideoThumb,
-    tryStreamDirect,
-    probePublicStreamError,
-    prioritizePlaybackSource,
-    createPublicStreamRunner,
-    tryPublicStream,
-    readVideoBlobResponse,
-    readVideoBlobRanges,
-    openVideoTempWriter,
-    createVideoBlobRunner,
-    renderVideoBlobProgress,
-    cancelVideoBlobTransfer,
-    requestVideoBlob,
-    loadVideoAsBlob,
-    createVideoSourceRunner,
-    tryVideoSrc,
-    loadWatchedVideos,
-    toggleWatchedVideo,
-    attachWatchedButtons,
-    loadContinueWatching,
-    saveVideoPos,
-    renderContinueWatching,
-    revokeCurrentVideo,
-    closeVideo,
-  };
-      // ===== Auto-next (playlist) — เมื่อวิดีโอในโฟลเดอร์เดียวกันเล่นจบ ให้เสนอตอนถัดไป =====
+      // ===== Auto-next (playlist) — นโยบายเดียวของระบบ: เสนอตอนถัดไปแบบนับถอยหลัง 5 วิ
+      // (พร้อม prefetch หัวคลิปตอนถัดไป) ไม่มี immediate-advance อีกแล้ว — listener เดียว
+      // ที่ฟัง ended ต้องอยู่ "ใน" บล็อก with เสมอ ไม่เช่นนั้น bare identifier จะกลายเป็น
+      // ReferenceError ที่ถูก try/catch กลืน (บั๊ก dead-code ที่ตรวจพบในงาน architect)
       let nextUpTimer = null;
       let nextUpTarget = null;
       function nextVideoInList(list, currentId) {
@@ -2119,6 +2043,7 @@
             // โหมด progressive download มี onended ของตัวเอง (รอ slice ถัดไป) — ไม่แทรก auto-next
             if (typeof videoBlobTransfer !== 'undefined' && videoBlobTransfer) return;
             if (!videoModal || !videoModal.classList || !videoModal.classList.contains('show')) return;
+            try { lsRemove("gdv_vpos_" + vidCurrentId); } catch (_) {} // เล่นจบแล้ว — ล้างตำแหน่งค้าง (จาก ended-listener เดิมของ app-core)
             const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
             const list = api && typeof api.mediaList === 'function' ? api.mediaList('video') : [];
             const next = nextVideoInList(list, vidCurrentId);
@@ -2137,6 +2062,86 @@
         if (nextUpPlayBtn) nextUpPlayBtn.addEventListener('click', playNextUp);
         if (nextUpCancelBtn) nextUpCancelBtn.addEventListener('click', hideNextUp);
       }
+
+  }
+
+  // Publish the extracted API back to the main app (bridge direction: module -> app).
+  appApi.video = {
+    startVideoPlayback,
+    playbackRouteRecords,
+    rememberPlaybackRoute,
+    preferredPlaybackRoute,
+    recordActivePlaybackRoute,
+    setVideoStatus,
+    handleDriveStreamError,
+    cancelVideoAttempt,
+    resetMediaPlayback,
+    openVideo,
+    streamBlocked,
+    rememberStreamBlocked,
+    clearStreamBlocked,
+    streamBlockVerdict,
+    shouldRememberStreamBlock,
+    deviceCodecSupport,
+    describeCodecSupport,
+    readMp4CodecInfo,
+    probeStreamEndpoint,
+    calculatePreviewLayout,
+    fitVideoPreview,
+    clampPreviewAspect,
+    loadCachedVideoAspect,
+    saveCachedVideoAspect,
+    applyPreviewAspect,
+    configurePreviewFullscreen,
+    lockHorizontalPlayerOrientation,
+    getPlayerAspect,
+    releasePlayerOrientation,
+    applyVideoAspect,
+    togglePreviewAspect,
+    openInExternalPlayer,
+    copyVideoToMyDrive,
+    isVideoMinimized,
+    minimizeVideo,
+    restoreVideo,
+    toggleMinimizeVideo,
+    isDownloadTurboEnabled,
+    updateTurboUI,
+    setDownloadTurboEnabled,
+    toggleDownloadTurbo,
+    applyNativeVideoAspect,
+    togglePlayerFullscreen,
+    prepareStreamWorker,
+    showStreamFailure,
+    nextVideoInList,
+    showNextUp,
+    hideNextUp,
+    prefetchHeadFor,
+    prefetchNextUp,
+    cachedVideoThumb,
+    tryStreamDirect,
+    probePublicStreamError,
+    prioritizePlaybackSource,
+    createPublicStreamRunner,
+    tryPublicStream,
+    readVideoBlobResponse,
+    readVideoBlobRanges,
+    openVideoTempWriter,
+    createVideoBlobRunner,
+    renderVideoBlobProgress,
+    cancelVideoBlobTransfer,
+    requestVideoBlob,
+    loadVideoAsBlob,
+    createVideoSourceRunner,
+    tryVideoSrc,
+    loadWatchedVideos,
+    toggleWatchedVideo,
+    attachWatchedButtons,
+    loadContinueWatching,
+    saveVideoPos,
+    renderContinueWatching,
+    revokeCurrentVideo,
+    closeVideo,
+  };
   // In the browser, the main app skips this at startup (this module is not
   // loaded yet there); render after the API exists. CommonJS tests get the API
   // directly and do not run browser startup side effects.

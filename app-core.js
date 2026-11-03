@@ -1690,34 +1690,9 @@
               if (videoModal.classList.contains("show") && videoStatus !== 'error') setVideoStatus('buffering');
             });
 
-            // เมื่อเล่นจบ (ended) → เล่นวิดีโอถัดไปในโฟลเดอร์อัตโนมัติ
-
-            vidPlayer.addEventListener("ended", function () {
-
-              // ล้างตำแหน่งที่ค้าง (เล่นจบแล้ว)
-
-              lsRemove("gdv_vpos_" + vidCurrentId);
-
-              const list = mediaList("video");
-
-              if (list.length > 1) {
-
-                const cur = list.findIndex(function (item) { return item.id === vidCurrentId; });
-                if (cur < 0) return; // A resumed file may belong to another folder.
-
-                const next = list[(cur + 1) % list.length];
-
-                if (next && next.id !== vidCurrentId) {
-
-                  vidLoadingText.textContent = "กำลังเล่นถัดไป…";
-
-                  openVideo(next.id, next.name);
-
-                }
-
-              }
-
-            });
+            // เมื่อเล่นจบ (ended) → auto-advance มีเจ้าของเดียวคือ Next-Up countdown-with-prefetch
+            // ใน video-player.js (listener ตัวนี้ถูกถอดออก — นโยบาย immediate-advance เดิมเปิด
+            // ตอนถัดไปทันทีโดยไม่มีทางเลือก และเคยซ้ำซ้อนกับ listener ของ player)
 
 
 

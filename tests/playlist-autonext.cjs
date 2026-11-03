@@ -3,8 +3,9 @@ const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 const start=playerJs.indexOf('function nextVideoInList(');
 assert(start>=0,'nextVideoInList helper exists');
-const end=playerJs.indexOf('\n  }',start);
-const ctx={};vm.createContext(ctx);vm.runInContext(playerJs.slice(start,end+4),ctx);
+const brace=playerJs.indexOf('\n      }',start); // the helper lives inside the with-block now (6-space close)
+const end=playerJs.indexOf('\n',brace+1);
+const ctx={};vm.createContext(ctx);vm.runInContext(playerJs.slice(start,end),ctx);
 const next=ctx.nextVideoInList;
 const list=[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}];
 assert.equal(next(list,'a').id,'b','returns the following item in display order');
