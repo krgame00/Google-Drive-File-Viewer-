@@ -5,18 +5,23 @@
     if (!root.caches || !root.location || !/^https?:$/.test(root.location.protocol)) return null;
     const open = () => root.caches.open(name);
     const url = key => new URL('__video_cache/' + encodeURIComponent(key), root.location.href).href;
+    // This store only ever validates or sweeps entries under its own prefix.
+    // Foreign schemas sharing the cache name (e.g. the service worker's
+    // __video_head/ entries) are invisible here, so a stray createVideoCache
+    // aimed at another owner's cache cannot orphan-sweep its payloads.
+    const ownPrefix = new URL('__video_cache/', root.location.href).href;
     return {
       async list() {
         const cache = await open(), keys = await cache.keys(), records = [];
         for (const request of keys) {
-          if (!request.url.endsWith('/meta')) continue;
+          if (!request.url.startsWith(ownPrefix) || !request.url.endsWith('/meta')) continue;
           try { const res = await cache.match(request); const record = await res.json();
             if (record && typeof record.key === 'string' && Number.isFinite(record.size) && record.size > 0 && Number.isFinite(record.at)) records.push(record);
             else await cache.delete(request);
           } catch (_) { await cache.delete(request); }
         }
         const payloads = new Set(records.map(r => url(r.key)));
-        for (const request of keys) if (!request.url.endsWith('/meta') && !payloads.has(request.url)) await cache.delete(request);
+        for (const request of keys) if (request.url.startsWith(ownPrefix) && !request.url.endsWith('/meta') && !payloads.has(request.url)) await cache.delete(request);
         return records;
       },
       async get(key) {

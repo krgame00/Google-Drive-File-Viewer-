@@ -24,9 +24,10 @@ assert(/\r?\n    prefetchHeadFor,\r?\n/.test(playerJs)&&/\r?\n    prefetchNextUp
 assert(appCoreJs.includes('heads: !!(allowed && videoCacheLimit() > 0 && videoCacheScope())'),'token reply gates the head cache on the budget setting');
 assert(appCoreJs.includes("scope: allowed ? videoCacheScope() : null"),'token reply carries the cache scope');
 assert(appCoreJs.includes('modifiedTime: streamMeta && streamMeta.modifiedTime'),'token reply carries modifiedTime for staleness checks');
-assert(appCoreJs.includes("createVideoCache({cacheName: 'gdv-video-heads-v1'})"),'the head cache has a page-side admin handle');
-assert(appCoreJs.includes('headCacheAdmin ? headCacheAdmin.clear() : Promise.resolve(false)'),'the clear button deletes the head cache too');
-assert(appCoreJs.includes("heads.count ? ' + หัวคลิป ' + heads.count + ' ไฟล์'"),'cache stats include the head cache');
+assert(appCoreJs.includes('window.GDVStreamProtocol.headStatsRequest') && appCoreJs.includes('headStoreCall'),'head-cache stats go over the SW protocol messages');
+assert(appCoreJs.includes('Promise.all([videoCache.clear(), headCacheClear()])'),'the clear button clears heads via the protocol owner');
+assert(!appCoreJs.includes('headCacheAdmin'),'the page holds no direct handle on the SW head cache (BUG 1 class)');
+assert(appCoreJs.includes('heads.supported && heads.count'),'cache stats include the head cache only when the SW answers');
 
 // Preconnect: the bearer streaming origin is warmed before the first fetch
 assert(html.includes('<link rel="preconnect" href="https://www.googleapis.com" crossorigin />'),'googleapis preconnect exists');

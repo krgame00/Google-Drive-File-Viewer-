@@ -9,6 +9,7 @@ function setup({token='test-token',status=206,type='video/mp4',client=true,fetch
   // stays on the serial path and parallel tests opt in with sized bodies.
   const streamBody=s=>new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(s));c.close()}});
   const ctx={URL,Headers,Response,MessageChannel,AbortController,ReadableStream,setTimeout,clearTimeout,
+    importScripts(){ctx.GDVStreamProtocol=require('../stream-protocol.js');},
     self:{registration:{scope:'https://example.com/app/'},addEventListener(n,f){events[n]=f},
       clients:{get:async(id)=>client?theClient:null,matchAll:async()=>client?[theClient]:[]}},
     fetch:async(url,options)=>{calls.push({url,options});if(fetchFails)throw new Error('private diagnostic test-token');return new Response(streamBody('data'),{status,headers:{'Content-Type':type,'Content-Range':contentRange}})}};

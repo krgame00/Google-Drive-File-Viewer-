@@ -45,6 +45,7 @@ function setup({reply = null, cachesMock = null, fetchImpl = null} = {}) {
   };
   const cachesInstance = cachesMock || createCachesMock();
   const ctx = {URL, Headers, Response, Request, Blob, MessageChannel, AbortController, ReadableStream, setTimeout, clearTimeout,
+    importScripts() { ctx.GDVStreamProtocol = require('../stream-protocol.js'); },
     caches: cachesInstance,
     self: {registration: {scope: 'https://example.com/app/'}, addEventListener(n, f) { events[n] = f; },
       clients: {get: async id => theClient, matchAll: async () => [theClient]}}};

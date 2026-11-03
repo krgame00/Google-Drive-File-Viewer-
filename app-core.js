@@ -1064,8 +1064,47 @@
       let videoBlobTransfer = null;
       const routeCooldown = window.GDVVideoCache ? window.GDVVideoCache.createRouteCooldown() : null;
       const videoCache = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({limit: videoCacheLimit}) : null;
-      // หัวคลิป (16 MiB แรกของคลิปที่สตรีม) SW เขียน/อ่านเอง — หน้าเว็บใช้แค่ดูสถิติกับล้าง
-      const headCacheAdmin = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({cacheName: 'gdv-video-heads-v1'}) : null;
+      // หัวคลิป (16 MiB แรกของคลิปที่สตรีม) — SW เป็นผู้เขียนและผู้กวาดคนเดียว
+      // หน้าเว็บถามสถิติ/สั่งล้างผ่าน message เท่านั้น ห้าม enumerate แคชของ SW เอง
+      // (เดิม list() ของหน้ากวาด payload ของ SW ทิ้งทุกครั้งที่โหลดหน้า — head cache อยู่ไม่ข้ามรีเฟรช)
+      let headStatsSeq = 0;
+      function headStoreCall(buildMessage, parseReply) {
+        return new Promise(function (resolve) {
+          const sw = navigator.serviceWorker;
+          if (!window.GDVStreamProtocol || !sw || !sw.controller) return resolve(null);
+          const requestId = 'heads-' + Date.now() + '-' + (++headStatsSeq);
+          let channel;
+          const timer = setTimeout(function () { if (channel) channel.port1.onmessage = null; resolve(null); }, 3000);
+          try {
+            channel = new MessageChannel();
+            channel.port1.onmessage = function (event) {
+              const reply = parseReply(event.data, requestId);
+              if (!reply) return;
+              clearTimeout(timer);
+              channel.port1.onmessage = null;
+              resolve(reply);
+            };
+            sw.controller.postMessage(buildMessage(requestId), [channel.port2]);
+          } catch (_) { clearTimeout(timer); resolve(null); }
+        });
+      }
+      function headCacheStats() {
+        if (!window.GDVStreamProtocol) return Promise.resolve({supported: false, bytes: 0, count: 0});
+        return headStoreCall(window.GDVStreamProtocol.headStatsRequest, window.GDVStreamProtocol.parseHeadStatsReply)
+          .then(function (reply) { return reply && reply.supported ? {supported: true, bytes: reply.bytes, count: reply.count} : {supported: false, bytes: 0, count: 0}; })
+          .catch(function () { return {supported: false, bytes: 0, count: 0}; });
+      }
+      function headCacheClear() {
+        if (!window.GDVStreamProtocol) return Promise.resolve(false);
+        return headStoreCall(window.GDVStreamProtocol.headClearRequest, window.GDVStreamProtocol.parseHeadClearReply)
+          .then(function (reply) {
+            if (reply && reply.cleared) return true;
+            // ไม่มี controller (โหมด public) หรือ SW เก่าเกินไป — ลบทั้งแคชตามชื่อได้โดยไม่ต้อง enumerate
+            if (window.caches) { try { return caches.delete(window.GDVStreamProtocol.HEAD_CACHE_NAME); } catch (_) { return false; } }
+            return false;
+          })
+          .catch(function () { return false; });
+      }
       document.getElementById('videoCacheLimit').addEventListener('change', function (event) {
         lsSet('gdv_video_cache_gb', event.target.value);
         if (videoCache) videoCache.trim().then(refreshVideoCacheUI);
@@ -1074,7 +1113,7 @@
         const button = this;
         if (!videoCache) return;
         button.disabled = true;
-        Promise.all([videoCache.clear(), headCacheAdmin ? headCacheAdmin.clear() : Promise.resolve(false)]).then(function (results) {
+        Promise.all([videoCache.clear(), headCacheClear()]).then(function (results) {
           refreshVideoCacheUI();
           showToast(results[0] ? 'ล้างคลิปที่เก็บไว้แล้ว' : 'ล้างคลิปไม่สำเร็จ ลองอีกครั้ง');
         }).finally(function () { button.disabled = false; });
@@ -1097,9 +1136,9 @@
         if (!select || !status) return;
         select.value = String(videoCacheLimit() / 1073741824);
         if (!videoCache || !videoCache.supported) { select.disabled = true; document.getElementById('clearVideoCache').disabled = true; status.textContent = 'เบราว์เซอร์นี้เก็บคลิปไว้เปิดซ้ำไม่ได้'; return; }
-        return Promise.all([videoCache.stats(), headCacheAdmin && headCacheAdmin.supported ? headCacheAdmin.stats() : Promise.resolve({bytes: 0, count: 0})]).then(function (results) {
+        return Promise.all([videoCache.stats(), headCacheStats()]).then(function (results) {
           const stats = results[0], heads = results[1];
-          status.textContent = stats.count + ' คลิป' + (heads.count ? ' + หัวคลิป ' + heads.count + ' ไฟล์' : '') + ' · ' + (formatSize(stats.bytes + heads.bytes) || '0 B') + ' / ' + select.value + ' GB';
+          status.textContent = stats.count + ' คลิป' + (heads.supported && heads.count ? ' + หัวคลิป ' + heads.count + ' ไฟล์' : '') + ' · ' + (formatSize(stats.bytes + (heads.supported ? heads.bytes : 0)) || '0 B') + ' / ' + select.value + ' GB';
         });
       }
       const startVideoPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.startVideoPlayback(...args) : undefined;

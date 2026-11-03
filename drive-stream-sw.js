@@ -1,4 +1,9 @@
 // Only handles media requests. No offline cache and no persisted credentials.
+// The wire contract and the head-cache key derivation live in stream-protocol.js
+// (shared with the page); a failed import aborts the update so the old SW keeps
+// serving — version tolerance is fail-closed, never half-updated.
+if (typeof importScripts === 'function') importScripts('stream-protocol.js');
+if (typeof GDVStreamProtocol === 'undefined') throw new Error('drive-stream-sw requires stream-protocol.js');
 self.addEventListener('install', event => event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', event => {
@@ -96,23 +101,25 @@ async function fetchParallelChunk(id, start, end, token, signal) {
 }
 
 // Head-start cache: the opening chunk of each streamed file, so re-opens and
-// seeks back into the first seconds start from disk instead of Google. Keys
-// mirror the page-side video-cache store ('__video_head/<encoded key>') so its
-// stats/clear controls see this cache too.
-const HEAD_CACHE_NAME = 'gdv-video-heads-v1';
+// seeks back into the first seconds start from disk instead of Google. This
+// worker is the cache's SOLE writer AND sole sweeper — the page only asks via
+// protocol messages and never enumerates it, so no second key derivation exists
+// to drift (the head-payload-wipe bug class is unrepresentable by ownership).
 const HEAD_BUDGET_BYTES = 536870912;
 const HEAD_MAX_ENTRIES = 32;
 const HEAD_TTL_MS = 30 * 86400000;
-function headCacheUrl(scope, id) {
-  return new URL('__video_head/' + encodeURIComponent(JSON.stringify([scope, id])), self.registration.scope).href;
-}
 async function readHead(id, ctx) {
   try {
-    const cache = await caches.open(HEAD_CACHE_NAME);
-    const key = headCacheUrl(ctx.scope, id);
+    const cache = await caches.open(GDVStreamProtocol.HEAD_CACHE_NAME);
+    const key = GDVStreamProtocol.headCacheUrl(ctx.scope, id, self.registration.scope);
     const metaRes = await cache.match(key + '/meta');
     const payloadRes = await cache.match(key);
-    if (!metaRes || !payloadRes) return null;
+    if (!metaRes || !payloadRes) {
+      // Ghost self-heal: a meta without its payload counts in stats but serves
+      // nothing; delete the pair so stats stay truthful.
+      if (metaRes && !payloadRes) { await cache.delete(key); await cache.delete(key + '/meta'); }
+      return null;
+    }
     const record = await metaRes.json();
     const stale = !record || !Number.isFinite(record.size) || record.size <= 0
       || (Number(ctx.size) > 0 && String(record.total || '') !== String(ctx.size))
@@ -121,6 +128,12 @@ async function readHead(id, ctx) {
     if (stale) { await cache.delete(key); await cache.delete(key + '/meta'); return null; }
     const blob = await payloadRes.blob();
     if (!blob.size) { await cache.delete(key); await cache.delete(key + '/meta'); return null; }
+    // LRU by use: refresh the timestamp of records not touched for a minute so
+    // frequently served heads survive trim; recent ones skip the write.
+    if (Date.now() - Number(record.at) > 60000) {
+      record.at = Date.now();
+      await cache.put(key + '/meta', new Response(JSON.stringify(record), {headers: {'Content-Type': 'application/json'}}));
+    }
     return {blob: blob, total: String(record.total || ''), type: String(record.type || '')};
   } catch (_) { return null; }
 }
@@ -128,9 +141,9 @@ async function writeHead(id, ctx, bodySource, info) {
   try {
     const blob = bodySource instanceof Blob ? bodySource : await new Response(bodySource).blob();
     if (!blob.size) return false;
-    const cache = await caches.open(HEAD_CACHE_NAME);
-    const key = headCacheUrl(ctx.scope, id);
-    const meta = {key: JSON.stringify([ctx.scope, id]), size: blob.size, modifiedTime: ctx.modifiedTime || '', total: String(info.total || ''), type: String(info.type || ''), at: Date.now()};
+    const cache = await caches.open(GDVStreamProtocol.HEAD_CACHE_NAME);
+    const key = GDVStreamProtocol.headCacheUrl(ctx.scope, id, self.registration.scope);
+    const meta = {key: GDVStreamProtocol.headCacheKey(ctx.scope, id), size: blob.size, modifiedTime: ctx.modifiedTime || '', total: String(info.total || ''), type: String(info.type || ''), at: Date.now()};
     await cache.put(key, new Response(blob));
     await cache.put(key + '/meta', new Response(JSON.stringify(meta), {headers: {'Content-Type': 'application/json'}}));
     await trimHeads(cache);
@@ -399,14 +412,54 @@ async function streamFile(event, id, attempt) {
 // The page can grant a one-file prefetch (its own token, its own scope) so the
 // opening chunk of the next episode is already on disk before playback starts.
 const prefetchInFlight = new Set();
+// Head-cache stats for the settings card: the SW is the sole sweeper, so stats
+// double as a ghost-meta cleanup. Payload URLs derive by stripping '/meta' from
+// the meta URL itself — no second key derivation.
+async function headStoreStats() {
+  try {
+    const cache = await caches.open(GDVStreamProtocol.HEAD_CACHE_NAME);
+    const keys = await cache.keys();
+    let bytes = 0, count = 0;
+    for (const request of keys) {
+      if (!request.url.endsWith('/meta')) continue;
+      try {
+        const record = await (await cache.match(request)).json();
+        if (!record || !Number.isFinite(record.size) || record.size <= 0) continue;
+        const payload = await cache.match(request.url.slice(0, -'/meta'.length));
+        if (!payload) { await cache.delete(request); continue; }
+        bytes += record.size;
+        count++;
+      } catch (_) { await cache.delete(request); }
+    }
+    return {bytes: bytes, count: count};
+  } catch (_) { return null; }
+}
 self.addEventListener('message', event => {
   const data = event.data;
-  if (!data || data.type !== 'drive-stream-prefetch') return;
+  if (!data) return;
+  const port = event.ports && event.ports[0];
+  // Settings-card admin: the page asks; the worker answers and cleans up.
+  if (data.type === 'drive-stream-head-stats' || data.type === 'drive-stream-heads-clear') {
+    const requestId = typeof data.requestId === 'string' || typeof data.requestId === 'number' ? data.requestId : '';
+    if (!requestId) return;
+    const job = (async () => {
+      if (data.type === 'drive-stream-head-stats') {
+        const stats = await headStoreStats();
+        return stats ? GDVStreamProtocol.headStatsResult(requestId, stats.bytes, stats.count) : GDVStreamProtocol.headStatsResult(requestId, 0, 0);
+      }
+      let cleared = false;
+      try { cleared = await caches.delete(GDVStreamProtocol.HEAD_CACHE_NAME); } catch (_) { cleared = false; }
+      return GDVStreamProtocol.headClearResult(requestId, cleared);
+    })();
+    if (event.waitUntil) event.waitUntil(job.catch(() => {}));
+    if (port) job.then(reply => { try { port.postMessage(reply); } catch (_) {} }).catch(() => {});
+    return;
+  }
+  if (data.type !== 'drive-stream-prefetch') return;
   const id = typeof data.id === 'string' ? data.id : '';
   const token = typeof data.token === 'string' ? data.token : '';
   const scope = typeof data.scope === 'string' && data.scope.length <= 200 ? data.scope : '';
   if (!id || !/^[\w-]{1,200}$/.test(id) || !token || !scope || data.heads !== true) return;
-  const port = event.ports && event.ports[0];
   if (prefetchInFlight.has(id)) {
     if (port) try { port.postMessage({type: 'drive-stream-prefetch-result', ok: false, reason: 'inflight'}); } catch (_) {}
     return;

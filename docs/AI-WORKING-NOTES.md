@@ -980,6 +980,22 @@
   - **เทส wiring `tests/video-head-prefetch.cjs`:** ตรวจ poster set/clear, guard ของ prefetch (saveData/budget/scope/dedup), การผูก `showNextUp`/`play`, token reply ฝั่ง `app-core.js`, ปุ่มล้างแคชคลุม head cache และ preconnect
   - **Unit Tests ทั้งหมด:** `node --check` ผ่านทุกไฟล์ที่แก้ และ `node --test tests/*.cjs` ผ่านครบถ้วน **184/184 tests PASS (0 failures)** — อัปเดต `tests/stream-token.cjs` ให้ตรงโปรโตคอล reply แบบ object (รวมเคส legacy และ meta ครบ)
 
+### 43. รีดีไซน์สถาปัตยกรรมระบบสตรีมวิดีโอ (pstack-architect): Host–Center + stream-protocol.js — Slice 1 แก้ BUG หัวคลิปถูกลบ /Poteto Mode (`2026-11-04`)
+- **สถานะ:** `VERIFIED WORKING` (Slice 1 จาก 6 slices; design ฉบับเต็มอยู่ที่ `docs/streaming-redesign.md`)
+- **กระบวนการ:** ground ด้วย how-skill (4 explorers + 1 explainer ตรวจซ้ำใน source) → arena 2 candidates → cross-judge ให้คะแนน 30–28 เลือก **Host–Center** (`createVideoCenter(host)` + `window.GDVVideoHost` + `stream-protocol.js`) พร้อม graft 4 จาก candidate ที่แพ้
+- **บั๊กที่ ground ค้นพบ (ยืนยันข้าม agent):**
+  1. **BUG 1 (แก้แล้วใน slice นี้):** `headCacheAdmin` ของหน้าเว็บ re-derive URL ด้วย prefix `__video_cache/` ที่ไม่ตรงกับ `__video_head/` ของ SW แล้ว `browserStore.list()` กวาด "orphan" ทิ้ง — `refreshVideoCacheUI()` รันตอนโหลดหน้าทุกครั้ง (app-core.js:1082) → **payload หัวคลิปถูกลบทุกรีเฟรช** แต่ meta ค้างเป็นภูต (สถิติดูถูกต้อง)
+  2. **BUG 2 (รอ slice 2–4):** เซกชัน Next-Up/prefetch (video-player.js:2041–2139) อยู่นอกบล็อก `with (appApi)` → dead code ทั้งชุดในเบราว์เซอร์ (bare identifier → ReferenceError ถูก try/catch กลืน; `videoCacheLimit` โดน DOM id บัง) — ถูกซ่อนโดย ended-listener เก่าของ app-core
+- **การแก้ไข Slice 1:**
+  1. **`stream-protocol.js` ใหม่** — สัญญา page↔SW จุดเดียว: HEAD_CACHE_NAME, PROBE_ATTEMPT, isFileId, `headCacheKey/headCacheUrl` (derivation เดียวในจักรวาล), normalizeTokenReply, streamError/parseStreamError, prefetchGrant/parsePrefetchGrant/prefetchResult, และ message ใหม่ `drive-stream-head-stats` / `drive-stream-heads-clear` (+ result) — เผยแพร่ 3 ทาง: `window.GDVStreamProtocol` (หน้าเว็บ) / `self.GDVStreamProtocol` (SW importScripts) / CommonJS (เทส); SW import ล้มเหลว = อัปเดต abort → SW เก่าเล่นต่อ (fail-closed)
+  2. **`drive-stream-sw.js`** — importScripts protocol, ใช้ derivation จาก protocol เท่านั้น, เพิ่ม handler สถิติ/ล้าง (SW เป็น**ผู้เขียนและผู้กวาดคนเดียว**ของแคช), `readHead` เพิ่ม ghost self-heal (meta ไม่มี payload → ลบคู่กัน) และ at-touch LRU (อ่านแล้วรีเฟรช at ถ้าเก่ากว่า 1 นาที → LRU ตามการใช้ ไม่ใช่เวลาเขียน)
+  3. **`app-core.js`** — ลบ `headCacheAdmin` (handle ที่เคยกวาด payload) ทิ้ง; สถิติ/ล้าง head ไปทาง message ผ่าน MessageChannel + requestId + timeout 3s; ไม่มี SW controller → `{supported:false}` (บรรทัดสถิติตัดส่วนหัวคลิปออกเมื่อไม่มีคนตอบ); ปุ่มล้าง fallback `caches.delete(HEAD_CACHE_NAME)` ตามชื่อ (ไม่ enumerate)
+  4. **`video-cache.js`** — prefix-guard ใน `browserStore.list()`: validate/กวาดเฉพาะ entry ใต้ `__video_cache/` ของตัวเอง (แคชแปลกปลอมมองไม่เห็น แก้ที่ราก ไม่ใช่แค่ปะ prefix)
+  5. `index.html` — เพิ่ม `<script src="stream-protocol.js?v=20261104-r1">` ก่อน app-core + bump busters
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - **เทสใหม่ `tests/head-cache-protocol.cjs` (7 เคส):** trap test ที่พังบนโค้ดเดิม — สตรีม → stats ผ่าน message → head **รอด**และยังเสิร์ฟได้โดยไม่ยิง upstream; ghost self-heal; at-touch LRU; heads-clear ลบทั้งแคช; `headCacheUrl` round-trip ตรงกับที่ SW เขียน; wire helpers (legacy token / probe attempt / grant); prefix-guard ของ browserStore (foreign entry ไม่ถูก validate และไม่ถูกกวาด)
+  - **Unit Tests ทั้งหมด:** `node --check` ผ่านทุกไฟล์ที่แก้ และ `node --test tests/*.cjs` ผ่านครบถ้วน **191/191 tests PASS (0 failures)** — harnesses (authenticated-stream / stream-token / head-cache) เพิ่ม shim `importScripts` ให้โลก vm โหลด protocol ได้; อัปเดต `tests/video-head-prefetch.cjs` จาก grep headCacheAdmin → ตรวจว่าหน้าเว็บ**ไม่มี** handle ตรงของแคช SW อีกต่อไป
+
 
 
 
