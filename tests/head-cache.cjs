@@ -58,14 +58,19 @@ function setup({reply = null, cachesMock = null, fetchImpl = null} = {}) {
     await Promise.allSettled(waited);
     return res;
   };
-  const dispatchMessage = async data => {
+  const dispatchMessage = async (data, expectReplies = 0) => {
     const channel = new MessageChannel(); const replies = [];
     channel.port1.onmessage = e => replies.push(JSON.parse(JSON.stringify(e.data)));
     const waited = [];
     events.message({data, ports: [channel.port2], waitUntil(p) { waited.push(p); }});
     await Promise.allSettled(waited);
-    // Port message delivery is a macrotask; yield once before closing.
-    await new Promise(r => setImmediate(r));
+    // Port message delivery takes a few loop turns (varies by Node version);
+    // poll for the expected replies instead of guessing a fixed delay.
+    await new Promise(resolve => {
+      const started = Date.now();
+      const check = () => (replies.length >= expectReplies || Date.now() - started > 1000) ? resolve() : setTimeout(check, 5);
+      check();
+    });
     channel.port1.close(); try { channel.port2.close(); } catch (_) {}
     return replies;
   };
@@ -158,14 +163,14 @@ test('a legacy plain token reply streams exactly as before', async () => {
 test('the prefetch message stores the next episode head and is idempotent', async () => {
   const app = setup({reply: fullReply});
   const message = {type: 'drive-stream-prefetch', id: 'file2', token: 'tok', scope: 'account:t@example.com', size: TOTAL, modifiedTime: '2026-01-01T00:00:00Z', heads: true};
-  const replies = await app.dispatchMessage(message);
+  const replies = await app.dispatchMessage(message, 1);
   assert.deepEqual(replies, [{type: 'drive-stream-prefetch-result', ok: true}]);
   const store = app.caches.stores.get('gdv-video-heads-v1');
   assert.ok(store && store.size === 2, 'payload + meta stored');
   const fetchesAfterFirst = app.calls.length;
   assert.ok(fetchesAfterFirst > 0);
 
-  const replies2 = await app.dispatchMessage(message);
+  const replies2 = await app.dispatchMessage(message, 1);
   assert.deepEqual(replies2, [{type: 'drive-stream-prefetch-result', ok: true}]);
   assert.equal(app.calls.length, fetchesAfterFirst, 'second prefetch was served by the cache');
 
