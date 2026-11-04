@@ -1090,3 +1090,13 @@
      - ตรวจสอบวงจรชีวิตของ Brave block memory round-trip
   7. **Cache Busters:** ปรับใน `index.html` เป็น `video-player.js?v=20261104-r5` และ `drive-explorer.js?v=20261104-r6`
 - **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **207/207 tests PASS (0 failures, duration 23.3s)**
+
+### 50. ตรวจ production รอบแรกหลัง S2b–S5: เจอ outage จาก bag shorthand ค้าง แก้แล้ว พร้อม harden audit risks (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (fix 4aa508b + 0b3a2b0)
+- **การตรวจ:** browser แบบ black-box บน production + independent audit โดย poteto-agent แยก (Claims 1–3 ของ Slice 1/2a/BUG-2-revival VERIFIED ทั้งหมด; suite 207/207 ณ ตอนนั้น)
+- **outage ที่เจอ (deploy d1ed140):** S2b ย้าย pruneVpos ออกแต่ลืม shorthand `pruneVpos,` ใน GDVVideoApi literal — object literal ตีความเป็น ReferenceError ตอนสร้าง → app-core IIFE ตายกลางทาง → GDVExplorerApi/GDVLightboxApi/GDVCollectionApi ไม่ถูก publish → auth/lightbox/collection ใช้ไม่ได้ทั้งหมด และ S3 ทิ้ง `attachWatchedButtons,` ค้างใน GDVExplorerApi เช่นกัน (ถูก mask เพราะ crash ก่อนถึง) — suite เขียวทั้งที่หน้าพังเพราะไม่มีเทสไหนรัน IIFE ของ app-core
+- **การแก้:** restore pruneVpos verbatim (page-storage helper), attachWatchedButtons เปลี่ยนเป็น live getter อ่าน window.GDVVideo, เพิ่ม tests/app-core-bag.cjs ห้าม bag shorthand แขวน + บังคับ publish ครบทุก API ที่ consumer ต้องใช้ (4aa508b)
+- **harden audit risks (0b3a2b0):** prefetch grant โพสต์ token/scope ผ่าน accessor duality แบบเดียวกับ token handshake; ปุ่มล้างแคช by-name delete เฉพาะเมื่อไม่มี controller จริง ๆ — มี controller แต่ตอบไม่ทันจะคืน false แทนการลบหัวคลิปที่อาจยังสมบูรณ์
+- **หลักฐาน:** diag page จับ uncaught errors จาก 5 → 0, ทุก GDV*Api publish ครบ, node --test 209/209 PASS, busters app-core r7 / video-player r6
+- **คงพฤติกรรมเดิมตามที่ session ก่อนเลือก:** legacy compat names บน GDVVideo ถูกเก็บไว้ (callers ผ่าน live getters ของ GDVCollectionApi/GDVLightboxApi ซึ่งบางและถูกต้องแล้ว)
+
