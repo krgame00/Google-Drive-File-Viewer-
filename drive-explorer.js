@@ -1216,29 +1216,15 @@
 
 
 
-                // ---------- Media nav (lightbox + video) ----------
+                // ---------- Media nav (lightbox) ----------
 
-                window._gdvMediaNav = window._gdvMediaNav || {};
-
-                window._gdvMediaNav.navigateLightbox = function (dir) { if (pdfInLightbox && (!filesWrap || mediaList("image").length <= 1)) { stepPdfPage(dir, false); return; } navigateMedia("image", dir); };
-                window._gdvMediaNav.navigateVideo = function (dir) { if (!vidCurrentId) { navigateMedia("image", dir); return; } navigateMedia("video", dir); };
+                function navigateLightbox(dir) { if (pdfInLightbox && (!filesWrap || mediaList("image").length <= 1)) { stepPdfPage(dir, false); return; } navigateMedia("image", dir); }
 
                 const lbPrevBtn = document.getElementById("lbPrev");
-
                 const lbNextBtn = document.getElementById("lbNext");
 
-                const vidPrevBtn = document.getElementById("vidPrev");
-
-                const vidNextBtn = document.getElementById("vidNext");
-
-                if (lbPrevBtn) { lbPrevBtn.onclick = function () { window._gdvMediaNav.navigateLightbox(-1); }; }
-
-                if (lbNextBtn) { lbNextBtn.onclick = function () { window._gdvMediaNav.navigateLightbox(1); }; }
-
-                if (vidPrevBtn) { vidPrevBtn.onclick = function () { if (window.GDVVideo && typeof window.GDVVideo.onNav === 'function') window.GDVVideo.onNav(-1); else window._gdvMediaNav.navigateVideo(-1); }; }
-
-                if (vidNextBtn) { vidNextBtn.onclick = function () { if (window.GDVVideo && typeof window.GDVVideo.onNav === 'function') window.GDVVideo.onNav(1); else window._gdvMediaNav.navigateVideo(1); }; }
-
+                if (lbPrevBtn) { lbPrevBtn.onclick = function () { navigateLightbox(-1); }; }
+                if (lbNextBtn) { lbNextBtn.onclick = function () { navigateLightbox(1); }; }
               }
 
       function handleFileClick(id, kind, name, mimeType) {

@@ -1052,3 +1052,41 @@
   7. **Cache Busters:** ปรับใน `index.html` เป็น `app-core.js?v=20261104-r5`, `video-player.js?v=20261104-r4`, `media-lightbox.js?v=20261104-r5`, `drive-explorer.js?v=20261104-r5`, `collection-viewer.js?v=20261104-r5`
 - **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **194/194 tests PASS (0 failures, duration 23.2s)**
 
+
+
+### 48. Slice 4: ทดสอบพฤติกรรมนโยบายเล่นต่อเนื่องอัตโนมัติจุดเดียว (Auto-Advance Behavioral Suite) (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (S4 จาก 6 slices ของ design docs/streaming-redesign.md)
+- **การแก้ไข:**
+  1. **ชุดทดสอบพฤติกรรม `tests/auto-advance.cjs` (8/8 PASS):** สร้างชุดทดสอบครอบคลุมพฤติกรรมระบบเล่นต่อเนื่องอัตโนมัติ (Countdown-with-Prefetch):
+     - เหตุการณ์ `ended` แสดงแถบ Next-Up, ส่ง prefetch grant ให้ SW, นับถอยหลัง 5 วินาที, ล้างตำแหน่งใน `gdv_vpos`, และเรียก `openVideo` ของตอนถัดไปเมื่อครบเวลา
+     - ปุ่ม `#vidNextUpPlay` เริ่มเล่นตอนถัดไปทันที
+     - ปุ่ม `#vidNextUpCancel` ซ่อนแถบและหยุดตัวนับเวลา
+     - เหตุการณ์ `play` ของผู้ใช้ยกเลิกการนับถอยหลังและ prefetch หัวคลิป
+     - โหมดดาวน์โหลดแบบก้าวหน้าทั้งไฟล์ (`videoBlobTransfer`) เมินเหตุการณ์ `ended`
+     - การปิด modal เมินเหตุการณ์ `ended`
+     - Playlist ที่มีเพียงตอนเดียว ซ่อนแถบและไม่เริ่มนับถอยหลัง
+     - การ prefetch เคารพ `saveData`, วงเงินแคชเป็น 0, และการตัดคำขอซ้ำ (deduplication)
+  2. **Snapshot Test `tests/public-surface.cjs` (1/1 PASS):** ตรวจสอบและตรึงสัญญาของ `window.GDVVideo` ทั้ง 24 เมธอดเป้าหมายและ namespaces (`watched`, `headCache`) เพื่อป้องกันการเปลี่ยนแปลง contract โดยไม่ตั้งใจ
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/auto-advance.cjs tests/public-surface.cjs` ผ่านครบถ้วน **9/9 tests PASS (0 failures)**
+
+### 49. Slice 5: รวมศูนย์ค่าคงที่ (TIMEOUTS Ladder & Worker URL), ทำความสะอาด Media Nav, และบันทึกผลงานเสร็จสมบูรณ์ (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (S5 Consolidation เสร็จสิ้นสมบูรณ์ตามดีไซน์ docs/streaming-redesign.md)
+- **การแก้ไข:**
+  1. **บันไดค่าหน่วงเวลา (`TIMEOUTS` ladder):** รวบรวมค่า timeout ที่กระจายอยู่ทั่ว `video-player.js` เข้ามาอยู่ในออบเจกต์ที่ถูก Freeze:
+     - `cacheRaceMs: 350`, `bufferingMs: 2000`, `vlcHintMs: 3500`, `workerRegisterMs: 6000`, `probeMs: 8000`, `genericMs: 12000`, `slowMs: 15000`, `bearerMs: 60000`, `workerMs: 65000`, `blobPlaybackMs: 120000`
+     - เผยแพร่ผ่าน `module.exports.TIMEOUTS` และส่งต่อผ่าน `runnerFallbacks`
+     - มี fallback guard ป้องกันข้อผิดพลาด `ReferenceError` เมื่อชุดทดสอบเดิมสกัดฟังก์ชันเดี่ยวไปรันใน VM Context
+  2. **รวมศูนย์ Worker URL (`WORKER_URL`):** รวมค่า URL `'https://google-drive-file-viewer.missnlpp9.workers.dev/'` ที่เคยกระจาย 4 แห่งเข้าสู่ค่าคงที่เดียว
+  3. **Worker Revision Check (`EXPECTED_WORKER_REV`):** เพิ่มกลไกตรวจสอบ header `x-gdv-worker-rev` บน HEAD request ใน `warmVideoStream` (ตั้งต้นเป็น `''` = dormant สำหรับการวินิจฉัย ไม่ขัดขวางการเล่น)
+  4. **ลบสิ่งตกค้าง `window._gdvMediaNav` ออกจาก `drive-explorer.js`:**
+     - เปลี่ยนการทำงานของปุ่ม Lightbox ให้เรียกฟังก์ชันภายใน `navigateLightbox(dir)`
+     - ลบการผูกซ้ำซ้อนของ `#vidPrev` และ `#vidNext` ใน `drive-explorer.js` (เนื่องจาก `video-player.js` ผูกตรงกับ Center อยู่แล้ว)
+     - ตัด `window._gdvMediaNav` ออกจากระบบ 100%
+  5. **Brave Block Memory Policy:** คงพฤติกรรมมาตรฐานที่ผ่านการทดสอบใน `tests/media-lifecycle.cjs` (ให้โอกาสไฟล์ถัดไปพยายามเล่นใหม่ต่อรอบเซสชัน) พร้อมทั้งเปิดฟังก์ชัน `streamBlocked()`, `rememberStreamBlocked()`, `clearStreamBlocked()` ให้ตรวจสอบและจัดการได้ครบวงจร
+  6. **เพิ่มชุดทดสอบ `tests/route-chain-timeouts.cjs` (4/4 PASS):**
+     - ตรวจสอบความถูกต้องของค่าใน `TIMEOUTS` ladder และการ freeze
+     - ตรวจสอบค่าคงที่ `WORKER_URL` และ `EXPECTED_WORKER_REV`
+     - ตรวจสอบว่าสายการลองสตรีม (route chain) นำค่า timeout ที่ถูกต้องไปใช้กับแต่ละแหล่ง (worker = 65s, direct = 12s, key = 12s)
+     - ตรวจสอบวงจรชีวิตของ Brave block memory round-trip
+  7. **Cache Busters:** ปรับใน `index.html` เป็น `video-player.js?v=20261104-r5` และ `drive-explorer.js?v=20261104-r6`
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **207/207 tests PASS (0 failures, duration 23.3s)**

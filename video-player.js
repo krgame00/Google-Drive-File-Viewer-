@@ -27,6 +27,23 @@
 //
 // The center returns the player API; the boot wrapper publishes it on
 // window.GDVVideoApi.video and window.GDVVideo and exports the factory for tests.
+
+const TIMEOUTS = Object.freeze({
+  cacheRaceMs: 350,
+  bufferingMs: 2000,
+  vlcHintMs: 3500,
+  workerRegisterMs: 6000,
+  probeMs: 8000,
+  genericMs: 12000,
+  slowMs: 15000,
+  bearerMs: 60000,
+  workerMs: 65000,
+  blobPlaybackMs: 120000,
+});
+
+const WORKER_URL = 'https://google-drive-file-viewer.missnlpp9.workers.dev/';
+const EXPECTED_WORKER_REV = '';
+
 function createPublicStreamRunner(deps, fallbacks) {
   // Live scope: test stubs (deps) win, then the module's own functions, then globals.
   const scope = new Proxy({}, {
@@ -60,7 +77,7 @@ function createPublicStreamRunner(deps, fallbacks) {
           });
         };
         const sources = [];
-        if (!googleOnly) sources.push({route:'worker', label:'worker', url:'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1'});
+        if (!googleOnly) sources.push({route:'worker', label:'worker', url: WORKER_URL + '?id=' + encodeURIComponent(id) + '&continuous=1'});
         sources.push({route:'usercontent', label:'ลิงก์ตรง', url:'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t'});
         if (apiKey) sources.push({route:'key', label:'API key', url:'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + apiKey});
         else notes.push('API key: ไม่ได้ตั้งค่า');
@@ -78,7 +95,7 @@ function createPublicStreamRunner(deps, fallbacks) {
             if (!active()) return;
             // The Worker may need most of its 60s upstream budget to fetch an 8 MiB range.
             // Do not let the player abandon that request at the generic 12s source timeout.
-            const timeoutMs = source.route === 'worker' ? 65000 : 12000;
+            const timeoutMs = source.route === 'worker' ? TIMEOUTS.workerMs : TIMEOUTS.genericMs;
             tryVideoSrc(source.url, function (reason, diagnostic) { note(source.label, reason, diagnostic); next(); }, timeoutMs, source.route);
           };
           if (source.route !== 'key') { play(); return; }
@@ -192,7 +209,7 @@ function createVideoBlobRunner(deps, fallbacks) {
         };
         const workerSource = {
           note: ' (ผ่านเซิร์ฟเวอร์สำรอง' + (turbo ? ' 6 ท่อ' : '') + ')',
-          url: 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id) + '&continuous=1',
+          url: WORKER_URL + '?id=' + encodeURIComponent(id) + '&continuous=1',
           headers: {},
           rangeOpts: {chunk: 4194304, limit: 6, retries: 3, priority: 'high'}
         };
@@ -396,7 +413,7 @@ function createVideoBlobRunner(deps, fallbacks) {
             currentVideoUrl = nextUrl;
             vidPlayer.removeAttribute('crossorigin');
             vidPlayer.style.display = 'block';
-            tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ' + describeCodecSupport(deviceCodecSupport()) + prior); if (onGiveUp) onGiveUp(); }, 120000);
+            tryVideoSrc(currentVideoUrl, function () { showStreamFailure('โหลดทั้งไฟล์แล้วแต่ยังเล่นไม่ได้ — ไฟล์อาจอยู่ในรูปแบบที่เบราว์เซอร์นี้ไม่รองรับ' + describeCodecSupport(deviceCodecSupport()) + prior); if (onGiveUp) onGiveUp(); }, TIMEOUTS.blobPlaybackMs);
             setVideoStatus('loading', 'โหลดทั้งไฟล์ครบแล้ว กำลังเตรียมเครื่องเล่น…');
             if (typeof videoCache !== 'undefined' && videoCache && cacheScope) {
               try {
@@ -431,7 +448,7 @@ function createVideoSourceRunner(deps, fallbacks) {
     get(t, key) { if (deps && key in deps) return deps[key]; if (fallbacks && key in fallbacks) return fallbacks[key]; return undefined; },
     set(t, key, value) { if (deps) deps[key] = value; return true; }
   });
-        return function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
+        return function tryVideoSrc(url, onFail, timeoutMs = (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.genericMs : 12000), route = null) {
           with (scope) {
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
@@ -463,7 +480,7 @@ function createVideoSourceRunner(deps, fallbacks) {
             const slowActions = document.getElementById ? document.getElementById('vidSlowActions') : null;
             if (slowActions) slowActions.style.display = 'flex';
           }
-        }, 15000);
+        }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.slowMs : 15000));
 
         // สำหรับเบราว์เซอร์จริง (มือถือ/เน็ตช้า) — แสดงทางลัด VLC / พรีวิว Google หลังหมุน 3.5 วินาที
         if (typeof window !== 'undefined' && window.setTimeout) {
@@ -473,7 +490,7 @@ function createVideoSourceRunner(deps, fallbacks) {
               if (slowActions) slowActions.style.display = 'flex';
               setVideoStatus('loading', 'กำลังเตรียมข้อมูลวิดีโอ… หากหมุนนาน สามารถกด “เปิดใน VLC” หรือ “พรีวิว Google” ได้ทันที');
             }
-          }, 3500);
+          }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.vlcHintMs : 3500));
         }
 
         vidPlayer.onerror = function () {
@@ -610,6 +627,9 @@ function createVideoCenter(app) {
 
   // Runner fallbacks: every module function the verbatim runner bodies reference.
   const runnerFallbacks = Object.assign({}, app, {
+    TIMEOUTS: TIMEOUTS,
+    WORKER_URL: WORKER_URL,
+    EXPECTED_WORKER_REV: EXPECTED_WORKER_REV,
     startVideoPlayback: startVideoPlayback,
     playbackRouteRecords: playbackRouteRecords,
     rememberPlaybackRoute: rememberPlaybackRoute,
@@ -697,7 +717,7 @@ function createVideoCenter(app) {
         const active = function () { return session === mediaSession && attempt === videoAttempt && token === app.accessToken && id === vidCurrentId && app.videoModal.classList.contains('show'); };
         let timer;
         setVideoStatus('connecting', 'กำลังตรวจคลิปที่เก็บไว้ในเครื่อง…');
-        return Promise.race([app.videoCache.get(id, app.fileMetaOf(id), scope), new Promise(function (resolve) { timer = app.setTimeout(function () { resolve(null); }, 350); })]).then(function (blob) {
+        return Promise.race([app.videoCache.get(id, app.fileMetaOf(id), scope), new Promise(function (resolve) { timer = app.setTimeout(function () { resolve(null); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.cacheRaceMs : 350)); })]).then(function (blob) {
           app.clearTimeout(timer);
           if (!active()) return;
           if (!blob) { tryStreamDirect(id); return; }
@@ -774,7 +794,7 @@ function createVideoCenter(app) {
                 if (slowActions) slowActions.style.display = 'flex';
                 if (loadingText) loadingText.textContent = 'วิดีโอกำลังบัฟเฟอร์… หากเน็ตสะดุด แนะนำเปิดใน VLC หรือใช้พรีวิว Google';
               }
-            }, 2000);
+            }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.bufferingMs : 2000));
           }
         }
         return videoStatus;
@@ -1039,7 +1059,7 @@ function createVideoCenter(app) {
             if (controller) controller.abort();
             resolve(verdict);
           };
-          timer = app.setTimeout(function () { done('browser'); }, 8000);
+          timer = app.setTimeout(function () { done('browser'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.probeMs : 8000));
           try {
             const url = new URL('__drive_stream', app.location.href);
             url.searchParams.set('id', id);
@@ -1306,7 +1326,7 @@ function createVideoCenter(app) {
       function openInExternalPlayer(id) {
         const targetId = id || vidCurrentId;
         if (!targetId) return null;
-        const streamUrl = 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(targetId) + '&continuous=1';
+        const streamUrl = WORKER_URL + '?id=' + encodeURIComponent(targetId) + '&continuous=1';
         const vlcUrl = 'vlc://' + streamUrl;
         if (typeof app.navigator !== 'undefined' && app.navigator.clipboard && typeof app.navigator.clipboard.writeText === 'function') {
           Promise.resolve(app.navigator.clipboard.writeText(streamUrl)).catch(function () {});
@@ -1527,7 +1547,7 @@ function createVideoCenter(app) {
               resolve(ok);
             }
             function check() { if (workers.controller && workers.controller.scriptURL === script) finish(true); }
-            const timer = app.setTimeout(function () { finish(false); }, 6000);
+            const timer = app.setTimeout(function () { finish(false); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 6000));
             workers.addEventListener('controllerchange', check);
             workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function () { finish(false); });
             check();
@@ -1616,7 +1636,7 @@ function createVideoCenter(app) {
               // Cloudflare, and this route plays when the file is publicly readable.
               else tryPublicStream(id, finishFailure, false);
             }
-          }, 60000, 'bearer');
+          }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.bearerMs : 60000), 'bearer');
         });
       }
 
@@ -1631,7 +1651,7 @@ function createVideoCenter(app) {
             if (reader) { const active = reader; reader = null; Promise.resolve(active.cancel()).catch(function () {}); }
             controller.abort(); resolve(message);
           };
-          const timer = app.setTimeout(function () { done(null); }, 8000);
+          const timer = app.setTimeout(function () { done(null); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.probeMs : 8000));
           const url = new URL('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id));
           url.searchParams.set('alt', 'media'); url.searchParams.set('key', app.apiKey);
           app.fetch(url.href, { headers: { Range: 'bytes=0-1' }, signal: controller.signal })
@@ -1896,7 +1916,7 @@ function createVideoCenter(app) {
 
       
       const runVideoSource = createVideoSourceRunner(app, runnerFallbacks);
-      function tryVideoSrc(url, onFail, timeoutMs = 12000, route = null) {
+      function tryVideoSrc(url, onFail, timeoutMs = TIMEOUTS.genericMs, route = null) {
         return runVideoSource(url, onFail, timeoutMs, route);
       }
 
@@ -1922,7 +1942,17 @@ function createVideoCenter(app) {
           try { prepareStreamWorker(); } catch (_) {}
         }
         if (typeof app.fetch === 'function') {
-          try { app.fetch('https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(id), { method: 'HEAD', mode: 'cors' }).catch(function () {}); } catch (_) {}
+          try {
+            app.fetch(WORKER_URL + '?id=' + encodeURIComponent(id), { method: 'HEAD', mode: 'cors' })
+              .then(function (res) {
+                if (!res || !EXPECTED_WORKER_REV) return;
+                const rev = res.headers && typeof res.headers.get === 'function' ? res.headers.get('x-gdv-worker-rev') : null;
+                if (rev && rev !== EXPECTED_WORKER_REV && typeof console !== 'undefined' && console.warn) {
+                  console.warn('[GDV] Worker revision mismatch: got ' + rev + ', expected ' + EXPECTED_WORKER_REV);
+                }
+              })
+              .catch(function () {});
+          } catch (_) {}
         }
         return true;
       }
@@ -2647,6 +2677,9 @@ function createVideoCenter(app) {
   if (typeof module !== "undefined" && module.exports) {
     module.exports = video;
     module.exports.createVideoCenter = createVideoCenter;
+    module.exports.TIMEOUTS = TIMEOUTS;
+    module.exports.WORKER_URL = WORKER_URL;
+    module.exports.EXPECTED_WORKER_REV = EXPECTED_WORKER_REV;
   } else {
     video.renderContinueWatching();
   }
