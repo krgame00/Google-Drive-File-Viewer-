@@ -1117,8 +1117,10 @@
         return headStoreCall(window.GDVStreamProtocol.headClearRequest, window.GDVStreamProtocol.parseHeadClearReply)
           .then(function (reply) {
             if (reply && reply.cleared) return true;
-            // ไม่มี controller (โหมด public) หรือ SW เก่าเกินไป — ลบทั้งแคชตามชื่อได้โดยไม่ต้อง enumerate
-            if (window.caches) { try { return caches.delete(window.GDVStreamProtocol.HEAD_CACHE_NAME); } catch (_) { return false; } }
+            // by-name delete เฉพาะเมื่อ "ไม่มี controller จริง ๆ" (โหมด public หรือ SW หาย) —
+            // ถ้ามี controller แต่ตอบไม่ทัน/ตอบ fail (SW เก่า) ห้ามลบแคชที่อาจยังสมบูรณ์ ให้ผู้ใช้ลองใหม่
+            const sw = navigator.serviceWorker;
+            if (window.caches && (!sw || !sw.controller)) { try { return caches.delete(window.GDVStreamProtocol.HEAD_CACHE_NAME); } catch (_) { return false; } }
             return false;
           })
           .catch(function () { return false; });

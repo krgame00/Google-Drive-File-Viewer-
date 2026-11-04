@@ -2228,8 +2228,8 @@ function createVideoCenter(app) {
           controller.postMessage({
             type: 'drive-stream-prefetch',
             id: target.id,
-            token: app.accessToken,
-            scope: app.videoCacheScope(),
+            token: typeof app.accessToken === 'function' ? app.accessToken() : app.accessToken,
+            scope: typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : app.videoCacheScope,
             size: meta && Number(meta.size) > 0 ? Number(meta.size) : 0,
             modifiedTime: meta && meta.modifiedTime ? String(meta.modifiedTime) : '',
             heads: true
