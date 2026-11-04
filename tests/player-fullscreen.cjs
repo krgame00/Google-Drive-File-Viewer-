@@ -110,13 +110,13 @@ test('three writers (toggle, fullscreenchange, Esc) all converge on identical bu
   // 1. Initial / active
   bridge.document.fullscreenElement = box;
   api.syncFullscreen();
-  assert.equal(btn.textContent, 'ออกเต็มจอ');
+  assert.equal(btn.textContent, '⤡');
   assert.equal(btn.attrs.get('aria-pressed'), 'true');
 
   // 2. Inactive via fullscreenchange
   bridge.document.fullscreenElement = null;
   api.syncFullscreen();
-  assert.equal(btn.textContent, 'เต็มจอ');
+  assert.equal(btn.textContent, '⛶');
   assert.equal(btn.attrs.get('aria-pressed'), 'false');
 
   // 3. Pseudo-fullscreen via box class
@@ -126,13 +126,13 @@ test('three writers (toggle, fullscreenchange, Esc) all converge on identical bu
     remove: c => classSet.delete(c)
   };
   api.syncFullscreen();
-  assert.equal(btn.textContent, 'ออกเต็มจอ');
+  assert.equal(btn.textContent, '⤡');
   assert.equal(btn.attrs.get('aria-pressed'), 'true');
 
-  // 4. Esc consumes pseudo-fullscreen and returns to 'เต็มจอ'
+  // 4. Esc consumes pseudo-fullscreen and returns to '⛶'
   const consumed = api.escape();
   assert.equal(consumed, true);
   assert.equal(classSet.has('pseudo-fullscreen'), false);
-  assert.equal(btn.textContent, 'เต็มจอ');
+  assert.equal(btn.textContent, '⛶');
   assert.equal(btn.attrs.get('aria-pressed'), 'false');
 });

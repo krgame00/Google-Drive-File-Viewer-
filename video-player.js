@@ -567,6 +567,7 @@ function createVideoCenter(app) {
   let previewAspect = (app && 'previewAspect' in app && app.previewAspect !== undefined) ? app.previewAspect : null;
   let videoBlobTransfer = (app && 'videoBlobTransfer' in app && app.videoBlobTransfer !== undefined) ? app.videoBlobTransfer : null;
   let mediaPreviousOverflow = (app && 'mediaPreviousOverflow' in app && app.mediaPreviousOverflow !== undefined) ? app.mediaPreviousOverflow : "";
+  let chromeHideTimer = null;
 
   function videoCacheScope() {
     return typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : (app.videoCacheScope || null);
@@ -766,6 +767,25 @@ function createVideoCenter(app) {
         if (typeof app.routeCooldown !== 'undefined' && app.routeCooldown) app.routeCooldown.success(source.id, source.mode, source.route);
       }
 
+      // Cinematic overlay chrome (Prototype A): pointer activity shows the
+      // chrome, and 2.5s of stillness hides it — but only while the video is
+      // actually playing. Loading / error / preview / minimized states always
+      // show chrome. With no real video (headless tests) nothing ever hides.
+      function showVideoChrome() {
+        if (chromeHideTimer !== null) { app.clearTimeout(chromeHideTimer); chromeHideTimer = null; }
+        if (app.videoModal && app.videoModal.classList && app.videoModal.classList.remove) app.videoModal.classList.remove('chrome-hidden');
+        if (videoStatus !== 'playing') return;
+        if (typeof app.window === 'undefined' || !app.window || typeof app.window.setTimeout !== 'function') return;
+        chromeHideTimer = app.window.setTimeout(function () {
+          chromeHideTimer = null;
+          if (videoStatus !== 'playing' || !app.videoModal || !app.videoModal.classList) return;
+          if (!app.videoModal.classList.contains('show') || app.videoModal.classList.contains('minimized')) return;
+          const menu = app.document && app.document.getElementById ? app.document.getElementById('vidHelp') : null;
+          if (menu && menu.open) return;
+          app.videoModal.classList.add('chrome-hidden');
+        }, 2500);
+      }
+
       function setVideoStatus(state, message) {
         const prev = videoStatus;
         videoStatus = state;
@@ -781,7 +801,7 @@ function createVideoCenter(app) {
         if (info && (state === 'closed' || state === 'connecting')) info.open = false;
         if (status) status.setAttribute('data-preview-note', state === 'preview' ? 'true' : 'false');
         const slowActions = app.document.getElementById ? app.document.getElementById('vidSlowActions') : null;
-        if (state === 'playing') { app.vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; }
+        if (state === 'playing') { app.vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; if (prev !== 'playing' && help) help.open = false; if (typeof showVideoChrome === 'function') showVideoChrome(); }
         else if (state === 'error' || state === 'preview') { app.vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) { if (message) status.textContent = message; status.hidden = !message; } if (((state === 'error' && prev !== 'error') || (state === 'preview' && prev !== 'preview')) && help) help.open = true; }
         else if (state === 'closed') { app.vidLoading.classList.remove('show'); if (slowActions) slowActions.style.display = 'none'; if (status) status.hidden = true; }
         else {
@@ -866,7 +886,7 @@ function createVideoCenter(app) {
           if (typeof app.vidFrame.parentElement.removeAttribute === 'function') app.vidFrame.parentElement.removeAttribute('data-orientation');
         }
         const aspectBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidAspectToggle') : null;
-        if (aspectBtn) aspectBtn.textContent = 'สลับแนว ↕↔';
+        if (aspectBtn) aspectBtn.textContent = '⇅';
         app.vidLoading.classList.remove("show");
         app.resetPdfViewer();
       }
@@ -885,7 +905,7 @@ function createVideoCenter(app) {
         if (app.videoModal && app.videoModal.classList && app.videoModal.classList.remove) app.videoModal.classList.remove('minimized');
         const minBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidMinimize') : null;
         if (minBtn) {
-          minBtn.textContent = '− ย่อมุมจอ';
+          minBtn.textContent = '🗗';
           if (typeof minBtn.setAttribute === 'function') {
             minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
             minBtn.setAttribute('title', 'ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ');
@@ -1301,7 +1321,7 @@ function createVideoCenter(app) {
         }
         const aspectBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidAspectToggle') : null;
         if (aspectBtn) {
-          aspectBtn.textContent = aspect ? (aspect < 1 ? 'แนวตั้ง ↕' : 'แนวนอน ↔') : 'สลับแนว ↕↔';
+          aspectBtn.textContent = aspect ? (aspect < 1 ? '↕' : '↔') : '⇅';
           if (typeof aspectBtn.setAttribute === 'function') {
             aspectBtn.setAttribute('title', aspect ? (aspect < 1 ? 'กำลังแสดงแนวตั้ง (คลิกเพื่อสลับเป็นแนวนอน 16:9)' : 'กำลังแสดงแนวนอน (คลิกเพื่อสลับเป็นแนวตั้ง 9:16)') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
             aspectBtn.setAttribute('aria-label', aspect ? (aspect < 1 ? 'สลับเป็นแนวนอน' : 'สลับเป็นแนวตั้ง') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
@@ -1414,7 +1434,7 @@ function createVideoCenter(app) {
           if (box.classList && box.classList.contains && box.classList.contains('pseudo-fullscreen')) {
             box.classList.remove('pseudo-fullscreen');
             const btn = app.document.getElementById ? app.document.getElementById('vidFullscreen') : null;
-            if (btn) { btn.textContent = 'เต็มจอ'; btn.setAttribute('aria-pressed', 'false'); }
+            if (btn) { btn.textContent = '⛶'; btn.setAttribute('aria-pressed', 'false'); }
             applyVideoAspect();
             if (typeof fitVideoPreview === 'function') fitVideoPreview();
             return Promise.resolve();
@@ -1426,7 +1446,7 @@ function createVideoCenter(app) {
             }).catch(function () {
               if (box.classList && box.classList.add) box.classList.add('pseudo-fullscreen');
               const btn = app.document.getElementById ? app.document.getElementById('vidFullscreen') : null;
-              if (btn) { btn.textContent = 'ออกเต็มจอ'; btn.setAttribute('aria-pressed', 'true'); }
+              if (btn) { btn.textContent = '⤡'; btn.setAttribute('aria-pressed', 'true'); }
               applyVideoAspect();
               if (typeof fitVideoPreview === 'function') fitVideoPreview();
               failed();
@@ -1434,7 +1454,7 @@ function createVideoCenter(app) {
           }
           if (box.classList && box.classList.add) box.classList.add('pseudo-fullscreen');
           const btn = app.document.getElementById ? app.document.getElementById('vidFullscreen') : null;
-          if (btn) { btn.textContent = 'ออกเต็มจอ'; btn.setAttribute('aria-pressed', 'true'); }
+          if (btn) { btn.textContent = '⤡'; btn.setAttribute('aria-pressed', 'true'); }
           applyVideoAspect();
           if (typeof fitVideoPreview === 'function') fitVideoPreview();
           return Promise.resolve();
@@ -1454,10 +1474,10 @@ function createVideoCenter(app) {
           const box = app.videoModal.querySelector && app.videoModal.querySelector('.video-box');
           if (box && box.classList && box.classList.remove) box.classList.remove('pseudo-fullscreen');
           const fsBtn = app.document.getElementById ? app.document.getElementById('vidFullscreen') : null;
-          if (fsBtn) { fsBtn.textContent = 'เต็มจอ'; fsBtn.setAttribute('aria-pressed', 'false'); }
+          if (fsBtn) { fsBtn.textContent = '⛶'; fsBtn.setAttribute('aria-pressed', 'false'); }
           const minBtn = app.document.getElementById ? app.document.getElementById('vidMinimize') : null;
           if (minBtn) {
-            minBtn.textContent = '⤢ ขยายเต็ม';
+            minBtn.textContent = '⤢';
             if (typeof minBtn.setAttribute === 'function') {
               minBtn.setAttribute('aria-label', 'ขยายเครื่องเล่นกลับขนาดเต็ม');
               minBtn.setAttribute('title', 'คลิกเพื่อขยายเครื่องเล่นกลับเป็นขนาดปกติ');
@@ -1481,7 +1501,7 @@ function createVideoCenter(app) {
           if (app.document.body && app.document.body.style) app.document.body.style.overflow = "hidden";
           const minBtn = app.document.getElementById ? app.document.getElementById('vidMinimize') : null;
           if (minBtn) {
-            minBtn.textContent = '− ย่อมุมจอ';
+            minBtn.textContent = '🗗';
             if (typeof minBtn.setAttribute === 'function') {
               minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
               minBtn.setAttribute('title', 'ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ');
@@ -2137,10 +2157,10 @@ function createVideoCenter(app) {
         const box = app.videoModal.querySelector && app.videoModal.querySelector('.video-box');
         if (box && box.classList && box.classList.remove) box.classList.remove('pseudo-fullscreen');
         const btn = app.document.getElementById ? app.document.getElementById('vidFullscreen') : null;
-        if (btn) { btn.textContent = 'เต็มจอ'; btn.setAttribute('aria-pressed', 'false'); }
+        if (btn) { btn.textContent = '⛶'; btn.setAttribute('aria-pressed', 'false'); }
         const minBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidMinimize') : null;
         if (minBtn) {
-          minBtn.textContent = '− ย่อมุมจอ';
+          minBtn.textContent = '🗗';
           if (typeof minBtn.setAttribute === 'function') minBtn.setAttribute('aria-label', 'ย่อเครื่องเล่นไว้มุมจอ');
         }
         if (app.videoModal && app.videoModal.classList && app.videoModal.classList.remove) app.videoModal.classList.remove('minimized');
@@ -2247,6 +2267,7 @@ function createVideoCenter(app) {
       if (typeof app.vidPlayer !== 'undefined' && app.vidPlayer && typeof app.vidPlayer.addEventListener === 'function') {
         app.vidPlayer.addEventListener('ended', function () {
           try {
+            showVideoChrome(); // วิดีโอจบ — เรียก chrome กลับมาทันที
             // โหมด progressive download มี onended ของตัวเอง (รอ slice ถัดไป) — ไม่แทรก auto-next
             if (typeof videoBlobTransfer !== 'undefined' && videoBlobTransfer) return;
             if (!app.videoModal || !app.videoModal.classList || !app.videoModal.classList.contains('show')) return;
@@ -2282,7 +2303,7 @@ function createVideoCenter(app) {
     if (!active) releasePlayerOrientation();
     const button = doc && doc.getElementById ? doc.getElementById('vidFullscreen') : null;
     if (button) {
-      button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
+      button.textContent = active ? '⤡' : '⛶';
       button.setAttribute('aria-pressed', String(active));
     }
     applyVideoAspect();
@@ -2296,6 +2317,9 @@ function createVideoCenter(app) {
 
   function escape() {
     if (!app.videoModal || !app.videoModal.classList || !app.videoModal.classList.contains('show')) return false;
+    // Escape closes the "ดูแบบอื่น" menu first; a second press closes the modal.
+    const openMenu = app.document && app.document.getElementById ? app.document.getElementById('vidHelp') : null;
+    if (openMenu && openMenu.open) { openMenu.open = false; return true; }
     const box = app.videoModal.querySelector ? app.videoModal.querySelector('.video-box') : null;
     if (box && box.classList && box.classList.contains && box.classList.contains('pseudo-fullscreen')) {
       box.classList.remove('pseudo-fullscreen');
@@ -2520,6 +2544,19 @@ function createVideoCenter(app) {
     const vidNextBtn = getEl('vidNext');
     safeOn(vidNextBtn, 'click', function () { onNav(1); });
 
+    // Consolidated menu (details/summary toggles natively) — close on outside click
+    const vidHelpMenu = getEl('vidHelp');
+    safeOn(doc, 'click', function (e) {
+      if (!vidHelpMenu || !vidHelpMenu.open || typeof vidHelpMenu.contains !== 'function') return;
+      if (e && e.target && vidHelpMenu.contains(e.target)) return;
+      vidHelpMenu.open = false;
+    });
+
+    // Cinematic idle auto-hide: pointer activity shows chrome, stillness hides
+    // it after 2.5s while playing (all guards live in showVideoChrome)
+    safeOn(vModal, 'pointermove', showVideoChrome, { passive: true });
+    safeOn(vModal, 'pointerdown', showVideoChrome, { passive: true });
+
     // Viewport resize & orientation
     if (win) {
       if (win.ResizeObserver && app.vidFrame && app.vidFrame.parentElement) {
@@ -2545,6 +2582,9 @@ function createVideoCenter(app) {
       safeOn(app.vidPlayer, 'waiting', function () {
         if (vModal && vModal.classList.contains('show') && videoStatus !== 'error') setVideoStatus('buffering');
       });
+      // Pausing must bring the overlay chrome back even without pointer movement
+      // (ended shares the single ended listener below, per the one-listener rule)
+      safeOn(app.vidPlayer, 'pause', showVideoChrome);
     }
   }
 

@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261030-r3" />
+  <link rel="stylesheet" href="styles.css?v=20261105-r4" />
 
 </head>
 
@@ -361,18 +361,6 @@
 
     <div class="video-box">
 
-      <div class="video-toolbar">
-      <button type="button" class="lb-close" id="vidClose" aria-label="ปิด">&times;</button>
-
-      <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า">&#8249;</button>
-
-      <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป">&#8250;</button>
-      <button type="button" class="btn-ghost btn-sm" id="vidMinimize" aria-label="ย่อเครื่องเล่นไว้มุมจอ" title="ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ">&#8722; ย่อมุมจอ</button>
-      <button type="button" class="btn-ghost btn-sm" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น">เต็มจอ</button>
-      <button type="button" class="btn-ghost btn-sm" id="vidAspectToggle" aria-label="สลับสัดส่วนแนวตั้งและแนวนอน">สลับแนว ↕↔</button>
-      <button type="button" class="btn-ghost btn-sm" id="vidQuickPreview" aria-label="สลับไปใช้พรีวิว Google">พรีวิว Google</button>
-      </div>
-
       <div class="ratio">
 
         <video id="vidPlayer" controls playsinline preload="auto"></video>
@@ -405,30 +393,64 @@
           <button type="button" class="btn-ghost btn-sm" id="vidNextUpCancel">ยกเลิก</button>
         </div>
 
-      </div>
+        <!-- Cinematic overlay chrome — ลอยบนวิดีโอ (Prototype A) -->
+        <div class="chrome-top" id="vidChrome">
+          <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า" title="วิดีโอก่อนหน้า">&#8249;</button>
+          <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป" title="วิดีโอถัดไป">&#8250;</button>
+          <span class="chrome-spacer"></span>
+          <button type="button" class="chrome-btn" id="vidMinimize" aria-label="ย่อเครื่องเล่นไว้มุมจอ" title="ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ">🗗</button>
+          <button type="button" class="chrome-btn" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น" title="เต็มจอ" aria-pressed="false">⛶</button>
+          <button type="button" class="chrome-btn" id="vidAspectToggle" aria-label="สลับสัดส่วนแนวตั้งและแนวนอน" title="สลับสัดส่วนแนวตั้งและแนวนอน">⇅</button>
+          <button type="button" class="chrome-btn accent" id="vidQuickPreview" aria-label="สลับไปใช้พรีวิว Google" title="ใช้พรีวิว Google">G</button>
+          <button type="button" class="chrome-btn close" id="vidClose" aria-label="ปิด" title="ปิด">&times;</button>
+        </div>
 
-      <div class="video-footer" style="flex-wrap:wrap">
-        <div id="vidErrorStatus" role="status" aria-live="polite" style="flex-basis:100%;font-size:12px;color:#fbbf24" hidden></div>
+        <div class="vid-error-overlay" id="vidErrorStatus" role="status" aria-live="polite" hidden></div>
 
-        <div class="video-title" id="vidTitle">วิดีโอ</div>
+        <div class="title-overlay">
+          <div class="video-title" id="vidTitle">วิดีโอ</div>
 
-        <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแท็บใหม่ ↗</a>
-        <details class="video-info" id="vidInfo">
-          <summary>ชื่อไฟล์และข้อมูล</summary>
-          <p id="vidFullTitle"></p>
-          <p id="vidPreviewNote" hidden></p>
-        </details>
-        <details class="video-help" id="vidHelp">
-          <summary>เล่นไม่ได้? ลองใหม่ / เชื่อมต่อ Google</summary>
-          <div class="video-help-actions">
-        <button type="button" class="btn-ghost btn-sm" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">ลองเล่นใหม่</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidBlob" title="ดาวน์โหลดไฟล์เต็มด้วยบัญชีที่เชื่อมต่อ แล้วเล่นจากไฟล์ในเครื่อง — ทางแก้เมื่อเบราว์เซอร์บล็อกการสตรีมผ่าน service worker (ใช้เน็ตตามขนาดไฟล์)">โหลดทั้งไฟล์แทน</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">ใช้พรีวิว Google</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidExternalPlayer" title="ส่งลิงก์สตรีมเข้าแอป VLC หรือเครื่องเล่นภายนอก เพื่อดูไฟล์ MKV/HEVC/Hi10P โดยไม่ต้องรอโหลดทั้งไฟล์">เปิดใน VLC / แอปนอก</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidCopyDrive" title="ทำสำเนาไฟล์นี้เข้า Google Drive ของคุณเพื่อแก้ปัญหาติดโควตา (downloadQuotaExceeded) แล้วเล่นทันที">สำเนาเข้า Drive ของฉัน</button>
-        <button type="button" class="btn-ghost btn-sm" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">เชื่อมต่อ Google ใหม่</button>
-          </div>
-        </details>
+          <a id="vidOpenTab" href="#" target="_blank" rel="noopener" title="เปิดไฟล์นี้ใน Google Drive (ใช้บัญชีที่ล็อกอินในหน้า Drive)">เปิดในแหล่งนั้น ↗</a>
+
+          <!-- ทุกวิธีช่วยเหลือรวมในเมนูเดียว -->
+          <details class="video-menu" id="vidHelp">
+            <summary class="menu-btn" title="วิธีเล่นและวิธีแก้ปัญหาทั้งหมดของวิดีโอนี้">ดูแบบอื่น ⋯</summary>
+            <div class="menu-panel">
+              <h5>โหลดแบบอื่น</h5>
+              <button type="button" class="mi" id="vidBlob" title="ดาวน์โหลดไฟล์เต็มด้วยบัญชีที่เชื่อมต่อ แล้วเล่นจากไฟล์ในเครื่อง — ทางแก้เมื่อเบราว์เซอร์บล็อกการสตรีมผ่าน service worker (ใช้เน็ตตามขนาดไฟล์)">
+                <span class="ic">📥</span>
+                <span class="mi-body"><span class="mi-name">โหลดทั้งไฟล์แทน</span><span class="desc">ดาวน์โหลดเต็มแล้วเล่นจากเครื่อง · ใช้เน็ตตามขนาดไฟล์</span></span>
+                <span class="badge">เร็วสุด</span>
+              </button>
+              <button type="button" class="mi" id="vidPreview" title="เปิดพรีวิวของ Google — พรีวิวใช้การล็อกอินของ Google เอง แยกจากบัญชีที่เชื่อมต่อไว้ที่นี่">
+                <span class="ic">🎬</span>
+                <span class="mi-body"><span class="mi-name">ใช้พรีวิว Google</span><span class="desc">เล่นผ่านเซสชัน Google โดยตรง</span></span>
+              </button>
+              <button type="button" class="mi" id="vidExternalPlayer" title="ส่งลิงก์สตรีมเข้าแอป VLC หรือเครื่องเล่นภายนอก เพื่อดูไฟล์ MKV/HEVC/Hi10P โดยไม่ต้องรอโหลดทั้งไฟล์">
+                <span class="ic">⚡</span>
+                <span class="mi-body"><span class="mi-name">เปิดใน VLC / แอปนอก</span><span class="desc">สำหรับ MKV / HEVC / Hi10P</span></span>
+              </button>
+              <h5>แก้ปัญหา</h5>
+              <button type="button" class="mi" id="vidRetry" title="โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น">
+                <span class="ic">🔁</span>
+                <span class="mi-body"><span class="mi-name">ลองเล่นใหม่</span><span class="desc">โหลดและเล่นไฟล์นี้ใหม่ตั้งแต่ต้น</span></span>
+              </button>
+              <button type="button" class="mi" id="vidCopyDrive" title="ทำสำเนาไฟล์นี้เข้า Google Drive ของคุณเพื่อแก้ปัญหาติดโควตา (downloadQuotaExceeded) แล้วเล่นทันที">
+                <span class="ic">🔗</span>
+                <span class="mi-body"><span class="mi-name">สำเนาเข้า Drive ของฉัน</span><span class="desc">แก้ปัญหาติดโควตา</span></span>
+              </button>
+              <button type="button" class="mi" id="vidReconnect" title="ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที">
+                <span class="ic">🔑</span>
+                <span class="mi-body"><span class="mi-name">เชื่อมต่อ Google ใหม่</span><span class="desc">ขอสิทธิ์บัญชี Google ใหม่ แล้วเล่นไฟล์นี้ต่อทันที</span></span>
+              </button>
+              <details class="video-info" id="vidInfo">
+                <summary>ชื่อไฟล์และข้อมูล</summary>
+                <p id="vidFullTitle"></p>
+                <p id="vidPreviewNote" hidden></p>
+              </details>
+            </div>
+          </details>
+        </div>
 
       </div>
 
@@ -497,7 +519,7 @@
   <script src="video-cache.js?v=20261102-r1"></script>
   <script src="stream-protocol.js?v=20261104-r1"></script>
   <script src="app-core.js?v=20261104-r7"></script>
-  <script src="video-player.js?v=20261104-r6"></script>
+  <script src="video-player.js?v=20261105-r7"></script>
   <script src="drive-explorer.js?v=20261104-r6"></script>
   <script src="media-lightbox.js?v=20261104-r5"></script>
   <script src="collections-data.js?v=20261014-r17" defer></script>

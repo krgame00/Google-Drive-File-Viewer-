@@ -11,7 +11,7 @@ function setup(){
     removeAttribute:k=>ratioAttrs.delete(k),
     getAttribute:k=>ratioAttrs.get(k)
   };
-  const aspectBtn={textContent:'สลับแนว ↕↔'};
+  const aspectBtn={textContent:'⇅'};
   const player={videoWidth:1920,videoHeight:1080,style:{display:'block'},pause(){},removeAttribute(){},load(){}};
   const toasts=[],opened=[];
   const bridge={
@@ -124,7 +124,7 @@ test('applyPreviewAspect uses cached fileMetaOf dimensions immediately without n
   assert.equal(fetched,0);
   assert.equal(Number(ratio.style.aspectRatio),9/16);
   assert.equal(ratioAttrs.get('data-orientation'),'portrait');
-  assert.equal(aspectBtn.textContent,'แนวตั้ง ↕');
+  assert.equal(aspectBtn.textContent,'↕');
 });
 
 test('applyPreviewAspect falls back to thumbnail dimensions when signed out or metadata is missing',()=>{
@@ -150,17 +150,17 @@ test('togglePreviewAspect flips between portrait 9:16 and landscape 16:9 and per
   bridge.previewAspect={id:'fileA',value:9/16};
   api.applyVideoAspect();
   assert.equal(ratioAttrs.get('data-orientation'),'portrait');
-  assert.equal(aspectBtn.textContent,'แนวตั้ง ↕');
+  assert.equal(aspectBtn.textContent,'↕');
   const next1=api.togglePreviewAspect();
   assert.equal(next1,16/9);
   assert.equal(Number(ratio.style.aspectRatio),16/9);
   assert.equal(ratioAttrs.get('data-orientation'),'landscape');
-  assert.equal(aspectBtn.textContent,'แนวนอน ↔');
+  assert.equal(aspectBtn.textContent,'↔');
   const next2=api.togglePreviewAspect();
   assert.equal(next2,9/16);
   assert.equal(Number(ratio.style.aspectRatio),9/16);
   assert.equal(ratioAttrs.get('data-orientation'),'portrait');
-  assert.equal(aspectBtn.textContent,'แนวตั้ง ↕');
+  assert.equal(aspectBtn.textContent,'↕');
   assert.equal(api.loadCachedVideoAspect('fileA'),9/16);
 });
 
@@ -195,7 +195,7 @@ test('minimizeVideo and restoreVideo toggle minimized state, update button text 
     add:cls=>modalClasses.add(cls),
     remove:cls=>modalClasses.delete(cls)
   };
-  const minBtn={textContent:'− ย่อมุมจอ',setAttribute(k,v){this[k]=v;}};
+  const minBtn={textContent:'🗗',setAttribute(k,v){this[k]=v;}};
   const origGet=bridge.document.getElementById;
   bridge.document.getElementById=id=>id==='vidMinimize'?minBtn:origGet(id);
   bridge.document.body={style:{overflow:'hidden'}};
@@ -205,14 +205,14 @@ test('minimizeVideo and restoreVideo toggle minimized state, update button text 
   assert.equal(minResult,true);
   assert.equal(api.isVideoMinimized(),true);
   assert(modalClasses.has('minimized'));
-  assert.equal(minBtn.textContent,'⤢ ขยายเต็ม');
+  assert.equal(minBtn.textContent,'⤢');
   assert.equal(bridge.document.body.style.overflow,'');
 
   const restResult=api.restoreVideo();
   assert.equal(restResult,true);
   assert.equal(api.isVideoMinimized(),false);
   assert(!modalClasses.has('minimized'));
-  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+  assert.equal(minBtn.textContent,'🗗');
   assert.equal(bridge.document.body.style.overflow,'hidden');
 
   api.toggleMinimizeVideo();
@@ -229,7 +229,7 @@ test('closeVideo and openVideo cleanly reset minimized state',()=>{
     add:cls=>modalClasses.add(cls),
     remove:cls=>modalClasses.delete(cls)
   };
-  const minBtn={textContent:'⤢ ขยายเต็ม',setAttribute(k,v){this[k]=v;}};
+  const minBtn={textContent:'⤢',setAttribute(k,v){this[k]=v;}};
   const origGet=bridge.document.getElementById;
   bridge.document.getElementById=id=>id==='vidMinimize'?minBtn:origGet(id);
   bridge.document.body={style:{overflow:''}};
@@ -239,14 +239,14 @@ test('closeVideo and openVideo cleanly reset minimized state',()=>{
   assert.equal(api.isVideoMinimized(),false);
   assert(!modalClasses.has('minimized'));
   assert(!modalClasses.has('show'));
-  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+  assert.equal(minBtn.textContent,'🗗');
 
   modalClasses.add('show');
   modalClasses.add('minimized');
-  minBtn.textContent='⤢ ขยายเต็ม';
+  minBtn.textContent='⤢';
   api.openVideo('fileNext','วิดีโอถัดไป.mp4');
   assert.equal(api.isVideoMinimized(),false);
   assert(!modalClasses.has('minimized'));
-  assert.equal(minBtn.textContent,'− ย่อมุมจอ');
+  assert.equal(minBtn.textContent,'🗗');
 });
 
