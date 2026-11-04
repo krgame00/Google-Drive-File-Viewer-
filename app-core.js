@@ -1052,6 +1052,31 @@
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
 
       // Playback state is owned by createVideoCenter in video-player.js (Slice 2b).
+      // GDVVideoHost published for video center (Slice 3)
+      window.GDVVideoHost = {
+        token: () => accessToken,
+        tokenExpiry: () => tokenExpiry,
+        authMode: () => accessToken ? 'signedin' : 'public',
+        ensureToken: (force) => ensureToken(force),
+        cacheScope: () => videoCacheScope(),
+        cacheLimit: () => videoCacheLimit(),
+        fileMeta: (id) => fileMetaOf(id),
+        ls: {
+          get: (k) => lsGet(k),
+          set: (k, v) => lsSet(k, v),
+          remove: (k) => lsRemove(k)
+        },
+        toast: (msg) => showToast(msg),
+        closeLightbox: () => {
+          const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+          if (api && typeof api.closeLightbox === 'function') api.closeLightbox();
+          else if (lightbox && lightbox.classList.contains('show')) lightbox.classList.remove('show');
+        },
+        playlist: (kind) => {
+          const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
+          return api && typeof api.mediaList === 'function' ? api.mediaList(kind) : [];
+        }
+      };
       const currentVideoId = () => window.GDVVideo ? window.GDVVideo.vidCurrentId : null;
       const currentMediaSession = () => window.GDVVideo ? window.GDVVideo.mediaSession : 0;
       const currentVideoStatus = () => window.GDVVideo ? window.GDVVideo.videoStatus : 'closed';
@@ -1134,166 +1159,9 @@
           status.textContent = stats.count + ' คลิป' + (heads.supported && heads.count ? ' + หัวคลิป ' + heads.count + ' ไฟล์' : '') + ' · ' + (formatSize(stats.bytes + (heads.supported ? heads.bytes : 0)) || '0 B') + ' / ' + select.value + ' GB';
         });
       }
-      const startVideoPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.startVideoPlayback(...args) : undefined;
-      const playbackRouteRecords = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.playbackRouteRecords(...args) : undefined;
-      const rememberPlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.rememberPlaybackRoute(...args) : undefined;
-      const preferredPlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.preferredPlaybackRoute(...args) : undefined;
-      const recordActivePlaybackRoute = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.recordActivePlaybackRoute(...args) : undefined;
-      const setVideoStatus = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.setVideoStatus(...args) : undefined;
-      const handleDriveStreamError = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.handleDriveStreamError(...args) : undefined;
-      const cancelVideoAttempt = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.cancelVideoAttempt(...args) : undefined;
-      const resetMediaPlayback = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.resetMediaPlayback(...args) : undefined;
-      const openVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openVideo(...args) : undefined;
-
-
-
-      // ===== เล่นวิดีโอแบบสตรีม — เริ่มดูทันที ไม่ต้องรอโหลดครบทั้งไฟล์ =====
-
-      // Signed-in playback uses a same-origin service worker to add the bearer header.
-
-      // Signed-out playback retains public sources, then falls back to Drive preview.
-
-      // Drive permissions, quotas and browser codec support still apply.
-
       const MEDIA_STREAM_FAIL_MSG = 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google';
-      // Brave บล็อก fetch ข้ามโดเมนจาก service worker (ข้อจำกัด upstream ยังไม่แก้) —
-      // จำไว้ในเซสชันเพื่อเปิดพรีวิวให้ทันทีในไฟล์ถัดไป แทนการโชว์การ์ด error ทุกครั้ง
-      const streamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.streamBlocked(...args) : undefined;
-      const rememberStreamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.rememberStreamBlocked(...args) : undefined;
-      const clearStreamBlocked = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clearStreamBlocked(...args) : undefined;
-      const streamBlockVerdict = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.streamBlockVerdict(...args) : undefined;
-      const shouldRememberStreamBlock = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.shouldRememberStreamBlock(...args) : undefined;
-      const deviceCodecSupport = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.deviceCodecSupport(...args) : undefined;
-      const describeCodecSupport = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.describeCodecSupport(...args) : undefined;
-      const readMp4CodecInfo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readMp4CodecInfo(...args) : undefined;
-      const probeStreamEndpoint = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.probeStreamEndpoint(...args) : undefined;
-      const calculatePreviewLayout = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.calculatePreviewLayout(...args) : undefined;
       const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.fitVideoPreview(...args) : undefined;
-      if (window.ResizeObserver) new window.ResizeObserver(fitVideoPreview).observe(vidFrame.parentElement);
-      window.addEventListener('resize', fitVideoPreview, {passive: true});
-      window.addEventListener('orientationchange', fitVideoPreview, {passive: true});
-      vidFrame.addEventListener('load', fitVideoPreview);
-      const clampPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clampPreviewAspect(...args) : undefined;
-      const applyPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyPreviewAspect(...args) : undefined;
-      const configurePreviewFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.configurePreviewFullscreen(...args) : undefined;
-      const lockHorizontalPlayerOrientation = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.lockHorizontalPlayerOrientation(...args) : undefined;
-      const getPlayerAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.getPlayerAspect(...args) : undefined;
-      const releasePlayerOrientation = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.releasePlayerOrientation(...args) : undefined;
-      const applyVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyVideoAspect(...args) : undefined;
-      const applyNativeVideoAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyNativeVideoAspect(...args) : undefined;
-      const togglePlayerFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePlayerFullscreen(...args) : undefined;
-      const togglePreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.togglePreviewAspect(...args) : undefined;
-      const openInExternalPlayer = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openInExternalPlayer(...args) : undefined;
-      const copyVideoToMyDrive = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.copyVideoToMyDrive(...args) : undefined;
-      const isVideoMinimized = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.isVideoMinimized(...args) : false;
-      const minimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.minimizeVideo(...args) : undefined;
-      const restoreVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.restoreVideo(...args) : undefined;
-      const toggleMinimizeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleMinimizeVideo(...args) : undefined;
-      const isDownloadTurboEnabled = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.isDownloadTurboEnabled(...args) : true;
-      const setDownloadTurboEnabled = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.setDownloadTurboEnabled(...args) : undefined;
-      const toggleDownloadTurbo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleDownloadTurbo(...args) : undefined;
-      document.getElementById('vidFullscreen').addEventListener('click', togglePlayerFullscreen);
-      const vidMinimizeBtn = document.getElementById('vidMinimize');
-      if (vidMinimizeBtn) vidMinimizeBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        toggleMinimizeVideo();
-      });
-      const vidMinimizeBlobBtn = document.getElementById('vidMinimizeBlob');
-      if (vidMinimizeBlobBtn) vidMinimizeBlobBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        minimizeVideo();
-      });
-      const vidTurboBlobBtn = document.getElementById('vidTurboBlob');
-      if (vidTurboBlobBtn) vidTurboBlobBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        toggleDownloadTurbo();
-      });
-      const videoBoxEl = videoModal.querySelector('.video-box');
-      if (videoBoxEl) videoBoxEl.addEventListener('click', function (e) {
-        if (!videoModal.classList.contains('minimized')) return;
-        if (e.target && e.target.closest && e.target.closest('#vidClose, #vidCancelBlob, #vidMinimize, #vidTurboBlob, .lb-close, button')) return;
-        restoreVideo();
-      });
-      const vidAspectToggleBtn = document.getElementById('vidAspectToggle');
-      if (vidAspectToggleBtn) vidAspectToggleBtn.addEventListener('click', togglePreviewAspect);
-      const vidQuickPreviewBtn = document.getElementById('vidQuickPreview');
-      if (vidQuickPreviewBtn) vidQuickPreviewBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
-      });
-      const vidExternalPlayerBtn = document.getElementById('vidExternalPlayer');
-      if (vidExternalPlayerBtn) vidExternalPlayerBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) openInExternalPlayer(currentVideoId());
-      });
-      const vidSlowVlcBtn = document.getElementById('vidSlowVlc');
-      if (vidSlowVlcBtn) vidSlowVlcBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) openInExternalPlayer(currentVideoId());
-      });
-      const vidSlowPreviewBtn = document.getElementById('vidSlowPreview');
-      if (vidSlowPreviewBtn) vidSlowPreviewBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
-      });
-      const vidSlowBlobBtn = document.getElementById('vidSlowBlob');
-      if (vidSlowBlobBtn) vidSlowBlobBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) requestVideoBlob(currentVideoId());
-      });
-      const vidCopyDriveBtn = document.getElementById('vidCopyDrive');
-      if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) copyVideoToMyDrive(currentVideoId());
-      });
-      function handleFullscreenChange() {
-        const box = videoModal.querySelector('.video-box');
-        const active = (document.fullscreenElement === box) || (document.webkitFullscreenElement === box) || (box && box.classList.contains('pseudo-fullscreen'));
-        if (!active) releasePlayerOrientation();
-        const button = document.getElementById('vidFullscreen');
-        if (button) {
-          button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
-          button.setAttribute('aria-pressed', String(active));
-        }
-        applyVideoAspect();
-        requestAnimationFrame(fitVideoPreview);
-      }
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.getElementById('vidPreview').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
-      });
-      document.getElementById('vidRetry').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && currentVideoId()) { clearRetryRoutes(); clearStreamBlocked(); openVideo(currentVideoId(), vidTitle.textContent); }
-      });
-      document.getElementById('vidReconnect').addEventListener('click', function () {
-        const id=currentVideoId(), session=currentMediaSession(), name=vidTitle.textContent;
-        ensureToken(true).then(function(token){
-          if(token && session===currentMediaSession() && id===currentVideoId() && videoModal.classList.contains('show')) { clearRetryRoutes(); clearStreamBlocked(); openVideo(id,name); }
-        });
-      });
-      document.getElementById('vidBlob').addEventListener('click', function () {
-        if (currentVideoId()) requestVideoBlob(currentVideoId());
-      });
-      document.getElementById('vidCancelBlob').addEventListener('click', function () {
-        cancelVideoBlobTransfer(true);
-      });
-            const prepareStreamWorker = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.prepareStreamWorker(...args) : undefined;
-
-      const showStreamFailure = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.showStreamFailure(...args) : undefined;
-
-      const tryStreamDirect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryStreamDirect(...args) : undefined;
-
-      const probePublicStreamError = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.probePublicStreamError(...args) : undefined;
-
-      const tryPublicStream = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryPublicStream(...args) : undefined;
-
-
-
-      const readVideoBlobResponse = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readVideoBlobResponse(...args) : undefined;
-      const readVideoBlobRanges = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.readVideoBlobRanges(...args) : undefined;
-      const openVideoTempWriter = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.openVideoTempWriter(...args) : undefined;
-      const renderVideoBlobProgress = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.renderVideoBlobProgress(...args) : undefined;
-      const cancelVideoBlobTransfer = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.cancelVideoBlobTransfer(...args) : undefined;
-      const requestVideoBlob = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.requestVideoBlob(...args) : undefined;
-      const loadVideoAsBlob = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadVideoAsBlob(...args) : undefined;
-
-      const tryVideoSrc = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.tryVideoSrc(...args) : undefined;
-
+      
 
 
             // บันทึกตำแหน่งปัจจุบันเป็นระยะ (ทุก 3 วินาที) — กัน refresh/ปิดแล้วลืมที่
@@ -1595,58 +1463,7 @@
         observeFolderCovers(document);
       }
 
-      const loadWatchedVideos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadWatchedVideos(...args) : undefined;
-
-      const toggleWatchedVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.toggleWatchedVideo(...args) : undefined;
-
-      const attachWatchedButtons = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.attachWatchedButtons(...args) : undefined;
-
-      const loadContinueWatching = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.loadContinueWatching(...args) : undefined;
-
       const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.saveVideoPos(...args) : undefined;
-
-      const renderContinueWatching = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.renderContinueWatching(...args) : undefined;
-
-            // เก็บกวาด gdv_vpos_* เก่าสุดออกให้เหลือไม่เกิน maxKeys (กัน localStorage บวม)
-
-            function pruneVpos(maxKeys) {
-
-              try {
-
-                const keys = [];
-
-                for (let i = 0; i < localStorage.length; i++) {
-
-                  const k = localStorage.key(i);
-
-                  if (k && k.indexOf("gdv_vpos_") === 0) keys.push(k);
-
-                }
-
-                for (let i = 0; i < keys.length - maxKeys; i++) {
-
-                  lsRemove(keys[i]);
-
-                }
-
-              } catch (_) {}
-
-            }
-
-            window.addEventListener("pagehide", saveVideoPos);
-            window._gdvVideoTimer = window._gdvVideoTimer || setInterval(saveVideoPos, 3000);
-
-            // สถานะเครื่องเล่นจริง → อัปเดตข้อความบนหน้า (เล่นได้/กำลังบัฟเฟอร์)
-
-            vidPlayer.addEventListener("loadedmetadata", function () {
-              if (videoModal.classList.contains("show") && currentVideoStatus() === 'connecting') setVideoStatus('loading');
-            });
-            vidPlayer.addEventListener("playing", function () {
-              if (videoModal.classList.contains("show")) { recordActivePlaybackRoute(); setVideoStatus('playing'); }
-            });
-            vidPlayer.addEventListener("waiting", function () {
-              if (videoModal.classList.contains("show") && currentVideoStatus() !== 'error') setVideoStatus('buffering');
-            });
 
             // เมื่อเล่นจบ (ended) → auto-advance มีเจ้าของเดียวคือ Next-Up countdown-with-prefetch
             // ใน video-player.js (listener ตัวนี้ถูกถอดออก — นโยบาย immediate-advance เดิมเปิด
@@ -1664,7 +1481,6 @@
 
 
 
-      const revokeCurrentVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.revokeCurrentVideo(...args) : undefined;
 
       function resetPdfViewer(...args) {
         const api = window.GDVLightboxApi && window.GDVLightboxApi.media;
@@ -1769,10 +1585,6 @@
 
       const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.closeVideo(...args) : undefined;
 
-      vidClose.addEventListener("click", closeVideo);
-
-      videoModal.addEventListener("click", function (e) { if (e.target === videoModal && !videoModal.classList.contains("minimized")) closeVideo(); });
-
 
 
       function openDocument(...args) {
@@ -1848,21 +1660,16 @@
         }
         if (videoModal.classList.contains("show")) {
           if (!currentVideoId() && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { navigateMedia("image", e.key === "ArrowLeft" ? -1 : 1); return; }
-          if (e.shiftKey && e.key === "ArrowLeft") { window._gdvMediaNav.navigateVideo(-1); return; }
-          if (e.shiftKey && e.key === "ArrowRight") { window._gdvMediaNav.navigateVideo(1); return; }
+          if (e.shiftKey && e.key === "ArrowLeft") { if (window.GDVVideo) window.GDVVideo.onNav(-1); return; }
+          if (e.shiftKey && e.key === "ArrowRight") { if (window.GDVVideo) window.GDVVideo.onNav(1); return; }
         }
         if (e.key !== "Escape") return;
 
         if (lightbox.classList.contains("show")) closeLightbox();
 
         if (videoModal.classList.contains("show")) {
-          const box = videoModal.querySelector('.video-box');
-          if (box && box.classList.contains('pseudo-fullscreen')) {
-            box.classList.remove('pseudo-fullscreen');
-            const button = document.getElementById('vidFullscreen');
-            if (button) { button.textContent = 'เต็มจอ'; button.setAttribute('aria-pressed', 'false'); }
-            applyVideoAspect();
-            requestAnimationFrame(fitVideoPreview);
+          if (window.GDVVideo && typeof window.GDVVideo.escape === 'function') {
+            window.GDVVideo.escape();
             return;
           }
           closeVideo();
@@ -2264,7 +2071,7 @@
       renderRecentFolders();
       initMyLibraryDrawer();
       renderFavoriteFolders();
-      if (window.GDVVideoApi && window.GDVVideoApi.video) renderContinueWatching();
+      if (window.GDVVideo && typeof window.GDVVideo.refreshLibrary === "function") window.GDVVideo.refreshLibrary();
 
       renderPersonalLibrary();
       updateMyLibraryBadge();
@@ -2525,7 +2332,7 @@
         attachWatchedButtons,
         openLightbox,
         openDocument,
-        openVideo,
+        openVideo: (id, name) => (window.GDVVideo ? window.GDVVideo.open(id, name) : undefined),
         stepPdfPage,
         mediaList,
         navigateMedia,
@@ -2571,9 +2378,15 @@
       Object.assign(window.GDVLightboxApi, {
         getBlobCached, origCacheKey, cdnLargeUrl,
         readPersonalData, updatePersonalData, renderPersonalLibrary, refreshFolderCovers,
-        setVideoStatus, cancelVideoAttempt, resetMediaPlayback, openVideo,
-        fitVideoPreview, applyPreviewAspect, configurePreviewFullscreen,
-        cancelVideoBlobTransfer, closeVideo
+        get setVideoStatus() { return window.GDVVideo ? window.GDVVideo.setVideoStatus : undefined; },
+        get cancelVideoAttempt() { return window.GDVVideo ? window.GDVVideo.cancelVideoAttempt : undefined; },
+        get resetMediaPlayback() { return window.GDVVideo ? window.GDVVideo.resetMediaPlayback : undefined; },
+        get openVideo() { return window.GDVVideo ? (window.GDVVideo.open || window.GDVVideo.openVideo) : undefined; },
+        get fitVideoPreview() { return window.GDVVideo ? window.GDVVideo.fitVideoPreview : undefined; },
+        get applyPreviewAspect() { return window.GDVVideo ? window.GDVVideo.applyPreviewAspect : undefined; },
+        get configurePreviewFullscreen() { return window.GDVVideo ? window.GDVVideo.configurePreviewFullscreen : undefined; },
+        get cancelVideoBlobTransfer() { return window.GDVVideo ? (window.GDVVideo.cancelBlob || window.GDVVideo.cancelVideoBlobTransfer) : undefined; },
+        get closeVideo() { return window.GDVVideo ? (window.GDVVideo.close || window.GDVVideo.closeVideo) : undefined; }
       });
 
       window.GDVCollectionApi = {

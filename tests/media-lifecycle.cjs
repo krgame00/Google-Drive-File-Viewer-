@@ -4,6 +4,7 @@ const videoApi=require('../video-player.js');
 const sourceFiles=['drive-explorer.js','video-player.js','collection-viewer.js','collections-data.js','media-lightbox.js','app-core.js','index.html'];
 const sources=sourceFiles.map(name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8'));
 const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
+const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');
 const pageHtml=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function sourceFor(name){return sources.find(source=>source.includes('      function '+name+'(')||source.includes('      async function '+name+'('))||html;}
 function hasPattern(pattern){return sources.some(source=>pattern.test(source));}
@@ -218,7 +219,7 @@ test('blob fallback plays the full file through the page fetch (Brave workaround
 });
 test('blob fallback button exists in the video help actions',()=>{
   assert(pageHtml.includes('id="vidBlob"'),'vidBlob button present');
-  assert(html.includes("getElementById('vidBlob').addEventListener"),'vidBlob is wired');
+  assert((html + playerJs).includes("getElementById('vidBlob')") || playerJs.includes("getEl('vidBlob')"),'vidBlob is wired');
 });
 test('closing cancels a whole-file download and ignores its late completion',async()=>{
   const {ctx,els}=setup();let finish,plays=0;ctx.vidCurrentId='fileA';ctx.videoModal.classList.contains=()=>true;
@@ -426,8 +427,8 @@ test('an old session block is cleared and the next file gets a fresh attempt',()
   assert.deepEqual(previews,[]);
 });
 test('retry and reconnect clear the remembered block before reopening',()=>{
-  assert(/vidRetry'\)\.addEventListener\('click', function \(\) \{\s*if \(videoModal\.classList\.contains\('show'\) && (?:vidCurrentId|currentVideoId\(\))\) \{ clearRetryRoutes\(\); clearStreamBlocked\(\); openVideo/.test(html),'retry clears cooldown and block');
-  assert(/vidReconnect'\)\.addEventListener\('click',[\s\S]{0,400}clearStreamBlocked\(\); openVideo/.test(html),'reconnect clears the flag');
+  assert(/vidRetry(?:Btn)?'[\s\S]{0,300}clearRetryRoutes\(\);[\s\S]{0,50}clearStreamBlocked\(\);[\s\S]{0,50}openVideo/.test(playerJs),'retry clears cooldown and block');
+  assert(/vidReconnect(?:Btn)?'[\s\S]{0,600}clearStreamBlocked\(\);[\s\S]{0,50}openVideo/.test(playerJs),'reconnect clears the flag');
 });
 
 test('a confirmed worker quota error advances immediately without waiting for timeout',()=>{

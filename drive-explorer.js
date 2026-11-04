@@ -1235,9 +1235,9 @@
 
                 if (lbNextBtn) { lbNextBtn.onclick = function () { window._gdvMediaNav.navigateLightbox(1); }; }
 
-                if (vidPrevBtn) { vidPrevBtn.onclick = function () { window._gdvMediaNav.navigateVideo(-1); }; }
+                if (vidPrevBtn) { vidPrevBtn.onclick = function () { if (window.GDVVideo && typeof window.GDVVideo.onNav === 'function') window.GDVVideo.onNav(-1); else window._gdvMediaNav.navigateVideo(-1); }; }
 
-                if (vidNextBtn) { vidNextBtn.onclick = function () { window._gdvMediaNav.navigateVideo(1); }; }
+                if (vidNextBtn) { vidNextBtn.onclick = function () { if (window.GDVVideo && typeof window.GDVVideo.onNav === 'function') window.GDVVideo.onNav(1); else window._gdvMediaNav.navigateVideo(1); }; }
 
               }
 

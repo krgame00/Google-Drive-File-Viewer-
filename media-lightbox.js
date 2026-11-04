@@ -342,6 +342,8 @@
       }
 
       function fallbackIframe(id) {
+        const v = window.GDVVideo;
+        if (v && typeof v.enterPreview === 'function') { v.enterPreview(id); return; }
         if (!videoModal.classList.contains("show") || vidCurrentId !== id) return;
         cancelVideoBlobTransfer();
         cancelVideoAttempt();
@@ -695,12 +697,17 @@
         const isPdf = !forceDrivePreview && (String(mimeType || '').toLowerCase().split(';')[0].trim() === 'application/pdf' || /\.pdf$/i.test(name || ''));
         if (isPdf) { openPdfDocument(id, name, mimeType); return; }
         if (lightbox.classList.contains("show")) closeLightbox();
-        if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
-        resetMediaPlayback();
+        const video = window.GDVVideo || (window.GDVVideoApi && window.GDVVideoApi.video);
+        if (video && typeof video.suspend === 'function') {
+          video.suspend();
+        } else {
+          if (!videoModal.classList.contains("show")) mediaPreviousOverflow = document.body.style.overflow;
+          resetMediaPlayback();
+          vidCurrentId = null;
+        }
         vidFrame.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
         vidFrame.setAttribute('allowfullscreen', '');
         const session = mediaSession;
-        vidCurrentId = null;
         lbImg.dataset.fid = id;
         currentMediaIndex = -1;
         currentMediaKind = "pdf";

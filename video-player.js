@@ -2240,7 +2240,321 @@ function createVideoCenter(app) {
         if (nextUpCancelBtn) nextUpCancelBtn.addEventListener('click', hideNextUp);
       }
 
+
+  function syncFullscreen() {
+    const box = app.videoModal ? (app.videoModal.querySelector ? app.videoModal.querySelector('.video-box') : null) : null;
+    const doc = app.document || (typeof document !== 'undefined' ? document : null);
+    const active = Boolean(
+      (doc && doc.fullscreenElement && doc.fullscreenElement === box) ||
+      (doc && doc.webkitFullscreenElement && doc.webkitFullscreenElement === box) ||
+      (box && box.classList && box.classList.contains && box.classList.contains('pseudo-fullscreen'))
+    );
+    if (!active) releasePlayerOrientation();
+    const button = doc && doc.getElementById ? doc.getElementById('vidFullscreen') : null;
+    if (button) {
+      button.textContent = active ? 'ออกเต็มจอ' : 'เต็มจอ';
+      button.setAttribute('aria-pressed', String(active));
+    }
+    applyVideoAspect();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(fitVideoPreview);
+    } else {
+      fitVideoPreview();
+    }
+    return active;
+  }
+
+  function escape() {
+    if (!app.videoModal || !app.videoModal.classList || !app.videoModal.classList.contains('show')) return false;
+    const box = app.videoModal.querySelector ? app.videoModal.querySelector('.video-box') : null;
+    if (box && box.classList && box.classList.contains && box.classList.contains('pseudo-fullscreen')) {
+      box.classList.remove('pseudo-fullscreen');
+      syncFullscreen();
+      return true;
+    }
+    closeVideo();
+    return true;
+  }
+
+  function suspend() {
+    if (app.videoModal && app.videoModal.classList && !app.videoModal.classList.contains("show")) {
+      mediaPreviousOverflow = (app.document && app.document.body) ? app.document.body.style.overflow : "";
+    }
+    resetMediaPlayback();
+    vidCurrentId = null;
+    revokeCurrentVideo();
+    if (app.vidPlayer) {
+      try { app.vidPlayer.pause(); } catch (_) {}
+      try { app.vidPlayer.removeAttribute("src"); } catch (_) {}
+    }
+  }
+
+  function enterPreview(id) {
+    if (!app.videoModal || !app.videoModal.classList || !app.videoModal.classList.contains("show") || vidCurrentId !== id) return;
+    cancelVideoBlobTransfer();
+    cancelVideoAttempt();
+    if (app.vidPlayer) {
+      app.vidPlayer.oncanplay = null;
+      app.vidPlayer.onerror = null;
+      try { app.vidPlayer.pause(); } catch (_) {}
+      try { app.vidPlayer.removeAttribute("src"); } catch (_) {}
+      try { app.vidPlayer.load(); } catch (_) {}
+      app.vidPlayer.style.display = "none";
+    }
+    configurePreviewFullscreen();
+    if (app.vidFrame) {
+      app.vidFrame.setAttribute('data-video-preview', 'true');
+      app.vidFrame.style.display = "block";
+      app.vidFrame.src = "https://drive.google.com/file/d/" + id + "/preview";
+    }
+    applyPreviewAspect(id);
+    fitVideoPreview();
+    setVideoStatus('preview', 'พรีวิว Google ใช้บัญชีแยกจากเว็บนี้ บนมือถือให้ใช้ปุ่ม “เต็มจอ” ด้านบน · หากขึ้นกำลังประมวลผลหรือดูไม่ได้ กด “โหลดทั้งไฟล์แทน” หรือ “เปิดใน VLC / แอปนอก” ด้านล่าง');
+  }
+
+  function clearRetryRoutes() {
+    const rc = app.routeCooldown || (app.window && app.window.GDVVideoCache ? app.window.GDVVideoCache.createRouteCooldown() : null);
+    if (rc && vidCurrentId) {
+      rc.clear(vidCurrentId, app.accessToken ? 'signedin' : 'public');
+    }
+  }
+
+  function retry() {
+    if (app.videoModal && app.videoModal.classList && app.videoModal.classList.contains('show') && vidCurrentId) {
+      clearRetryRoutes();
+      clearStreamBlocked();
+      openVideo(vidCurrentId, (app.vidTitle && app.vidTitle.textContent) || "วิดีโอ");
+    }
+  }
+
+  function reconnect() {
+    const id = vidCurrentId;
+    const session = mediaSession;
+    const name = (app.vidTitle && app.vidTitle.textContent) || "วิดีโอ";
+    const ensure = typeof app.ensureToken === 'function' ? app.ensureToken(true) : Promise.resolve(null);
+    return ensure.then(function (token) {
+      if (token && session === mediaSession && id === vidCurrentId && app.videoModal && app.videoModal.classList && app.videoModal.classList.contains('show')) {
+        clearRetryRoutes();
+        clearStreamBlocked();
+        openVideo(id, name);
+      }
+      return token;
+    });
+  }
+
+  function onNav(dir) {
+    try {
+      const api = app.window && app.window.GDVLightboxApi ? app.window.GDVLightboxApi.media : null;
+      if (api && typeof api.navigateMedia === 'function') {
+        if (!vidCurrentId) {
+          api.navigateMedia("image", dir);
+        } else {
+          api.navigateMedia("video", dir);
+        }
+        return;
+      }
+      const list = typeof app.playlist === 'function' ? app.playlist('video') : [];
+      const next = nextVideoInList(list, vidCurrentId);
+      if (next) openVideo(next.id, next.name);
+    } catch (_) {}
+  }
+
+  function safeOn(el, evt, handler, opts) {
+    if (el && typeof el.addEventListener === 'function') {
+      try { el.addEventListener(evt, handler, opts); } catch (_) {}
+    }
+  }
+
+  function wireVideoListeners() {
+    const doc = app.document || (typeof document !== 'undefined' ? document : null);
+    const win = app.window || (typeof window !== 'undefined' ? window : null);
+    if (!doc) return;
+
+    const getEl = id => (app[id] && app[id].addEventListener ? app[id] : (doc.getElementById ? doc.getElementById(id) : null));
+
+    // Fullscreen buttons & changes
+    const vidFullscreenBtn = getEl('vidFullscreen');
+    safeOn(vidFullscreenBtn, 'click', togglePlayerFullscreen);
+    safeOn(doc, 'fullscreenchange', syncFullscreen);
+    safeOn(doc, 'webkitfullscreenchange', syncFullscreen);
+
+    // Minimize buttons
+    const vidMinimizeBtn = getEl('vidMinimize');
+    safeOn(vidMinimizeBtn, 'click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      toggleMinimizeVideo();
+    });
+    const vidMinimizeBlobBtn = getEl('vidMinimizeBlob');
+    safeOn(vidMinimizeBlobBtn, 'click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      minimizeVideo();
+    });
+
+    // Turbo button
+    const vidTurboBlobBtn = getEl('vidTurboBlob');
+    safeOn(vidTurboBlobBtn, 'click', function (e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      toggleDownloadTurbo();
+    });
+
+    // Restore from minimized on modal click / backdrop click
+    const vModal = app.videoModal || getEl('videoModal');
+    if (vModal) {
+      const videoBoxEl = vModal.querySelector ? vModal.querySelector('.video-box') : null;
+      safeOn(videoBoxEl, 'click', function (e) {
+        if (!vModal.classList.contains('minimized')) return;
+        if (e && e.target && e.target.closest && e.target.closest('#vidClose, #vidCancelBlob, #vidMinimize, #vidTurboBlob, .lb-close, button')) return;
+        restoreVideo();
+      });
+      safeOn(vModal, 'click', function (e) {
+        if (e && e.target === vModal && !vModal.classList.contains('minimized')) closeVideo();
+      });
+    }
+
+    // Aspect & Preview buttons
+    const vidAspectToggleBtn = getEl('vidAspectToggle');
+    safeOn(vidAspectToggleBtn, 'click', togglePreviewAspect);
+
+    const vidQuickPreviewBtn = getEl('vidQuickPreview');
+    safeOn(vidQuickPreviewBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) enterPreview(vidCurrentId);
+    });
+    const vidPreviewBtn = getEl('vidPreview');
+    safeOn(vidPreviewBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) enterPreview(vidCurrentId);
+    });
+    const vidSlowPreviewBtn = getEl('vidSlowPreview');
+    safeOn(vidSlowPreviewBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) enterPreview(vidCurrentId);
+    });
+
+    // External player buttons
+    const vidExternalPlayerBtn = getEl('vidExternalPlayer');
+    safeOn(vidExternalPlayerBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+    });
+    const vidSlowVlcBtn = getEl('vidSlowVlc');
+    safeOn(vidSlowVlcBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+    });
+
+    // Whole-file blob download buttons
+    const vidBlobBtn = getEl('vidBlob');
+    safeOn(vidBlobBtn, 'click', function () {
+      if (vidCurrentId) requestVideoBlob(vidCurrentId);
+    });
+    const vidSlowBlobBtn = getEl('vidSlowBlob');
+    safeOn(vidSlowBlobBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) requestVideoBlob(vidCurrentId);
+    });
+    const vidCancelBlobBtn = getEl('vidCancelBlob');
+    safeOn(vidCancelBlobBtn, 'click', function () {
+      cancelVideoBlobTransfer(true);
+    });
+
+    // Copy to Drive button
+    const vidCopyDriveBtn = getEl('vidCopyDrive');
+    safeOn(vidCopyDriveBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
+    });
+
+    // Retry and Reconnect buttons
+    const vidRetryBtn = getEl('vidRetry');
+    safeOn(vidRetryBtn, 'click', function () {
+      if (vModal && vModal.classList.contains('show') && vidCurrentId) {
+        clearRetryRoutes();
+        clearStreamBlocked();
+        openVideo(vidCurrentId, (app.vidTitle && app.vidTitle.textContent) || "วิดีโอ");
+      }
+    });
+    const vidReconnectBtn = getEl('vidReconnect');
+    safeOn(vidReconnectBtn, 'click', function () {
+      const id = vidCurrentId, session = mediaSession, name = (app.vidTitle && app.vidTitle.textContent) || "วิดีโอ";
+      const ensure = typeof app.ensureToken === 'function' ? app.ensureToken(true) : Promise.resolve(null);
+      ensure.then(function (token) {
+        if (token && session === mediaSession && id === vidCurrentId && vModal && vModal.classList.contains('show')) {
+          clearRetryRoutes();
+          clearStreamBlocked();
+          openVideo(id, name);
+        }
+      });
+    });
+
+    // Close button
+    const vidCloseBtn = getEl('vidClose');
+    safeOn(vidCloseBtn, 'click', closeVideo);
+
+    // Prev / Next buttons
+    const vidPrevBtn = getEl('vidPrev');
+    safeOn(vidPrevBtn, 'click', function () { onNav(-1); });
+    const vidNextBtn = getEl('vidNext');
+    safeOn(vidNextBtn, 'click', function () { onNav(1); });
+
+    // Viewport resize & orientation
+    if (win) {
+      if (win.ResizeObserver && app.vidFrame && app.vidFrame.parentElement) {
+        try { new win.ResizeObserver(fitVideoPreview).observe(app.vidFrame.parentElement); } catch (_) {}
+      }
+      safeOn(win, 'resize', fitVideoPreview, { passive: true });
+      safeOn(win, 'orientationchange', fitVideoPreview, { passive: true });
+      safeOn(win, 'pagehide', saveVideoPos);
+      if (!(typeof module !== 'undefined' && module.exports) && typeof win.setInterval === 'function') {
+        win._gdvVideoTimer = win._gdvVideoTimer || win.setInterval(saveVideoPos, 3000);
+      }
+    }
+    if (app.vidFrame) safeOn(app.vidFrame, 'load', fitVideoPreview);
+
+    // Media element event listeners
+    if (app.vidPlayer) {
+      safeOn(app.vidPlayer, 'loadedmetadata', function () {
+        if (vModal && vModal.classList.contains('show') && videoStatus === 'connecting') setVideoStatus('loading');
+      });
+      safeOn(app.vidPlayer, 'playing', function () {
+        if (vModal && vModal.classList.contains('show')) { recordActivePlaybackRoute(); setVideoStatus('playing'); }
+      });
+      safeOn(app.vidPlayer, 'waiting', function () {
+        if (vModal && vModal.classList.contains('show') && videoStatus !== 'error') setVideoStatus('buffering');
+      });
+    }
+  }
+
+  wireVideoListeners();
+
   const video = {
+    // Target interface (24 names)
+    open: openVideo,
+    close: closeVideo,
+    suspend,
+    retry,
+    reconnect,
+    escape,
+    openPreview: enterPreview,
+    openExternal: openInExternalPlayer,
+    copyToDrive: copyVideoToMyDrive,
+    requestBlob: requestVideoBlob,
+    cancelBlob: cancelVideoBlobTransfer,
+    toggleFullscreen: togglePlayerFullscreen,
+    toggleAspect: togglePreviewAspect,
+    toggleMinimize: toggleMinimizeVideo,
+    toggleTurbo: toggleDownloadTurbo,
+    onNav,
+    enterPreview,
+    refreshLibrary: renderContinueWatching,
+    watched: {
+      list: loadWatchedVideos,
+      toggle: toggleWatchedVideo,
+      attach: attachWatchedButtons
+    },
+    headCache: {
+      stats: function () {
+        return typeof app.headCacheStats === 'function' ? app.headCacheStats() : Promise.resolve({ supported: false });
+      },
+      clear: function () {
+        return typeof app.headCacheClear === 'function' ? app.headCacheClear() : Promise.resolve({ cleared: false });
+      }
+    },
+    syncFullscreen,
+    clearRetryRoutes,
     startVideoPlayback,
     playbackRouteRecords,
     rememberPlaybackRoute,
@@ -2321,8 +2635,9 @@ function createVideoCenter(app) {
 }
 
 (function () {
-  const appApi = window.GDVVideoApi;
-  if (!appApi) throw new Error("Video player requires GDVVideoApi");
+  const host = (typeof window !== 'undefined' && window.GDVVideoHost) || null;
+  const appApi = (typeof window !== 'undefined' && window.GDVVideoApi) || host;
+  if (!appApi) throw new Error("Video player requires GDVVideoApi or GDVVideoHost");
   const video = createVideoCenter(appApi);
   appApi.video = video;
   window.GDVVideo = video;

@@ -1026,3 +1026,29 @@
   6. **Cache Busters:** ปรับใน `index.html` เป็น `app-core.js?v=20261104-r4` และ `video-player.js?v=20261104-r3`
 - **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures, duration 23.2s)**
 
+### 47. Slice 3: ย้าย Event Wiring ทั้งหมดเข้า Center, ลดรูป Bridge และชิมใน app-core, Fullscreen ด้วย Derived State (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (S3 จาก 6 slices ของ design docs/streaming-redesign.md)
+- **การแก้ไข:**
+  1. **เผยแพร่ `window.GDVVideoHost`:** `app-core.js` เผยแพร่ API สภาพแวดล้อมและข้อมูลยืนยันตัวตนสำหรับ Video Center (`token`, `tokenExpiry`, `authMode`, `ensureToken`, `cacheScope`, `cacheLimit`, `fileMeta`, `ls`, `toast`, `closeLightbox`, `playlist`)
+  2. **ย้าย Event Listeners ทั้งหมดเข้าสู่ `createVideoCenter`:**
+     - ย้ายการผูกปุ่มใน Video Modal ทั้งหมด (`#vidFullscreen`, `#vidMinimize`, `#vidMinimizeBlob`, `#vidTurboBlob`, `#videoBox` restore, `#vidAspectToggle`, `#vidQuickPreview`, `#vidPreview`, `#vidSlowPreview`, `#vidExternalPlayer`, `#vidSlowVlc`, `#vidBlob`, `#vidSlowBlob`, `#vidCancelBlob`, `#vidCopyDrive`, `#vidRetry`, `#vidReconnect`, `#vidClose`, backdrop click) เข้าสู่ฟังก์ชัน `wireVideoListeners()` ภายใน `createVideoCenter`
+     - ย้ายปุ่มสลับตอน `#vidPrev` และ `#vidNext` เข้ามาผูกกับ `onNav(-1)` และ `onNav(1)` ใน Center โดยตรง
+     - ย้าย Event Listeners บน `vidPlayer` (`loadedmetadata`, `playing`, `waiting`) เข้ามาอยู่ใน Center
+     - ย้ายการปรับขนาดและทิศทาง (`ResizeObserver`, `resize`, `orientationchange`, `vidFrame load`) เข้ามาอยู่ใน Center
+     - ย้ายการบันทึกตำแหน่งอัตโนมัติ (`pagehide`, `setInterval(saveVideoPos, 3000)`) เข้ามาอยู่ใน Center พร้อมป้องกันการบล็อก Event Loop ในสภาพแวดล้อมทดสอบของ Node.js
+  3. **รวมศูนย์ Fullscreen Controller ด้วย Derived State (`syncFullscreen`):**
+     - สร้างฟังก์ชัน `syncFullscreen()` ประเมินสถานะจริงจาก DOM (`document.fullscreenElement === box || box.classList.contains('pseudo-fullscreen')`)
+     - ทั้งปุ่มสลับเต็มจอ, เหตุการณ์ `fullscreenchange`, `webkitfullscreenchange` และการกด Esc ต่างวิ่งเข้าสู่ `syncFullscreen()` จุดเดียว ทำให้ปุ่มและขนาดแสดงผลสอดคล้องกันเสมอ ไม่เกิดปัญหาปุ่มค้าง
+  4. **Target Interface 24 เมธอด:**
+     - ส่งมอบเมธอดเป้าหมายครบถ้วน (`open`, `close`, `suspend`, `retry`, `reconnect`, `escape`, `openPreview`, `openExternal`, `copyToDrive`, `requestBlob`, `cancelBlob`, `toggleFullscreen`, `toggleAspect`, `toggleMinimize`, `toggleTurbo`, `onNav`, `enterPreview`, `refreshLibrary`, `watched`, `headCache`, `syncFullscreen`, `clearRetryRoutes`) ควบคู่กับเมธอดเดิม 74 ตัวเพื่อ backward compatibility
+  5. **ลดรูป Bridge และลบ Shims ใน `app-core.js`:**
+     - ลบโค้ด shims ซ้ำซ้อน ~60 ฟังก์ชันออกจาก `app-core.js` ลดขนาดไฟล์ลงเกือบ 300 บรรทัด
+     - ปรับให้ `GDVExplorerApi` และ `GDVLightboxApi` ส่งต่อการทำงานไปยัง `window.GDVVideo`
+     - ใน `media-lightbox.js` เปลี่ยน `fallbackIframe` ให้เรียก `video.enterPreview(id)` และเปลี่ยน `openDocument` ให้เรียก `video.suspend()`
+     - ใน `collection-viewer.js` เปลี่ยน `recoPlayCurrent` ให้เรียก `window.GDVVideo.open`
+  6. **เพิ่มการทดสอบ:**
+     - เพิ่มเคสทดสอบ `three writers (toggle, fullscreenchange, Esc) all converge on identical button state` ใน `tests/player-fullscreen.cjs` ยืนยันการรวมศูนย์สถานะปุ่มเต็มจอ
+     - ปรับปรุง `tests/media-lifecycle.cjs` ให้ตรวจสอบ `playerJs` สำหรับการผูกปุ่ม `vidBlob`, `vidRetry`, `vidReconnect`
+  7. **Cache Busters:** ปรับใน `index.html` เป็น `app-core.js?v=20261104-r5`, `video-player.js?v=20261104-r4`, `media-lightbox.js?v=20261104-r5`, `drive-explorer.js?v=20261104-r5`, `collection-viewer.js?v=20261104-r5`
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **194/194 tests PASS (0 failures, duration 23.2s)**
+

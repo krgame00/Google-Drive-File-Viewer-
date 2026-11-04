@@ -766,8 +766,9 @@
     if(!recoCurrent||!recoCurrent.video) return;
     recoRememberVideo(recoCurrent.video.id);
     recoCard.hidden=true;
-    const api=window.GDVVideoApi&&window.GDVVideoApi.video;
-    if(api&&typeof api.openVideo==="function") api.openVideo(recoCurrent.video.id,recoCurrent.video.name);
+    const api=window.GDVVideo||(window.GDVVideoApi&&window.GDVVideoApi.video);
+    if(api&&typeof api.open==="function") api.open(recoCurrent.video.id,recoCurrent.video.name);
+    else if(api&&typeof api.openVideo==="function") api.openVideo(recoCurrent.video.id,recoCurrent.video.name);
     else if(appApi.showToast) appApi.showToast("เปิดเครื่องเล่นไม่ได้ — ลองใหม่อีกครั้ง");
   }
 

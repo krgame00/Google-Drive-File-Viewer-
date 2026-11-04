@@ -100,3 +100,39 @@ test('unsupported orientation lock does not fail fullscreen playback',async()=>{
   const box={},bridge={previewAspect:{value:16/9},vidPlayer:{},vidFrame:{getAttribute:()=> 'true'},window:{screen:{orientation:{lock:async()=>{throw new Error('unsupported');}}}},videoModal:{querySelector:()=>box},document:{fullscreenElement:box}};
   const api=loadVideoPlayerApi(bridge);await api.lockHorizontalPlayerOrientation(box);assert.equal(box.playerOrientationLocked,undefined);
 });
+
+test('three writers (toggle, fullscreenchange, Esc) all converge on identical button state', async () => {
+  const {bridge, api, box} = setup();
+  const btn = { textContent: '', attrs: new Map(), setAttribute(k, v) { this.attrs.set(k, v); } };
+  bridge.document.getElementById = id => id === 'vidFullscreen' ? btn : null;
+  bridge.videoModal.querySelector = () => box;
+
+  // 1. Initial / active
+  bridge.document.fullscreenElement = box;
+  api.syncFullscreen();
+  assert.equal(btn.textContent, 'ออกเต็มจอ');
+  assert.equal(btn.attrs.get('aria-pressed'), 'true');
+
+  // 2. Inactive via fullscreenchange
+  bridge.document.fullscreenElement = null;
+  api.syncFullscreen();
+  assert.equal(btn.textContent, 'เต็มจอ');
+  assert.equal(btn.attrs.get('aria-pressed'), 'false');
+
+  // 3. Pseudo-fullscreen via box class
+  const classSet = new Set(['pseudo-fullscreen']);
+  box.classList = {
+    contains: c => classSet.has(c),
+    remove: c => classSet.delete(c)
+  };
+  api.syncFullscreen();
+  assert.equal(btn.textContent, 'ออกเต็มจอ');
+  assert.equal(btn.attrs.get('aria-pressed'), 'true');
+
+  // 4. Esc consumes pseudo-fullscreen and returns to 'เต็มจอ'
+  const consumed = api.escape();
+  assert.equal(consumed, true);
+  assert.equal(classSet.has('pseudo-fullscreen'), false);
+  assert.equal(btn.textContent, 'เต็มจอ');
+  assert.equal(btn.attrs.get('aria-pressed'), 'false');
+});

@@ -15,6 +15,7 @@ function loadVideoPlayerApi(bridge = {}) {
   testWindow.GDVVideoApi = new Proxy(bridge, {
     get(target, key) { if (key in target) return target[key]; return globalThis[key]; }
   });
+  testWindow.GDVVideoHost = bridge;
   bridge.window = testWindow;
   try {
     global.window = testWindow;
