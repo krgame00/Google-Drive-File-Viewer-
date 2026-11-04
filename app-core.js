@@ -2038,9 +2038,10 @@
 
       function tryLoadDriveThumbnail(id, imgEl) {
         if (!id || !imgEl || imgEl.dataset.probing) return;
-        imgEl.dataset.probing = "1";
         const auth = authParams();
+        // ยังไม่ล็อกอิน — อย่าติด probing ถาวร ให้ re-probe ใหม่เมื่อ render ครั้งหลังหลังล็อกอินแล้ว
         if (auth.mode === "none") return;
+        imgEl.dataset.probing = "1";
         let url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) + "?fields=thumbnailLink&supportsAllDrives=true";
         if (auth.mode === "key" && apiKey) url += "&key=" + encodeURIComponent(apiKey);
         const headers = auth.mode === "bearer" ? { Authorization: "Bearer " + accessToken } : {};
@@ -2054,7 +2055,51 @@
               if (imgEl.parentElement) imgEl.parentElement.classList.add("has-thumb");
               if (typeof mediaThumbs !== "undefined" && mediaThumbs) mediaThumbs[id] = meta.thumbnailLink;
               try { localStorage.setItem("gdv_thumb_" + id, meta.thumbnailLink); } catch (_) {}
+              return null;
             }
+            // Drive ไม่ render thumbnail ให้ไฟล์วิดีโอจำนวนมาก — ดึงไบต์ต้นไฟล์ด้วยสิทธิ์ที่มี
+            // แล้ว canvas-capture ปกเอง (วิธีเดียวกับที่ saveVideoPos ใช้ยืนยันว่าทำงานได้)
+            if (!meta) return null;
+            const mediaUrl = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id) + "?alt=media" + (auth.mode === "key" ? "&key=" + encodeURIComponent(apiKey) : "");
+            const mediaHeaders = auth.mode === "bearer" ? { Authorization: "Bearer " + accessToken, Range: "bytes=0-2097151" } : { Range: "bytes=0-2097151" };
+            return fetch(mediaUrl, { headers: mediaHeaders })
+              .then(r => r.ok && r.status === 206 ? r.blob() : null)
+              .then(blob => new Promise(resolve => {
+                if (!blob || !blob.size) { resolve(false); return; }
+                const v = document.createElement("video");
+                v.muted = true; v.preload = "metadata"; v.playsInline = true;
+                const objUrl = URL.createObjectURL(blob);
+                const finish = ok => {
+                  URL.revokeObjectURL(objUrl);
+                  resolve(!!ok);
+                };
+                v.onerror = () => finish(false);
+                v.onloadeddata = () => {
+                  try {
+                    const seekTo = Math.min(1, (v.duration || 1) / 2);
+                    v.currentTime = seekTo;
+                    v.onseeked = () => {
+                      try {
+                        const canvas = document.createElement("canvas");
+                        canvas.width = 320;
+                        canvas.height = Math.max(1, Math.round(320 * (v.videoHeight || 180) / (v.videoWidth || 320)));
+                        canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
+                        const dataUrl = canvas.toDataURL("image/jpeg", 0.68);
+                        if (dataUrl && dataUrl.length > 100 && imgEl.isConnected) {
+                          imgEl.src = dataUrl;
+                          imgEl.style.display = "block";
+                          imgEl.classList.add("loaded");
+                          if (imgEl.parentElement) imgEl.parentElement.classList.add("has-thumb");
+                          if (typeof mediaThumbs !== "undefined" && mediaThumbs) mediaThumbs[id] = dataUrl;
+                          try { localStorage.setItem("gdv_thumb_" + id, dataUrl); } catch (_) {}
+                          finish(true);
+                        } else finish(false);
+                      } catch (_) { finish(false); }
+                    };
+                  } catch (_) { finish(false); }
+                };
+                v.src = objUrl;
+              }));
           })
           .catch(() => {});
       }
