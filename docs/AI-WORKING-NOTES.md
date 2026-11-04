@@ -1013,3 +1013,16 @@
   4. **เทส:** helpers/load-video-player-api ใช้ Proxy bridge-first + globalThis fall-through (เลียนแบบ with semantics); เทส vm-extraction (authenticated-stream, playback-loading, media-lifecycle, video-cache) ใส่ ctx.app=ctx; next-up-wiring ขยาย bridge (document/navigator); แก้ source-grep assertions ให้ตรงรูปแบบ app.*
 - **หลักฐานการตรวจสอบ:** `node --check` ผ่าน, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures)**; busters: app-core r3 / video-player r2
 
+### 46. Slice 2b: ย้าย State ทั้ง 12 ตัวและ Service Worker Token Listener เข้า createVideoCenter (/Poteto Mode) (2026-11-04)
+- **สถานะ:** `VERIFIED WORKING` (S2b จาก 6 slices ของ design docs/streaming-redesign.md)
+- **การแก้ไข:**
+  1. **ย้าย State Variables เข้า Closure ของ createVideoCenter:** ตัวแปรสถานะการเล่นวิดีโอ 12 ตัว (`mediaSession`, `videoAttempt`, `videoAttemptTimer`, `videoSlowTimer`, `vidCurrentId`, `currentVideoUrl`, `videoStatus`, `videoResumePos`, `streamWorkerReady`, `failedVideoAttempt`, `previewAspect`, `videoBlobTransfer`) พร้อม `mediaPreviousOverflow` ย้ายจากการประกาศระดับโมดูลใน `app-core.js` เข้ามาเป็นตัวแปร local ใน closure ของ `createVideoCenter(app)` ภายใน `video-player.js`
+  2. **ย้าย Service Worker Message Listener:** ย้าย message listener สำหรับ `drive-stream-token` และ `drive-stream-error` จาก `app-core.js:1289-1315` เข้ามาอยู่ใน `createVideoCenter` ทำให้การจับคู่ handshake token ระหว่างเบราว์เซอร์กับ SW ประเมินตรงกับตัวแปร closure โดยตรง และปลดภาระ token plumbing ออกจาก `app-core.js`
+  3. **Backward Compatibility & Live Binding:**
+     - นิยาม `stateProps` ด้วย `Object.defineProperties` ผูก getter/setter เข้ากับ `app`, `runnerFallbacks`, และออบเจกต์ `video` ที่ส่งคืน เพื่อรองรับการเข้าถึงจากโค้ดภายนอก, runner proxies, และชุดทดสอบเดิมทั้งหมดอย่างไร้รอยต่อ
+     - ใน `app-core.js` แทนที่การอ่านตรงด้วย helper `currentVideoId()`, `currentMediaSession()`, `currentVideoStatus()` และคง getter/setter บน `GDVVideoApi` / `GDVExplorerApi` โดยส่งต่อให้ `window.GDVVideo` พร้อม `_videoStateFallback`
+  4. **การแปลงโค้ดภายใน createVideoCenter:** แปลง `app.<stateVar>` กลับเป็น bare local identifier ภายใน closure จำนวน 88 จุด
+  5. **ปรับปรุงการทดสอบ:** อัปเดต `tests/video-head-prefetch.cjs` ให้ตรวจ message listener และ `nextVideoInList` บน `video-player.js`; อัปเดต `tests/media-lifecycle.cjs` ให้รองรับ `currentVideoId()`
+  6. **Cache Busters:** ปรับใน `index.html` เป็น `app-core.js?v=20261104-r4` และ `video-player.js?v=20261104-r3`
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่านทุกไฟล์, `node --test tests/*.cjs` ผ่านครบถ้วน **193/193 tests PASS (0 failures, duration 23.2s)**
+

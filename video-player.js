@@ -536,6 +536,78 @@ function createVideoSourceRunner(deps, fallbacks) {
 function createVideoCenter(app) {
   'use strict';
 
+  // Playback state variables physically owned by this closure (Slice 2b)
+  let mediaSession = (app && 'mediaSession' in app && app.mediaSession !== undefined) ? app.mediaSession : 0;
+  let videoAttempt = (app && 'videoAttempt' in app && app.videoAttempt !== undefined) ? app.videoAttempt : 0;
+  let videoAttemptTimer = (app && 'videoAttemptTimer' in app && app.videoAttemptTimer !== undefined) ? app.videoAttemptTimer : null;
+  let videoSlowTimer = (app && 'videoSlowTimer' in app && app.videoSlowTimer !== undefined) ? app.videoSlowTimer : null;
+  let vidCurrentId = (app && 'vidCurrentId' in app && app.vidCurrentId !== undefined) ? app.vidCurrentId : null;
+  let currentVideoUrl = (app && 'currentVideoUrl' in app && app.currentVideoUrl !== undefined) ? app.currentVideoUrl : null;
+  let videoStatus = (app && 'videoStatus' in app && app.videoStatus !== undefined) ? app.videoStatus : 'closed';
+  let videoResumePos = (app && 'videoResumePos' in app && app.videoResumePos !== undefined) ? app.videoResumePos : 0;
+  let streamWorkerReady = (app && 'streamWorkerReady' in app && app.streamWorkerReady !== undefined) ? app.streamWorkerReady : null;
+  let failedVideoAttempt = (app && 'failedVideoAttempt' in app && app.failedVideoAttempt !== undefined) ? app.failedVideoAttempt : null;
+  let previewAspect = (app && 'previewAspect' in app && app.previewAspect !== undefined) ? app.previewAspect : null;
+  let videoBlobTransfer = (app && 'videoBlobTransfer' in app && app.videoBlobTransfer !== undefined) ? app.videoBlobTransfer : null;
+  let mediaPreviousOverflow = (app && 'mediaPreviousOverflow' in app && app.mediaPreviousOverflow !== undefined) ? app.mediaPreviousOverflow : "";
+
+  function videoCacheScope() {
+    return typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : (app.videoCacheScope || null);
+  }
+  function videoCacheLimit() {
+    return typeof app.videoCacheLimit === 'function' ? app.videoCacheLimit() : (Number(app.videoCacheLimit) || 0);
+  }
+
+  const stateProps = {
+    mediaSession: { get() { return mediaSession; }, set(v) { mediaSession = v; }, configurable: true, enumerable: true },
+    videoAttempt: { get() { return videoAttempt; }, set(v) { videoAttempt = v; }, configurable: true, enumerable: true },
+    videoAttemptTimer: { get() { return videoAttemptTimer; }, set(v) { videoAttemptTimer = v; }, configurable: true, enumerable: true },
+    videoSlowTimer: { get() { return videoSlowTimer; }, set(v) { videoSlowTimer = v; }, configurable: true, enumerable: true },
+    vidCurrentId: { get() { return vidCurrentId; }, set(v) { vidCurrentId = v; }, configurable: true, enumerable: true },
+    currentVideoUrl: { get() { return currentVideoUrl; }, set(v) { currentVideoUrl = v; }, configurable: true, enumerable: true },
+    videoStatus: { get() { return videoStatus; }, set(v) { videoStatus = v; }, configurable: true, enumerable: true },
+    videoResumePos: { get() { return videoResumePos; }, set(v) { videoResumePos = v; }, configurable: true, enumerable: true },
+    streamWorkerReady: { get() { return streamWorkerReady; }, set(v) { streamWorkerReady = v; }, configurable: true, enumerable: true },
+    failedVideoAttempt: { get() { return failedVideoAttempt; }, set(v) { failedVideoAttempt = v; }, configurable: true, enumerable: true },
+    previewAspect: { get() { return previewAspect; }, set(v) { previewAspect = v; }, configurable: true, enumerable: true },
+    videoBlobTransfer: { get() { return videoBlobTransfer; }, set(v) { videoBlobTransfer = v; }, configurable: true, enumerable: true },
+    mediaPreviousOverflow: { get() { return mediaPreviousOverflow; }, set(v) { mediaPreviousOverflow = v; }, configurable: true, enumerable: true }
+  };
+  if (app) {
+    try { Object.defineProperties(app, stateProps); } catch (_) {}
+  }
+
+  // Service Worker token handshake listener (moved into createVideoCenter in Slice 2b)
+  const nav = app.navigator || (typeof navigator !== 'undefined' ? navigator : null);
+  const loc = app.location || (typeof location !== 'undefined' ? location : null);
+  const URLCtor = app.URL || (typeof URL !== 'undefined' ? URL : null);
+  if (nav && 'serviceWorker' in nav && loc && URLCtor) {
+    const streamSwScript = new URLCtor('drive-stream-sw.js', loc.href).href;
+    nav.serviceWorker.addEventListener('message', function (event) {
+      if (!event.source || event.source.scriptURL !== streamSwScript) return;
+      if (event.data && event.data.type === 'drive-stream-error') {
+        handleDriveStreamError(event.data);
+        return;
+      }
+      if (!event.ports || !event.ports[0]) return;
+      if (!event.data || event.data.type !== 'drive-stream-token') return;
+      const expiry = typeof app.tokenExpiry === 'function' ? app.tokenExpiry() : app.tokenExpiry;
+      const tokenNow = (app.Date || Date).now();
+      const allowed = event.data.id === vidCurrentId && app.videoModal && app.videoModal.classList && app.videoModal.classList.contains('show') && tokenNow < expiry;
+      let streamMeta = null;
+      if (allowed && vidCurrentId && typeof app.fileMetaOf === 'function') {
+        try { streamMeta = app.fileMetaOf(vidCurrentId); } catch (_) { streamMeta = null; }
+      }
+      event.ports[0].postMessage({
+        token: allowed ? (typeof app.accessToken === 'function' ? app.accessToken() : app.accessToken) : null,
+        scope: allowed ? videoCacheScope() : null,
+        size: streamMeta && Number(streamMeta.size) > 0 ? Number(streamMeta.size) : 0,
+        modifiedTime: streamMeta && streamMeta.modifiedTime ? String(streamMeta.modifiedTime) : '',
+        heads: !!(allowed && videoCacheLimit() > 0 && videoCacheScope())
+      });
+    });
+  }
+
   // Runner fallbacks: every module function the verbatim runner bodies reference.
   const runnerFallbacks = Object.assign({}, app, {
     startVideoPlayback: startVideoPlayback,
@@ -613,15 +685,16 @@ function createVideoCenter(app) {
     showNextUp: showNextUp,
     playNextUp: playNextUp,
     prefetchHeadFor: prefetchHeadFor,
-    prefetchNextUp: prefetchNextUp,
+    prefetchNextUp: prefetchNextUp
   });
+  Object.defineProperties(runnerFallbacks, stateProps);
 
 
       function startVideoPlayback(id) {
         if (typeof warmVideoStream === 'function') warmVideoStream(id);
         if (typeof app.videoCache === 'undefined' || !app.videoCache) { tryStreamDirect(id); return Promise.resolve(); }
-        const session = app.mediaSession, attempt = app.videoAttempt, token = app.accessToken, scope = app.videoCacheScope();
-        const active = function () { return session === app.mediaSession && attempt === app.videoAttempt && token === app.accessToken && id === app.vidCurrentId && app.videoModal.classList.contains('show'); };
+        const session = mediaSession, attempt = videoAttempt, token = app.accessToken, scope = app.videoCacheScope();
+        const active = function () { return session === mediaSession && attempt === videoAttempt && token === app.accessToken && id === vidCurrentId && app.videoModal.classList.contains('show'); };
         let timer;
         setVideoStatus('connecting', 'กำลังตรวจคลิปที่เก็บไว้ในเครื่อง…');
         return Promise.race([app.videoCache.get(id, app.fileMetaOf(id), scope), new Promise(function (resolve) { timer = app.setTimeout(function () { resolve(null); }, 350); })]).then(function (blob) {
@@ -629,12 +702,12 @@ function createVideoCenter(app) {
           if (!active()) return;
           if (!blob) { tryStreamDirect(id); return; }
           revokeCurrentVideo();
-          app.currentVideoUrl = URL.createObjectURL(blob);
+          currentVideoUrl = URL.createObjectURL(blob);
           app.vidPlayer.removeAttribute('crossorigin'); app.vidPlayer.style.display = 'block';
-          tryVideoSrc(app.currentVideoUrl, function () {
-            if (session !== app.mediaSession || token !== app.accessToken || id !== app.vidCurrentId || !app.videoModal.classList.contains('show')) return;
+          tryVideoSrc(currentVideoUrl, function () {
+            if (session !== mediaSession || token !== app.accessToken || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
             return app.videoCache.remove(id, scope).then(function () {
-              if (session === app.mediaSession && token === app.accessToken && id === app.vidCurrentId && app.videoModal.classList.contains('show')) tryStreamDirect(id);
+              if (session === mediaSession && token === app.accessToken && id === vidCurrentId && app.videoModal.classList.contains('show')) tryStreamDirect(id);
             });
           }, 120000);
           setVideoStatus('loading', 'กำลังเปิดคลิปที่เก็บไว้ในเครื่อง…');
@@ -668,14 +741,14 @@ function createVideoCenter(app) {
 
       function recordActivePlaybackRoute() {
         const source = app.vidPlayer.playbackRoute;
-        if (!source || source.session !== app.mediaSession || source.id !== app.vidCurrentId || source.mode !== (app.accessToken ? 'signedin' : 'public') || !app.videoModal.classList.contains('show') || app.vidPlayer.paused || app.vidPlayer.style.display === 'none' || String(app.vidPlayer.src) !== source.url) return;
+        if (!source || source.session !== mediaSession || source.id !== vidCurrentId || source.mode !== (app.accessToken ? 'signedin' : 'public') || !app.videoModal.classList.contains('show') || app.vidPlayer.paused || app.vidPlayer.style.display === 'none' || String(app.vidPlayer.src) !== source.url) return;
         rememberPlaybackRoute(source.id, source.route);
         if (typeof app.routeCooldown !== 'undefined' && app.routeCooldown) app.routeCooldown.success(source.id, source.mode, source.route);
       }
 
       function setVideoStatus(state, message) {
-        const prev = app.videoStatus;
-        app.videoStatus = state;
+        const prev = videoStatus;
+        videoStatus = state;
         const status = app.document.getElementById ? app.document.getElementById('vidErrorStatus') : null;
         const loadingText = app.document.getElementById ? app.document.getElementById('vidLoadingText') : null;
         const help = app.document.getElementById ? app.document.getElementById('vidHelp') : null;
@@ -697,21 +770,21 @@ function createVideoCenter(app) {
           if (loadingText) loadingText.textContent = message || (state === 'connecting' ? 'กำลังเชื่อมต่อ…' : state === 'buffering' ? 'กำลังบัฟเฟอร์…' : 'กำลังโหลดวิดีโอ…');
           if (state === 'buffering' && typeof app.window !== 'undefined' && app.window.setTimeout) {
             app.window.setTimeout(function () {
-              if (app.videoStatus === 'buffering') {
+              if (videoStatus === 'buffering') {
                 if (slowActions) slowActions.style.display = 'flex';
                 if (loadingText) loadingText.textContent = 'วิดีโอกำลังบัฟเฟอร์… หากเน็ตสะดุด แนะนำเปิดใน VLC หรือใช้พรีวิว Google';
               }
             }, 2000);
           }
         }
-        return app.videoStatus;
+        return videoStatus;
       }
 
       function handleDriveStreamError(data) {
         if (!data || data.type !== 'drive-stream-error') return false;
-        if (data.id !== app.vidCurrentId || !app.videoModal.classList.contains('show')) return false;
-        const failedAttempt = typeof app.failedVideoAttempt === 'undefined' ? null : app.failedVideoAttempt;
-        if (data.attempt != null && Number(data.attempt) !== app.videoAttempt && !(app.videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
+        if (data.id !== vidCurrentId || !app.videoModal.classList.contains('show')) return false;
+        const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
+        if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
         if (data.reason === 'streamRangeUnsupported') {
           const kinds = ['status','header','start','end','total'];
           const kind = kinds.includes(data.rangeFailure) ? data.rangeFailure : 'unknown';
@@ -736,12 +809,12 @@ function createVideoCenter(app) {
       }
 
       function cancelVideoAttempt() {
-        ++app.videoAttempt;
-        app.failedVideoAttempt = null;
-        if (app.videoAttemptTimer !== null) app.clearTimeout(app.videoAttemptTimer);
-        app.videoAttemptTimer = null;
-        if (app.videoSlowTimer !== null) app.clearTimeout(app.videoSlowTimer);
-        app.videoSlowTimer = null;
+        ++videoAttempt;
+        failedVideoAttempt = null;
+        if (videoAttemptTimer !== null) app.clearTimeout(videoAttemptTimer);
+        videoAttemptTimer = null;
+        if (videoSlowTimer !== null) app.clearTimeout(videoSlowTimer);
+        videoSlowTimer = null;
         const slowActions = app.document.getElementById ? app.document.getElementById('vidSlowActions') : null;
         if (slowActions) slowActions.style.display = 'none';
         app.vidPlayer.onerror = null;
@@ -750,12 +823,12 @@ function createVideoCenter(app) {
       }
 
       function resetMediaPlayback() {
-        app.previewAspect = null;
+        previewAspect = null;
         saveVideoPos();
         cancelVideoBlobTransfer();
         const slowActions = app.document.getElementById ? app.document.getElementById('vidSlowActions') : null;
         if (slowActions) slowActions.style.display = 'none';
-        ++app.mediaSession;
+        ++mediaSession;
         cancelVideoAttempt();
         releasePlayerOrientation();
         app.vidPlayer.playerAspect = null;
@@ -788,7 +861,7 @@ function createVideoCenter(app) {
       function openVideo(id, name) {
         hideNextUp();
         if (app.lightbox.classList.contains("show")) app.closeLightbox();
-        if (!app.videoModal.classList.contains("show")) app.mediaPreviousOverflow = app.document.body.style.overflow;
+        if (!app.videoModal.classList.contains("show")) mediaPreviousOverflow = app.document.body.style.overflow;
         if (app.videoModal && app.videoModal.classList && app.videoModal.classList.remove) app.videoModal.classList.remove('minimized');
         const minBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidMinimize') : null;
         if (minBtn) {
@@ -800,7 +873,7 @@ function createVideoCenter(app) {
         }
         resetMediaPlayback();
 
-                    app.vidCurrentId = id;
+                    vidCurrentId = id;
 
                     // reset index ให้ตรงกับวิดีโอที่เปิด (กัน nav ผิด)
 
@@ -840,7 +913,7 @@ function createVideoCenter(app) {
               const historyItem = loadContinueWatching().find(item => item.id === id);
               const saved = historyItem ? historyItem.position : app.lsGet("gdv_vpos_" + id);
 
-              app.videoResumePos = saved ? Number(saved) : 0;
+              videoResumePos = saved ? Number(saved) : 0;
 
 
 
@@ -1045,7 +1118,7 @@ function createVideoCenter(app) {
         if (app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
         const bounds = app.vidFrame.parentElement.getBoundingClientRect();
         if (bounds.width <= 0 || bounds.height <= 0) return;
-        const layout = calculatePreviewLayout(bounds.width, bounds.height, app.previewAspect && app.previewAspect.value);
+        const layout = calculatePreviewLayout(bounds.width, bounds.height, previewAspect && previewAspect.value);
         app.vidFrame.style.setProperty('--preview-width', layout.width + 'px');
         app.vidFrame.style.setProperty('--preview-height', layout.height + 'px');
         app.vidFrame.style.setProperty('--preview-scale', String(layout.scale));
@@ -1082,7 +1155,7 @@ function createVideoCenter(app) {
         // ปรับกรอบพรีวิวให้ตรงสัดส่วนวิดีโอจริง ไม่ล็อก 16:9 (วิดีโอแนวตั้งจะได้กรอบสูง ไม่เป็นแถบเล็ก ๆ กลางจอ)
         const ratioEl = app.vidFrame.parentElement;
         if (!ratioEl) return;
-        if (app.previewAspect && app.previewAspect.id === id) { applyVideoAspect(); return; }
+        if (previewAspect && previewAspect.id === id) { applyVideoAspect(); return; }
         ratioEl.style.aspectRatio = '';
         if (typeof ratioEl.removeAttribute === 'function') ratioEl.removeAttribute('data-orientation');
         const cached = typeof app.fileMetaOf === 'function' ? app.fileMetaOf(id) : null;
@@ -1090,27 +1163,27 @@ function createVideoCenter(app) {
         const ch = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.height);
         if (cw > 0 && ch > 0) {
           const val = clampPreviewAspect(cw, ch);
-          app.previewAspect = { id: id, value: val };
+          previewAspect = { id: id, value: val };
           if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
           applyVideoAspect();
           return;
         }
         const remembered = typeof loadCachedVideoAspect === 'function' ? loadCachedVideoAspect(id) : null;
         if (remembered) {
-          app.previewAspect = { id: id, value: remembered };
+          previewAspect = { id: id, value: remembered };
           applyVideoAspect();
           return;
         }
-        const session = app.mediaSession;
+        const session = mediaSession;
         const probeThumb = function (thumbUrl) {
           if (typeof app.Image !== 'function') { fitVideoPreview(); return; }
           const img = new app.Image();
           img.onload = function () {
-            if (session !== app.mediaSession || id !== app.vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
+            if (session !== mediaSession || id !== vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const tw = Number(img.naturalWidth || img.width), th = Number(img.naturalHeight || img.height);
             if (tw > 0 && th > 0) {
               const val = clampPreviewAspect(tw, th);
-              app.previewAspect = { id: id, value: val };
+              previewAspect = { id: id, value: val };
               if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
               applyVideoAspect();
             } else {
@@ -1133,12 +1206,12 @@ function createVideoCenter(app) {
               if (typeof app.mediaThumbs !== 'undefined' && app.mediaThumbs) app.mediaThumbs[id] = meta.thumbnailLink;
               try { localStorage.setItem("gdv_thumb_" + id, meta.thumbnailLink); } catch (_) {}
             }
-            if (session !== app.mediaSession || id !== app.vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
+            if (session !== mediaSession || id !== vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
             const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
             const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
             if (!w || !h) { probeThumb(meta && meta.thumbnailLink); return; }
             const val = clampPreviewAspect(w, h);
-            app.previewAspect = { id: id, value: val };
+            previewAspect = { id: id, value: val };
             if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
             applyVideoAspect();
           })
@@ -1175,7 +1248,7 @@ function createVideoCenter(app) {
 
       function getPlayerAspect() {
         return app.vidFrame.getAttribute('data-video-preview') === 'true'
-          ? app.previewAspect && app.previewAspect.value
+          ? previewAspect && previewAspect.value
           : app.vidPlayer.playerAspect;
       }
 
@@ -1220,18 +1293,18 @@ function createVideoCenter(app) {
       }
 
       function togglePreviewAspect() {
-        if (!app.videoModal.classList.contains('show') || !app.vidCurrentId) return null;
+        if (!app.videoModal.classList.contains('show') || !vidCurrentId) return null;
         const current = getPlayerAspect();
         const next = current && current < 1 ? 16 / 9 : 9 / 16;
-        app.previewAspect = { id: app.vidCurrentId, value: next };
+        previewAspect = { id: vidCurrentId, value: next };
         app.vidPlayer.playerAspect = next;
-        if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(app.vidCurrentId, next);
+        if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(vidCurrentId, next);
         applyVideoAspect();
         return next;
       }
 
       function openInExternalPlayer(id) {
-        const targetId = id || app.vidCurrentId;
+        const targetId = id || vidCurrentId;
         if (!targetId) return null;
         const streamUrl = 'https://google-drive-file-viewer.missnlpp9.workers.dev/?id=' + encodeURIComponent(targetId) + '&continuous=1';
         const vlcUrl = 'vlc://' + streamUrl;
@@ -1255,9 +1328,9 @@ function createVideoCenter(app) {
       }
 
       function copyVideoToMyDrive(id) {
-        const targetId = id || app.vidCurrentId;
+        const targetId = id || vidCurrentId;
         if (!targetId) return Promise.resolve(null);
-        const session = app.mediaSession;
+        const session = mediaSession;
         const runCopy = function (token) {
           if (!token) {
             if (typeof app.showToast === 'function') app.showToast('กรุณาเชื่อมต่อบัญชี Google ก่อนทำสำเนาเข้า Drive ของคุณ');
@@ -1277,7 +1350,7 @@ function createVideoCenter(app) {
             return res.json();
           }).then(function (copied) {
             if (!copied || !copied.id) throw new Error('copy-invalid');
-            if (session !== app.mediaSession || !app.videoModal.classList.contains('show')) return copied;
+            if (session !== mediaSession || !app.videoModal.classList.contains('show')) return copied;
             if (typeof app.showToast === 'function') app.showToast('ทำสำเนาเข้า Drive สำเร็จ กำลังเปิดเล่นไฟล์สำเนา…');
             try {
               const titleText = copied.name || (typeof app.vidTitle !== 'undefined' && app.vidTitle && app.vidTitle.textContent) || 'วิดีโอ (สำเนา)';
@@ -1302,8 +1375,8 @@ function createVideoCenter(app) {
         const aspect = Number(app.vidPlayer.videoWidth) / Number(app.vidPlayer.videoHeight);
         if (!Number.isFinite(aspect) || aspect <= 0) return;
         app.vidPlayer.playerAspect = aspect;
-        if (app.vidCurrentId && typeof saveCachedVideoAspect === 'function' && typeof clampPreviewAspect === 'function') {
-          saveCachedVideoAspect(app.vidCurrentId, clampPreviewAspect(app.vidPlayer.videoWidth, app.vidPlayer.videoHeight));
+        if (vidCurrentId && typeof saveCachedVideoAspect === 'function' && typeof clampPreviewAspect === 'function') {
+          saveCachedVideoAspect(vidCurrentId, clampPreviewAspect(app.vidPlayer.videoWidth, app.vidPlayer.videoHeight));
         }
         applyVideoAspect();
       }
@@ -1371,7 +1444,7 @@ function createVideoCenter(app) {
             }
           }
           if (app.document.body && app.document.body.style) {
-            app.document.body.style.overflow = (typeof app.lightbox !== 'undefined' && app.lightbox && app.lightbox.classList && app.lightbox.classList.contains("show")) ? "hidden" : (typeof app.mediaPreviousOverflow !== 'undefined' ? app.mediaPreviousOverflow : "");
+            app.document.body.style.overflow = (typeof app.lightbox !== 'undefined' && app.lightbox && app.lightbox.classList && app.lightbox.classList.contains("show")) ? "hidden" : (typeof mediaPreviousOverflow !== 'undefined' ? mediaPreviousOverflow : "");
           }
         }
         app.videoModal.classList.add('minimized');
@@ -1444,8 +1517,8 @@ function createVideoCenter(app) {
 
       function prepareStreamWorker() {
         if (!app.window.isSecureContext || !('serviceWorker' in app.navigator) || app.location.protocol === 'file:') return Promise.resolve(false);
-        if (!app.streamWorkerReady) {
-          app.streamWorkerReady = new Promise(function (resolve) {
+        if (!streamWorkerReady) {
+          streamWorkerReady = new Promise(function (resolve) {
             const workers = app.navigator.serviceWorker;
             const script = new URL('drive-stream-sw.js', app.location.href).href;
             function finish(ok) {
@@ -1458,15 +1531,15 @@ function createVideoCenter(app) {
             workers.addEventListener('controllerchange', check);
             workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function () { finish(false); });
             check();
-          }).then(function (ok) { if (!ok) app.streamWorkerReady = null; return ok; });
+          }).then(function (ok) { if (!ok) streamWorkerReady = null; return ok; });
         }
-        return app.streamWorkerReady;
+        return streamWorkerReady;
       }
 
       function showStreamFailure(message, diagnostic) {
-        const failedAttempt = typeof app.failedVideoAttempt === 'undefined' ? null : app.failedVideoAttempt;
+        const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         cancelVideoAttempt();
-        app.failedVideoAttempt = failedAttempt;
+        failedVideoAttempt = failedAttempt;
         app.vidPlayer.pause();
         app.vidPlayer.removeAttribute('src');
         app.vidPlayer.load();
@@ -1487,10 +1560,10 @@ function createVideoCenter(app) {
           return;
         }
         clearStreamBlocked();
-        const session = app.mediaSession;
+        const session = mediaSession;
         const token = app.accessToken;
         prepareStreamWorker().then(function (ready) {
-          if (session !== app.mediaSession || token !== app.accessToken || id !== app.vidCurrentId || !app.videoModal.classList.contains('show')) return;
+          if (session !== mediaSession || token !== app.accessToken || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
           if (!ready || app.Date.now() >= app.tokenExpiry) {
             showStreamFailure(app.Date.now() >= app.tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ หรือเลือกใช้พรีวิว Google');
             return;
@@ -1512,11 +1585,11 @@ function createVideoCenter(app) {
               const originalStatus = app.document.getElementById('vidErrorStatus').textContent;
               setVideoStatus('loading', 'กำลังลองแหล่งสำรองของ Google…');
               const finishFailure = function () {
-                if (session !== app.mediaSession || token !== app.accessToken || !app.videoModal.classList.contains('show') || id !== app.vidCurrentId) return;
+                if (session !== mediaSession || token !== app.accessToken || !app.videoModal.classList.contains('show') || id !== vidCurrentId) return;
                   showStreamFailure(originalStatus);
-                  const failedAttempt = app.videoAttempt;
+                  const failedAttempt = videoAttempt;
                   probeStreamEndpoint(id, 'probe').then(function (verdict) {
-                    if (session !== app.mediaSession || failedAttempt !== app.videoAttempt || !app.videoModal.classList.contains('show') || id !== app.vidCurrentId || app.videoStatus !== 'error') return;
+                    if (session !== mediaSession || failedAttempt !== videoAttempt || !app.videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
                     const status = app.document.getElementById('vidErrorStatus');
                     if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(app.MEDIA_STREAM_FAIL_MSG) !== 0) return;
                     if (String(verdict).indexOf('codec:') === 0 && typeof app.fallbackIframe === 'function') {
@@ -1755,11 +1828,11 @@ function createVideoCenter(app) {
 
       function renderVideoBlobProgress(loaded, total, pipes) {
         const percent = total > 0 ? Math.min(100, Math.floor(loaded / total * 100)) : null;
-        const elapsed = app.videoBlobTransfer ? (app.Date.now() - app.videoBlobTransfer.startedAt) / 1000 : 0;
+        const elapsed = videoBlobTransfer ? (app.Date.now() - videoBlobTransfer.startedAt) / 1000 : 0;
         const speed = elapsed >= 1 && loaded > 0 ? loaded / elapsed : 0;
         const remaining = speed > 0 && total > loaded ? Math.ceil((total - loaded) / speed) : 0;
         const eta = remaining > 0 ? ' · เหลือประมาณ ' + (remaining < 60 ? remaining + ' วินาที' : Math.ceil(remaining / 60) + ' นาที') : '';
-        const watching = !!(app.videoBlobTransfer && app.videoBlobTransfer.previewStarted);
+        const watching = !!(videoBlobTransfer && videoBlobTransfer.previewStarted);
         const prefix = watching ? 'กำลังเล่นระหว่างโหลดทั้งไฟล์: ' : 'กำลังโหลดทั้งไฟล์: ';
         const pipeText = pipes && pipes > 1 ? ' · ⚡ ' + pipes + ' ท่อขนาน' : '';
         const text = prefix + (app.formatSize(loaded) || '0 B') + (percent === null ? ' · ไม่ทราบขนาดรวม' : ' / ' + app.formatSize(total) + ' (' + percent + '%)') + (speed > 0 ? ' · ' + app.formatSize(speed) + '/s' : '') + pipeText + eta;
@@ -1774,9 +1847,9 @@ function createVideoCenter(app) {
       }
 
       function cancelVideoBlobTransfer(showMessage) {
-        const transfer = app.videoBlobTransfer;
+        const transfer = videoBlobTransfer;
         if (!transfer) return;
-        app.videoBlobTransfer = null;
+        videoBlobTransfer = null;
         transfer.controller.abort();
         if (transfer.previewUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
           try { URL.revokeObjectURL(transfer.previewUrl); } catch (_) {}
@@ -1806,7 +1879,7 @@ function createVideoCenter(app) {
       }
 
       function requestVideoBlob(id) {
-        if (!id || id !== app.vidCurrentId || !app.videoModal.classList.contains('show')) return;
+        if (!id || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
         const size = Number(app.fileMetaOf(id).size);
         if (!(size > 0) || size >= 256 * 1024 * 1024) {
           const detail = size > 0 ? 'ขนาด ' + app.formatSize(size) : 'ไม่ทราบขนาดไฟล์';
@@ -1905,12 +1978,12 @@ function createVideoCenter(app) {
       }
 
       function saveVideoPos() {
-        if (!app.vidCurrentId || app.vidPlayer.style.display === "none") return;
+        if (!vidCurrentId || app.vidPlayer.style.display === "none") return;
         const time = app.vidPlayer.currentTime;
         if (!Number.isFinite(time)) return;
         // บันทึกภาพเฟรมปัจจุบันของวิดีโอเป็นภาพปกสำรอง (ถ้ายังไม่มีในแคช)
         try {
-          if (app.vidPlayer.videoWidth > 0 && typeof localStorage !== "undefined" && !localStorage.getItem("gdv_thumb_" + app.vidCurrentId)) {
+          if (app.vidPlayer.videoWidth > 0 && typeof localStorage !== "undefined" && !localStorage.getItem("gdv_thumb_" + vidCurrentId)) {
             const canvas = app.document.createElement("canvas");
             canvas.width = 160;
             canvas.height = Math.round(160 * (app.vidPlayer.videoHeight / app.vidPlayer.videoWidth));
@@ -1918,18 +1991,18 @@ function createVideoCenter(app) {
             ctx.drawImage(app.vidPlayer, 0, 0, canvas.width, canvas.height);
             const dataUrl = canvas.toDataURL("image/jpeg", 0.68);
             if (dataUrl && dataUrl.length > 100) {
-              localStorage.setItem("gdv_thumb_" + app.vidCurrentId, dataUrl);
+              localStorage.setItem("gdv_thumb_" + vidCurrentId, dataUrl);
             }
           }
         } catch (_) {}
-        const items = loadContinueWatching().filter(x => x.id !== app.vidCurrentId);
+        const items = loadContinueWatching().filter(x => x.id !== vidCurrentId);
         if (app.vidPlayer.ended) {
-          app.lsRemove("gdv_vpos_" + app.vidCurrentId);
+          app.lsRemove("gdv_vpos_" + vidCurrentId);
         } else {
           if (time <= 2) return;
           const position = Math.floor(time);
-          app.lsSet("gdv_vpos_" + app.vidCurrentId, position);
-          items.unshift({ id: app.vidCurrentId, name: app.vidTitle.textContent || "วิดีโอ", position, updated: app.Date.now() });
+          app.lsSet("gdv_vpos_" + vidCurrentId, position);
+          items.unshift({ id: vidCurrentId, name: app.vidTitle.textContent || "วิดีโอ", position, updated: app.Date.now() });
         }
         app.lsSet("gdv_continue", JSON.stringify(items.slice(0, 30)));
         app.pruneVpos(100);
@@ -2016,11 +2089,11 @@ function createVideoCenter(app) {
 
       function revokeCurrentVideo() {
 
-        if (app.currentVideoUrl) {
+        if (currentVideoUrl) {
 
-          URL.revokeObjectURL(app.currentVideoUrl);
+          URL.revokeObjectURL(currentVideoUrl);
 
-          app.currentVideoUrl = null;
+          currentVideoUrl = null;
 
         }
 
@@ -2042,8 +2115,8 @@ function createVideoCenter(app) {
         }
         if (app.videoModal && app.videoModal.classList && app.videoModal.classList.remove) app.videoModal.classList.remove('minimized');
         resetMediaPlayback();
-        app.vidCurrentId = null;
-        app.document.body.style.overflow = app.lightbox.classList.contains("show") ? "hidden" : app.mediaPreviousOverflow;
+        vidCurrentId = null;
+        app.document.body.style.overflow = app.lightbox.classList.contains("show") ? "hidden" : mediaPreviousOverflow;
 
         app.videoModal.classList.remove("show");
 
@@ -2113,7 +2186,7 @@ function createVideoCenter(app) {
       function prefetchHeadFor(target) {
         try {
           if (!target || !target.id || prefetchedHeads.has(target.id)) return;
-          if (typeof app.accessToken === 'undefined' || !app.accessToken || !app.vidCurrentId) return;
+          if (typeof app.accessToken === 'undefined' || !app.accessToken || !vidCurrentId) return;
           if (typeof app.videoCacheLimit !== 'function' || app.videoCacheLimit() <= 0) return;
           if (typeof app.videoCacheScope !== 'function' || !app.videoCacheScope()) return;
           if (typeof app.navigator !== 'undefined' && app.navigator.connection && app.navigator.connection.saveData) return;
@@ -2137,7 +2210,7 @@ function createVideoCenter(app) {
         try {
           const api = app.window.GDVLightboxApi && app.window.GDVLightboxApi.media;
           const list = api && typeof api.mediaList === 'function' ? api.mediaList('video') : [];
-          const target = nextVideoInList(list, app.vidCurrentId);
+          const target = nextVideoInList(list, vidCurrentId);
           if (target) prefetchHeadFor(target);
         } catch (_) {}
       }
@@ -2145,12 +2218,12 @@ function createVideoCenter(app) {
         app.vidPlayer.addEventListener('ended', function () {
           try {
             // โหมด progressive download มี onended ของตัวเอง (รอ slice ถัดไป) — ไม่แทรก auto-next
-            if (typeof app.videoBlobTransfer !== 'undefined' && app.videoBlobTransfer) return;
+            if (typeof videoBlobTransfer !== 'undefined' && videoBlobTransfer) return;
             if (!app.videoModal || !app.videoModal.classList || !app.videoModal.classList.contains('show')) return;
-            try { app.lsRemove("gdv_vpos_" + app.vidCurrentId); } catch (_) {} // เล่นจบแล้ว — ล้างตำแหน่งค้าง (จาก ended-listener เดิมของ app-core)
+            try { app.lsRemove("gdv_vpos_" + vidCurrentId); } catch (_) {} // เล่นจบแล้ว — ล้างตำแหน่งค้าง (จาก ended-listener เดิมของ app-core)
             const api = app.window.GDVLightboxApi && app.window.GDVLightboxApi.media;
             const list = api && typeof api.mediaList === 'function' ? api.mediaList('video') : [];
-            const next = nextVideoInList(list, app.vidCurrentId);
+            const next = nextVideoInList(list, vidCurrentId);
             if (!next) { hideNextUp(); return; }
             showNextUp(next);
           } catch (_) {}
@@ -2242,7 +2315,8 @@ function createVideoCenter(app) {
     renderContinueWatching,
     revokeCurrentVideo,
     closeVideo,
-    };
+  };
+  Object.defineProperties(video, stateProps);
   return video;
 }
 

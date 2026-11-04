@@ -183,8 +183,6 @@
 
       let navStack = [];
 
-      let currentVideoUrl = null; // blob URL วิดีโอปัจจุบัน เก็บไว้ revoke
-
       let currentDocUrl = null;   // blob URL เอกสารปัจจุบัน เก็บไว้ revoke
 
       let pdfDocument = null;
@@ -201,8 +199,6 @@
       let allFiles = [];          // ไฟล์ทั้งหมดในโฟลเดอร์ปัจจุบัน (สำหรับค้นหา/สลับ media)
 
       let currentFolderId = null; // id โฟลเดอร์ที่กำลังแสดง
-
-      let vidCurrentId = null;    // id วิดีโอที่กำลังเล่น (สำหรับ nav)
 
       let mediaThumbs = {};       // id → thumbnailLink (โหลดภาพย่อ CDN เร็วใน lightbox)
 
@@ -1055,13 +1051,10 @@
 
       // ★ bypass "limit hit": direct streaming ผ่าน Drive API (alt=media) + direct download URL
 
-      let mediaSession = 0;
-      let videoAttemptTimer = null;
-      let videoAttempt = 0;
-      let mediaPreviousOverflow = "";
-      let videoStatus = 'closed';
-      let videoSlowTimer = null;
-      let videoBlobTransfer = null;
+      // Playback state is owned by createVideoCenter in video-player.js (Slice 2b).
+      const currentVideoId = () => window.GDVVideo ? window.GDVVideo.vidCurrentId : null;
+      const currentMediaSession = () => window.GDVVideo ? window.GDVVideo.mediaSession : 0;
+      const currentVideoStatus = () => window.GDVVideo ? window.GDVVideo.videoStatus : 'closed';
       const routeCooldown = window.GDVVideoCache ? window.GDVVideoCache.createRouteCooldown() : null;
       const videoCache = window.GDVVideoCache ? window.GDVVideoCache.createVideoCache({limit: videoCacheLimit}) : null;
       // หัวคลิป (16 MiB แรกของคลิปที่สตรีม) — SW เป็นผู้เขียนและผู้กวาดคนเดียว
@@ -1128,7 +1121,7 @@
         return userProfile && userProfile.email ? 'account:' + userProfile.email : null;
       }
       function clearRetryRoutes() {
-        if (routeCooldown && vidCurrentId) routeCooldown.clear(vidCurrentId, accessToken ? 'signedin' : 'public');
+        if (routeCooldown && currentVideoId()) routeCooldown.clear(currentVideoId(), accessToken ? 'signedin' : 'public');
       }
       function refreshVideoCacheUI() {
         const select = document.getElementById('videoCacheLimit');
@@ -1156,18 +1149,12 @@
 
       // ===== เล่นวิดีโอแบบสตรีม — เริ่มดูทันที ไม่ต้องรอโหลดครบทั้งไฟล์ =====
 
-      let videoResumePos = 0; // ตำแหน่งล่าสุดของวิดีโอปัจจุบัน
-
-
-
       // Signed-in playback uses a same-origin service worker to add the bearer header.
 
       // Signed-out playback retains public sources, then falls back to Drive preview.
 
       // Drive permissions, quotas and browser codec support still apply.
 
-      let streamWorkerReady = null;
-      let failedVideoAttempt = null;
       const MEDIA_STREAM_FAIL_MSG = 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google';
       // Brave บล็อก fetch ข้ามโดเมนจาก service worker (ข้อจำกัด upstream ยังไม่แก้) —
       // จำไว้ในเซสชันเพื่อเปิดพรีวิวให้ทันทีในไฟล์ถัดไป แทนการโชว์การ์ด error ทุกครั้ง
@@ -1186,7 +1173,6 @@
       window.addEventListener('resize', fitVideoPreview, {passive: true});
       window.addEventListener('orientationchange', fitVideoPreview, {passive: true});
       vidFrame.addEventListener('load', fitVideoPreview);
-      let previewAspect = null;
       const clampPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.clampPreviewAspect(...args) : undefined;
       const applyPreviewAspect = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.applyPreviewAspect(...args) : undefined;
       const configurePreviewFullscreen = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.configurePreviewFullscreen(...args) : undefined;
@@ -1232,27 +1218,27 @@
       if (vidAspectToggleBtn) vidAspectToggleBtn.addEventListener('click', togglePreviewAspect);
       const vidQuickPreviewBtn = document.getElementById('vidQuickPreview');
       if (vidQuickPreviewBtn) vidQuickPreviewBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
       });
       const vidExternalPlayerBtn = document.getElementById('vidExternalPlayer');
       if (vidExternalPlayerBtn) vidExternalPlayerBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) openInExternalPlayer(currentVideoId());
       });
       const vidSlowVlcBtn = document.getElementById('vidSlowVlc');
       if (vidSlowVlcBtn) vidSlowVlcBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) openInExternalPlayer(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) openInExternalPlayer(currentVideoId());
       });
       const vidSlowPreviewBtn = document.getElementById('vidSlowPreview');
       if (vidSlowPreviewBtn) vidSlowPreviewBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
       });
       const vidSlowBlobBtn = document.getElementById('vidSlowBlob');
       if (vidSlowBlobBtn) vidSlowBlobBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) requestVideoBlob(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) requestVideoBlob(currentVideoId());
       });
       const vidCopyDriveBtn = document.getElementById('vidCopyDrive');
       if (vidCopyDriveBtn) vidCopyDriveBtn.addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) copyVideoToMyDrive(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) copyVideoToMyDrive(currentVideoId());
       });
       function handleFullscreenChange() {
         const box = videoModal.querySelector('.video-box');
@@ -1269,52 +1255,24 @@
       document.addEventListener('fullscreenchange', handleFullscreenChange);
       document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.getElementById('vidPreview').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) fallbackIframe(vidCurrentId);
+        if (videoModal.classList.contains('show') && currentVideoId()) fallbackIframe(currentVideoId());
       });
       document.getElementById('vidRetry').addEventListener('click', function () {
-        if (videoModal.classList.contains('show') && vidCurrentId) { clearRetryRoutes(); clearStreamBlocked(); openVideo(vidCurrentId, vidTitle.textContent); }
+        if (videoModal.classList.contains('show') && currentVideoId()) { clearRetryRoutes(); clearStreamBlocked(); openVideo(currentVideoId(), vidTitle.textContent); }
       });
       document.getElementById('vidReconnect').addEventListener('click', function () {
-        const id=vidCurrentId, session=mediaSession, name=vidTitle.textContent;
+        const id=currentVideoId(), session=currentMediaSession(), name=vidTitle.textContent;
         ensureToken(true).then(function(token){
-          if(token && session===mediaSession && id===vidCurrentId && videoModal.classList.contains('show')) { clearRetryRoutes(); clearStreamBlocked(); openVideo(id,name); }
+          if(token && session===currentMediaSession() && id===currentVideoId() && videoModal.classList.contains('show')) { clearRetryRoutes(); clearStreamBlocked(); openVideo(id,name); }
         });
       });
       document.getElementById('vidBlob').addEventListener('click', function () {
-        requestVideoBlob(vidCurrentId);
+        if (currentVideoId()) requestVideoBlob(currentVideoId());
       });
       document.getElementById('vidCancelBlob').addEventListener('click', function () {
         cancelVideoBlobTransfer(true);
       });
-      if ('serviceWorker' in navigator) {
-        const streamSwScript = new URL('drive-stream-sw.js', location.href).href;
-        navigator.serviceWorker.addEventListener('message', function (event) {
-          // ยอมรับรายงานจาก SW เวอร์ชันเก่าที่ค้างจัดการคำขอหลังอัปเดตด้วย —
-          // เช็คว่ามาจากสคริปต์ของเรา ไม่ใช่เช็ค controller ตรง ๆ
-          if (!event.source || event.source.scriptURL !== streamSwScript) return;
-          if (event.data && event.data.type === 'drive-stream-error') {
-            handleDriveStreamError(event.data);
-            return;
-          }
-          if (!event.ports[0]) return;
-          if (!event.data || event.data.type !== 'drive-stream-token') return;
-          const allowed = event.data.id === vidCurrentId && videoModal.classList.contains('show') && Date.now() < tokenExpiry;
-          // แนบ meta ของไฟล์ไปกับ token เพื่อให้ SW ตรวจความสดของ head cache ได้
-          let streamMeta = null;
-          if (allowed && vidCurrentId) {
-            try { streamMeta = fileMetaOf(vidCurrentId); } catch (_) { streamMeta = null; }
-          }
-          event.ports[0].postMessage({
-            token: allowed ? accessToken : null,
-            scope: allowed ? videoCacheScope() : null,
-            size: streamMeta && Number(streamMeta.size) > 0 ? Number(streamMeta.size) : 0,
-            modifiedTime: streamMeta && streamMeta.modifiedTime ? String(streamMeta.modifiedTime) : '',
-            heads: !!(allowed && videoCacheLimit() > 0 && videoCacheScope())
-          });
-        });
-      }
-
-      const prepareStreamWorker = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.prepareStreamWorker(...args) : undefined;
+            const prepareStreamWorker = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.prepareStreamWorker(...args) : undefined;
 
       const showStreamFailure = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.showStreamFailure(...args) : undefined;
 
@@ -1681,13 +1639,13 @@
             // สถานะเครื่องเล่นจริง → อัปเดตข้อความบนหน้า (เล่นได้/กำลังบัฟเฟอร์)
 
             vidPlayer.addEventListener("loadedmetadata", function () {
-              if (videoModal.classList.contains("show") && videoStatus === 'connecting') setVideoStatus('loading');
+              if (videoModal.classList.contains("show") && currentVideoStatus() === 'connecting') setVideoStatus('loading');
             });
             vidPlayer.addEventListener("playing", function () {
               if (videoModal.classList.contains("show")) { recordActivePlaybackRoute(); setVideoStatus('playing'); }
             });
             vidPlayer.addEventListener("waiting", function () {
-              if (videoModal.classList.contains("show") && videoStatus !== 'error') setVideoStatus('buffering');
+              if (videoModal.classList.contains("show") && currentVideoStatus() !== 'error') setVideoStatus('buffering');
             });
 
             // เมื่อเล่นจบ (ended) → auto-advance มีเจ้าของเดียวคือ Next-Up countdown-with-prefetch
@@ -1889,7 +1847,7 @@
           if (e.key === "r" || e.key === "R" || e.key === "0") { resetImageView(); return; }
         }
         if (videoModal.classList.contains("show")) {
-          if (!vidCurrentId && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { navigateMedia("image", e.key === "ArrowLeft" ? -1 : 1); return; }
+          if (!currentVideoId() && (e.key === "ArrowLeft" || e.key === "ArrowRight")) { navigateMedia("image", e.key === "ArrowLeft" ? -1 : 1); return; }
           if (e.shiftKey && e.key === "ArrowLeft") { window._gdvMediaNav.navigateVideo(-1); return; }
           if (e.shiftKey && e.key === "ArrowRight") { window._gdvMediaNav.navigateVideo(1); return; }
         }
@@ -2393,6 +2351,22 @@
         return api.pushHash(...args);
       }
 
+      let _videoStateFallback = {
+        mediaSession: 0,
+        videoAttempt: 0,
+        videoAttemptTimer: null,
+        videoSlowTimer: null,
+        vidCurrentId: null,
+        currentVideoUrl: null,
+        videoStatus: 'closed',
+        videoResumePos: 0,
+        streamWorkerReady: null,
+        failedVideoAttempt: null,
+        previewAspect: null,
+        videoBlobTransfer: null,
+        mediaPreviousOverflow: ''
+      };
+
       window.GDVVideoApi = {
         // Live view of the main-app state owned by the index.html IIFE.
         // Getters/setters keep the video-player.js `with (appApi)` binding live.
@@ -2402,32 +2376,32 @@
         set apiKey(value) { apiKey = value; },
         get tokenExpiry() { return tokenExpiry; },
         set tokenExpiry(value) { tokenExpiry = value; },
-        get mediaSession() { return mediaSession; },
-        set mediaSession(value) { mediaSession = value; },
-        get videoAttempt() { return videoAttempt; },
-        set videoAttempt(value) { videoAttempt = value; },
-        get videoAttemptTimer() { return videoAttemptTimer; },
-        set videoAttemptTimer(value) { videoAttemptTimer = value; },
-        get videoSlowTimer() { return videoSlowTimer; },
-        set videoSlowTimer(value) { videoSlowTimer = value; },
-        get vidCurrentId() { return vidCurrentId; },
-        set vidCurrentId(value) { vidCurrentId = value; },
-        get currentVideoUrl() { return currentVideoUrl; },
-        set currentVideoUrl(value) { currentVideoUrl = value; },
-        get videoStatus() { return videoStatus; },
-        set videoStatus(value) { videoStatus = value; },
-        get videoResumePos() { return videoResumePos; },
-        set videoResumePos(value) { videoResumePos = value; },
-        get streamWorkerReady() { return streamWorkerReady; },
-        set streamWorkerReady(value) { streamWorkerReady = value; },
-        get failedVideoAttempt() { return failedVideoAttempt; },
-        set failedVideoAttempt(value) { failedVideoAttempt = value; },
-        get previewAspect() { return previewAspect; },
-        set previewAspect(value) { previewAspect = value; },
-        get videoBlobTransfer() { return videoBlobTransfer; },
-        set videoBlobTransfer(value) { videoBlobTransfer = value; },
-        get mediaPreviousOverflow() { return mediaPreviousOverflow; },
-        set mediaPreviousOverflow(value) { mediaPreviousOverflow = value; },
+                get mediaSession() { return window.GDVVideo ? window.GDVVideo.mediaSession : _videoStateFallback.mediaSession; },
+        set mediaSession(value) { if (window.GDVVideo) window.GDVVideo.mediaSession = value; else _videoStateFallback.mediaSession = value; },
+        get videoAttempt() { return window.GDVVideo ? window.GDVVideo.videoAttempt : _videoStateFallback.videoAttempt; },
+        set videoAttempt(value) { if (window.GDVVideo) window.GDVVideo.videoAttempt = value; else _videoStateFallback.videoAttempt = value; },
+        get videoAttemptTimer() { return window.GDVVideo ? window.GDVVideo.videoAttemptTimer : _videoStateFallback.videoAttemptTimer; },
+        set videoAttemptTimer(value) { if (window.GDVVideo) window.GDVVideo.videoAttemptTimer = value; else _videoStateFallback.videoAttemptTimer = value; },
+        get videoSlowTimer() { return window.GDVVideo ? window.GDVVideo.videoSlowTimer : _videoStateFallback.videoSlowTimer; },
+        set videoSlowTimer(value) { if (window.GDVVideo) window.GDVVideo.videoSlowTimer = value; else _videoStateFallback.videoSlowTimer = value; },
+        get vidCurrentId() { return window.GDVVideo ? window.GDVVideo.vidCurrentId : _videoStateFallback.vidCurrentId; },
+        set vidCurrentId(value) { if (window.GDVVideo) window.GDVVideo.vidCurrentId = value; else _videoStateFallback.vidCurrentId = value; },
+        get currentVideoUrl() { return window.GDVVideo ? window.GDVVideo.currentVideoUrl : _videoStateFallback.currentVideoUrl; },
+        set currentVideoUrl(value) { if (window.GDVVideo) window.GDVVideo.currentVideoUrl = value; else _videoStateFallback.currentVideoUrl = value; },
+        get videoStatus() { return window.GDVVideo ? window.GDVVideo.videoStatus : _videoStateFallback.videoStatus; },
+        set videoStatus(value) { if (window.GDVVideo) window.GDVVideo.videoStatus = value; else _videoStateFallback.videoStatus = value; },
+        get videoResumePos() { return window.GDVVideo ? window.GDVVideo.videoResumePos : _videoStateFallback.videoResumePos; },
+        set videoResumePos(value) { if (window.GDVVideo) window.GDVVideo.videoResumePos = value; else _videoStateFallback.videoResumePos = value; },
+        get streamWorkerReady() { return window.GDVVideo ? window.GDVVideo.streamWorkerReady : _videoStateFallback.streamWorkerReady; },
+        set streamWorkerReady(value) { if (window.GDVVideo) window.GDVVideo.streamWorkerReady = value; else _videoStateFallback.streamWorkerReady = value; },
+        get failedVideoAttempt() { return window.GDVVideo ? window.GDVVideo.failedVideoAttempt : _videoStateFallback.failedVideoAttempt; },
+        set failedVideoAttempt(value) { if (window.GDVVideo) window.GDVVideo.failedVideoAttempt = value; else _videoStateFallback.failedVideoAttempt = value; },
+        get previewAspect() { return window.GDVVideo ? window.GDVVideo.previewAspect : _videoStateFallback.previewAspect; },
+        set previewAspect(value) { if (window.GDVVideo) window.GDVVideo.previewAspect = value; else _videoStateFallback.previewAspect = value; },
+        get videoBlobTransfer() { return window.GDVVideo ? window.GDVVideo.videoBlobTransfer : _videoStateFallback.videoBlobTransfer; },
+        set videoBlobTransfer(value) { if (window.GDVVideo) window.GDVVideo.videoBlobTransfer = value; else _videoStateFallback.videoBlobTransfer = value; },
+        get mediaPreviousOverflow() { return window.GDVVideo ? window.GDVVideo.mediaPreviousOverflow : _videoStateFallback.mediaPreviousOverflow; },
+        set mediaPreviousOverflow(value) { if (window.GDVVideo) window.GDVVideo.mediaPreviousOverflow = value; else _videoStateFallback.mediaPreviousOverflow = value; },
         get currentMediaIndex() { return currentMediaIndex; },
         set currentMediaIndex(value) { currentMediaIndex = value; },
         get currentMediaKind() { return currentMediaKind; },
@@ -2513,8 +2487,8 @@
         set folderCoverActive(value) { folderCoverActive = value; },
         get pdfInLightbox() { return pdfInLightbox; },
         set pdfInLightbox(value) { pdfInLightbox = value; },
-        get vidCurrentId() { return vidCurrentId; },
-        set vidCurrentId(value) { vidCurrentId = value; },
+        get vidCurrentId() { return window.GDVVideo ? window.GDVVideo.vidCurrentId : _videoStateFallback.vidCurrentId; },
+        set vidCurrentId(value) { if (window.GDVVideo) window.GDVVideo.vidCurrentId = value; else _videoStateFallback.vidCurrentId = value; },
         get clientIdInput() { return clientIdInput; },
         get clientIdDot() { return clientIdDot; },
         get clientIdStatus() { return clientIdStatus; },
