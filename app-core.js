@@ -2174,6 +2174,20 @@
         mediaPreviousOverflow: ''
       };
 
+      // จำกัดจำนวน gdv_vpos_* ใน localStorage (ผู้ช่วยจัดเก็บของหน้า — center เรียกผ่าน bag)
+      function pruneVpos(maxKeys) {
+        try {
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.indexOf("gdv_vpos_") === 0) keys.push(k);
+          }
+          for (let i = 0; i < keys.length - maxKeys; i++) {
+            lsRemove(keys[i]);
+          }
+        } catch (_) {}
+      }
+
       window.GDVVideoApi = {
         // Live view of the main-app state owned by the index.html IIFE.
         // Getters/setters keep the video-player.js `with (appApi)` binding live.
@@ -2329,7 +2343,7 @@
         squirtFile,
         readPersonalData,
         attachPersonalButtons,
-        attachWatchedButtons,
+        get attachWatchedButtons() { return window.GDVVideo ? window.GDVVideo.attachWatchedButtons : undefined; },
         openLightbox,
         openDocument,
         openVideo: (id, name) => (window.GDVVideo ? window.GDVVideo.open(id, name) : undefined),
