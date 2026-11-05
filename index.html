@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261105-r4" />
+  <link rel="stylesheet" href="styles.css?v=20261106-r5" />
 
 </head>
 
@@ -255,19 +255,20 @@
       <div class="coll-header-bar">
         <h2>📚 คลัง XBep — <span id="collCount" aria-live="polite"></span> <span style="font-size:.78rem;color:var(--muted);font-weight:400">กดเปิดดูได้เลย</span></h2>
         <div class="coll-header-actions">
-          <button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button>
-          <button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button>
-          <button type="button" class="btn-ghost btn-sm" id="collMobileView" aria-pressed="false">มุมมองรายการ</button>
-          <button type="button" class="btn-ghost btn-sm" id="collToggle" title="ซ่อน/แสดง">ซ่อน</button>
+          <!-- Mobile 1: at ≤560px collection-viewer.js moves these real buttons into #collMenuPanel; the display:contents slots are their ≥561px homes -->
+          <span class="coll-slot" data-slot="collRandom"><button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button></span>
+          <span class="coll-slot" data-slot="collRandomBack"><button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button></span>
+          <span class="coll-slot" data-slot="collMobileView"><button type="button" class="btn-ghost btn-sm" id="collMobileView" aria-pressed="false">มุมมองรายการ</button></span>
+          <span class="coll-slot" data-slot="collToggle"><button type="button" class="btn-ghost btn-sm" id="collToggle" title="ซ่อน/แสดง">ซ่อน</button></span>
         </div>
       </div>
       <div class="coll-toolbar" id="collToolbar">
         <div class="coll-search-box"><input type="text" id="collSearch" aria-label="ค้นหาคลังตามวันที่หรือชื่อ" placeholder="ค้นหาวันที่หรือชื่อ…" /><button type="button" id="collSearchClear" title="ล้าง" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;display:none">×</button></div>
         <label class="coll-sort">เรียงตาม <select id="collSort"><option value="newest">ใหม่สุด</option><option value="oldest">เก่าสุด</option><option value="name">ชื่อ</option></select></label>
-        <label class="coll-pill"><input type="checkbox" id="collSoloSquirt"> 💦 เฉพาะน้ำพุ่ง</label>
-        <button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button>
-        <span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span>
-        <details class="coll-filter-drawer" id="collFilterDrawer">
+        <span class="coll-slot" data-slot="collSoloSquirt"><label class="coll-pill"><input type="checkbox" id="collSoloSquirt"> 💦 เฉพาะน้ำพุ่ง</label></span>
+        <span class="coll-slot" data-slot="collTagSync"><button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button></span>
+        <span class="coll-slot" data-slot="collTagSyncStatus"><span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span></span>
+        <span class="coll-slot" data-slot="collFilterDrawer"><details class="coll-filter-drawer" id="collFilterDrawer">
           <summary title="ตั้งค่าการแสดงผลและตัวกรองเพิ่มเติม">⚙️ ตัวเลือกมุมมอง</summary>
           <div class="coll-drawer-panel">
             <label class="coll-pill"><input type="checkbox" id="collShowDead"> แสดงรายการใช้ไม่ได้</label>
@@ -275,7 +276,37 @@
             <label class="coll-pill"><input type="checkbox" id="collPageMode" checked> <span id="collPageSizeLabel">แบ่งหน้าตามหน้าจอ</span></label>
             <button type="button" class="btn-ghost btn-sm" id="collExpandAll" title="คืนค่าตัวกรองทั้งหมด">ล้างตัวกรอง</button>
           </div>
-        </details>
+        </details></span>
+        <!-- Mobile 1: ≤560px rows — #collRow2 is the horizontal chip strip, #collMenuPanel opens from the ⋯ toggle; both are display:none on desktop -->
+        <div class="coll-row2" id="collRow2">
+          <span class="coll-slot" data-menu-slot="collSoloSquirt"></span>
+          <span class="coll-slot" data-menu-slot="collTagSync"></span>
+          <span class="coll-slot" data-menu-slot="collTagSyncStatus"></span>
+          <span class="coll-slot" data-menu-slot="collFilterDrawer"></span>
+        </div>
+        <div class="coll-menu-panel" id="collMenuPanel">
+          <div class="coll-menu-row">
+            <span class="coll-slot" data-menu-slot="collRandom"></span>
+            <small class="coll-menu-desc">สุ่มเปิดรายการจากตัวกรองปัจจุบัน</small>
+          </div>
+          <div class="coll-menu-row">
+            <span class="coll-slot" data-menu-slot="collRandomBack"></span>
+            <small class="coll-menu-desc">กลับไปรายการที่สุ่มแล้วก่อนหน้า</small>
+          </div>
+          <div class="coll-menu-row">
+            <span class="coll-slot" data-menu-slot="collMobileView"></span>
+            <small class="coll-menu-desc">สลับมุมมองรายการและมุมมองการ์ด</small>
+          </div>
+          <div class="coll-menu-row">
+            <span class="coll-slot" data-menu-slot="collToggle"></span>
+            <small class="coll-menu-desc">ซ่อนหรือแสดงเนื้อหาคลัง</small>
+          </div>
+          <div class="coll-menu-row">
+            <button type="button" class="btn-ghost btn-sm" id="collMenuFilterToggle" aria-expanded="false">⚙️ ตัวเลือกมุมมอง</button>
+            <small class="coll-menu-desc">แสดงรายการใช้ไม่ได้ / ไม่มีวันที่ / แบ่งหน้า</small>
+          </div>
+        </div>
+        <button type="button" class="coll-menu-toggle" id="collMenuToggle" aria-expanded="false" aria-controls="collMenuPanel" title="ตัวเลือกและปุ่มเพิ่มเติม" aria-label="ตัวเลือกและปุ่มเพิ่มเติม">⋯</button>
       </div>
 
       <div id="collMissing" class="coll-missing" style="display:none"></div>
@@ -523,7 +554,7 @@
   <script src="drive-explorer.js?v=20261104-r6"></script>
   <script src="media-lightbox.js?v=20261104-r5"></script>
   <script src="collections-data.js?v=20261014-r17" defer></script>
-  <script src="collection-viewer.js?v=20261104-r5" defer></script>
+  <script src="collection-viewer.js?v=20261106-r6" defer></script>
 
 </body>
 

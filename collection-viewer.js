@@ -168,14 +168,20 @@
 
   let collapsed = localStorage.getItem("gdv_coll_collapsed")==="1";
 
-
+  // Mobile 1 breakpoint — shared by applyCollapsed and the ⋯ menu block at the bottom.
+  var collMobileMql = window.matchMedia("(max-width: 560px)");
 
   function applyCollapsed(){
 
     grid.style.display = collapsed ? "none" : "";
 
     if(chipsWrap) chipsWrap.style.display = collapsed ? "none" : "";
-    var toolbarEl=document.getElementById("collToolbar");if(toolbarEl) toolbarEl.style.display = collapsed ? "none" : "";
+    var toolbarEl=document.getElementById("collToolbar");
+    var row2El=document.getElementById("collRow2");
+    var onMobile=collMobileMql.matches;
+    // On mobile keep row 1 (search + ⋯ menu) visible so ซ่อนคลัง cannot lock the user out.
+    if(toolbarEl) toolbarEl.style.display = (collapsed && !onMobile) ? "none" : "";
+    if(row2El) row2El.style.display = (collapsed && onMobile) ? "none" : "";
     var pagination=document.getElementById("collPagi");if(pagination && collapsed) pagination.style.display="none";
     if(toggleBtn) toggleBtn.setAttribute("aria-expanded",String(!collapsed));
 
@@ -793,6 +799,65 @@
   // Summary is calculated from the current collection above.
 
 
+
+  // ===== Mobile 1 — เมนู ⋯ (≤560px) =====
+  // At ≤560px the real toolbar controls MOVE (appendChild, no clones — every
+  // getElementById binding above keeps working) into the #collMenuPanel rows and
+  // the #collRow2 chip strip; at ≥561px they move back into their [data-slot]
+  // homes in index.html.
+  (function(){
+    var panel=document.getElementById("collMenuPanel");
+    var menuToggle=document.getElementById("collMenuToggle");
+    if(!panel || !menuToggle) return;
+    var drawer=document.getElementById("collFilterDrawer");
+    var filterRowBtn=document.getElementById("collMenuFilterToggle");
+    var MOVERS=["collRandom","collRandomBack","collMobileView","collToggle","collSoloSquirt","collTagSync","collTagSyncStatus","collFilterDrawer"];
+    // collSoloSquirt's id sits on the checkbox inside the pill label — the pill is what moves.
+    function movableFor(id){
+      var el=document.getElementById(id);
+      if(el && el.closest && el.closest("label.coll-pill")) el=el.closest("label.coll-pill");
+      return el;
+    }
+    function closeMenu(){ panel.classList.remove("coll-menu-open"); menuToggle.setAttribute("aria-expanded","false"); }
+    function applyLayout(mobile){
+      MOVERS.forEach(function(id){
+        var el=movableFor(id);
+        var dst=document.querySelector((mobile ? '[data-menu-slot="' : '[data-slot="') + id + '"]');
+        if(el && dst && el.parentNode!==dst) dst.appendChild(el);
+      });
+      if(!mobile) closeMenu();
+    }
+    function onMql(e){ applyLayout(e.matches); applyCollapsed(); }
+    if(collMobileMql.addEventListener) collMobileMql.addEventListener("change",onMql);
+    else if(collMobileMql.addListener) collMobileMql.addListener(onMql);
+    applyLayout(collMobileMql.matches);
+    menuToggle.addEventListener("click", function(){
+      var open=panel.classList.toggle("coll-menu-open");
+      menuToggle.setAttribute("aria-expanded",String(open));
+    });
+    // Outside click closes the ⋯ menu; guarded to mobile width only.
+    document.addEventListener("click", function(e){
+      if(!collMobileMql.matches || !panel.classList.contains("coll-menu-open")) return;
+      if(panel.contains(e.target) || menuToggle.contains(e.target)) return;
+      closeMenu();
+    });
+    // Tapping a row's description activates that row's control.
+    panel.addEventListener("click", function(e){
+      var row=e.target.closest(".coll-menu-row");
+      if(!row || !panel.contains(row)) return;
+      var ctrl=row.querySelector("button");
+      if(!ctrl || ctrl===e.target || ctrl.contains(e.target)) return;
+      ctrl.click();
+    });
+    // "ตัวเลือกมุมมอง" toggles the real drawer programmatically.
+    if(filterRowBtn && drawer){
+      filterRowBtn.addEventListener("click", function(){
+        drawer.open=!drawer.open;
+        if(drawer.open) closeMenu();
+      });
+      drawer.addEventListener("toggle", function(){ filterRowBtn.setAttribute("aria-expanded",String(!!drawer.open)); });
+    }
+  })();
 
   renderChips(); render();
 
