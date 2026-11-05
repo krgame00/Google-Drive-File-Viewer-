@@ -603,6 +603,7 @@
 
       letter-spacing: 0.04em; padding: 3px 8px; border-radius: 999px; color: #fff;
 
+      -webkit-backdrop-filter: blur(4px);
       backdrop-filter: blur(4px);
 
     }
@@ -754,6 +755,7 @@
 
       position: fixed; inset: 0; background: rgba(0,0,0,0.92);
 
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
 
       display: none; align-items: center; justify-content: center;
@@ -772,7 +774,7 @@
 
       background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); color: #fff;
 
-      font: inherit; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(12px); transition: all 0.2s;
+      font: inherit; font-size: 0.82rem; cursor: pointer; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); transition: all 0.2s;
 
     }
 
@@ -793,7 +795,7 @@
     .lb-count:empty { display: none; }
     .lightbox[data-viewer="pdf"] #lbReset { display: none !important; }
     .media-nav:disabled { opacity: 0.3; pointer-events: none; }
-    .pdf-controls.lb-pdf-controls { position: absolute; z-index: 3; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(20,20,20,.88); backdrop-filter: blur(12px); }
+    .pdf-controls.lb-pdf-controls { position: absolute; z-index: 3; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 14px; background: rgba(20,20,20,.88); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
     .pdf-controls.lb-pdf-controls button { min-width: 44px; min-height: 44px; }
     .lightbox[data-viewer="pdf"] #pdfStage { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding: max(68px, calc(env(safe-area-inset-top) + 60px)) 16px max(78px, calc(env(safe-area-inset-bottom) + 68px)); overflow: auto; background: transparent; touch-action: pan-y; scroll-behavior: smooth; overscroll-behavior: contain; }
     .lightbox[data-viewer="pdf"] #pdfCanvas { max-width: none; max-height: none; transform-origin: center; touch-action: none; margin: auto; display: block; box-shadow: 0 4px 24px rgba(0,0,0,.65); }
@@ -832,6 +834,7 @@
 
       display: flex; align-items: center; justify-content: center; z-index: 2;
 
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px); transition: all 0.2s;
 
     }
@@ -852,6 +855,7 @@
 
       padding: 4px 14px; border-radius: 999px; z-index: 2;
 
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
 
     }
@@ -862,6 +866,7 @@
       color: #fff; font-size: 0.82rem; font-weight: 500;
       background: rgba(20,20,20,0.78); border: 1px solid rgba(255,255,255,0.16);
       padding: 4px 14px; border-radius: 999px; z-index: 2;
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px); pointer-events: none;
     }
     .lb-title:empty { display: none; }
@@ -883,6 +888,7 @@
 
       padding: 8px 18px; border-radius: 999px; z-index: 2; cursor: pointer;
 
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px); align-items: center;
 
     }
@@ -901,13 +907,12 @@
 
       position: fixed; inset: 0; background: rgba(0,0,0,0.92);
 
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
 
       display: none; align-items: center; justify-content: center;
 
       z-index: 100; padding: 16px;
-
-      animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 
     }
 
@@ -1453,6 +1458,7 @@
     }
     .resume-thumb-box.has-thumb .resume-play-glyph {
       background: rgba(0, 0, 0, 0.52);
+      -webkit-backdrop-filter: blur(2px);
       backdrop-filter: blur(2px);
       width: 26px;
       height: 26px;
@@ -1798,6 +1804,7 @@
 
       box-shadow: var(--shadow-lg);
 
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
 
     }
@@ -2157,6 +2164,7 @@
       width: 44px; height: 44px; border-radius: 50%;
       background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.05); color: #fff;
       cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 2;
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px); transition: all 0.2s;
     }
     .lb-fs:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
@@ -2264,7 +2272,11 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
     .video-box.pseudo-fullscreen {
+      height: 100vh;
       position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 100000; margin: 0; background: #000;
+    }
+    .lightbox.pseudo-fullscreen {
+      position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; z-index: 100000; margin: 0; background: #000;
     }
     .video-box:fullscreen .chrome-top,
     .video-box.pseudo-fullscreen .chrome-top {
@@ -2276,8 +2288,10 @@
     .video-box.pseudo-fullscreen .ratio {
       flex: 0 0 auto;
       max-width: 100vw;
+      max-height: 100vh;
       max-height: 100dvh;
       aspect-ratio: var(--video-aspect, 16 / 9);
+      width: min(100vw, calc(100vh * var(--video-aspect, 16 / 9)));
       width: min(100vw, calc(100dvh * var(--video-aspect, 16 / 9)));
       height: auto;
       margin: auto;
@@ -2286,8 +2300,10 @@
     .video-box.pseudo-fullscreen .ratio[data-orientation="portrait"] {
       flex: 0 0 auto;
       max-width: 100vw;
+      max-height: 100vh;
       max-height: 100dvh;
       aspect-ratio: var(--video-aspect, 9 / 16);
+      width: min(100vw, calc(100vh * var(--video-aspect, 9 / 16)));
       width: min(100vw, calc(100dvh * var(--video-aspect, 9 / 16)));
       height: auto;
       margin: auto;
@@ -2330,7 +2346,7 @@
     #pdfCanvas { display: block; max-width: none; height: auto; margin: auto; background: white; box-shadow: 0 2px 18px rgba(0,0,0,.5); }
     @media (max-width: 680px) {
       .video-modal { padding: 8px; }
-      .video-box { max-height: calc(100dvh - 16px); }
+      .video-box { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
       .pdf-controls.lb-pdf-controls { max-width: calc(100vw - 16px); gap: 2px; padding: 4px; }
       .pdf-controls.lb-pdf-controls button { min-width: 40px; min-height: 44px; padding: 4px; }
       .pdf-controls.lb-pdf-controls .pdf-page-count { min-width: 46px; font-size: 11px; }
@@ -2363,7 +2379,7 @@
     }
     @media (max-width: 920px) and (orientation: landscape), (max-height: 500px) and (orientation: landscape) {
       .video-modal { padding: 4px env(safe-area-inset-right) 4px env(safe-area-inset-left); align-items: center; }
-      .video-box { max-height: 100dvh; width: 100%; border-radius: 6px; }
+      .video-box { max-height: 100vh; max-height: 100dvh; width: 100%; border-radius: 6px; }
       .chrome-top { padding: 6px 8px; gap: 6px; }
       .chrome-btn, .chrome-top .media-nav { width: 34px; height: 34px; flex: 0 0 34px; font-size: 15px; }
       .video-box .ratio {

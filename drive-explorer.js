@@ -357,10 +357,17 @@
         target.appendChild(status);
       }
 
+      // The static signal factory needs Safari 16+/Firefox 100+; build the same thing by hand.
+      function abortSignalTimeout(ms) {
+        const c = new AbortController();
+        setTimeout(() => c.abort(), ms);
+        return c.signal;
+      }
+
       async function findFolderCover(folderId) {
         const auth = authParams();
         if (auth.mode === "none") return null;
-        const signal = AbortSignal.timeout(12000);
+        const signal = abortSignalTimeout(12000);
         const selected = readPersonalData().covers.find(item => item.id === folderId);
         if (selected) {
           let url = "https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(selected.fileId) + "?fields=thumbnailLink,mimeType";

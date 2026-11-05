@@ -1100,3 +1100,15 @@
 - **หลักฐาน:** diag page จับ uncaught errors จาก 5 → 0, ทุก GDV*Api publish ครบ, node --test 209/209 PASS, busters app-core r7 / video-player r6
 - **คงพฤติกรรมเดิมตามที่ session ก่อนเลือก:** legacy compat names บน GDVVideo ถูกเก็บไว้ (callers ผ่าน live getters ของ GDVCollectionApi/GDVLightboxApi ซึ่งบางและถูกต้องแล้ว)
 
+### 51. Compatibility batch: ลด parse-gate เพื่อรองรับเบราว์เซอร์เก่า ตามผล browser audit (/Poteto Mode) (2026-11-06)
+- **สถานะ:** `VERIFIED WORKING` (ตามผล audit — ไม่มี primary route พังบนเบราว์เซอร์ยุคปัจจุบัน; ชุดนี้ฟื้นเบราว์เซอร์เก่า)
+- **การแก้ไข:**
+  1. **drive-stream-sw.js: BigInt → Number ทั้งไฟล์** (24 BigInt() + 19 literal n) — BigInt เป็น parse gate ที่ feature-detect ไม่ได้ ทำให้ Safari/iOS 13.x ซึ่งรองรับ SW แต่ parse ไม่ผ่าน → signed-in streaming ตายทั้งตระกูล — ขนาดไฟล์ Drive (สูงสุด 5 TB) ต่ำกว่า MAX_SAFE_INTEGER ~500 เท่า เลขตรงเสมอ; การหาร `total/4` ใช้ Math.floor (ตัวหารเป็น power of two จึง exact); string building คงรูปแบบเดิม — เทสชุด Range assert สตริงแบบ byte-exact และผ่านครบ
+  2. **app-core.js: `??` → explicit undefined check** (parse gate ที่ทำให้ Safari 13.0/iOS 13.0–13.3 เห็นหน้าขาวทั้งแอป)
+  3. **drive-explorer.js: `AbortSignal.timeout` → helper abortSignalTimeout (AbortController + setTimeout)** — folder covers ไม่พังบน Safari 15.3− / Firefox <100
+  4. **media-lightbox.js: lightbox fullscreen เพิ่ม pseudo-fullscreen fallback** ตาม pattern ของ video player + เพิ่ม rule `.lightbox.pseudo-fullscreen` ใน styles.css (เดิม class จะไม่มีผลเพราะ CSS scope ไว้ที่ .video-box อย่างเดียว — delegate จับได้และแก้ให้ observable)
+  5. **styles.css:** เติม `-webkit-backdrop-filter` คู่กับ backdrop-filter 12 จุด + `100vh` fallback หน้า `100dvh` 9 จุด (ยกเว้น custom property `--video-max-h` ที่เทคนิคสองบรรทัดใช้ไม่ได้ — ต้อง @supports แยก ยังไม่ทำ)
+  6. **styles.css: .video-modal ลบ animation fadeIn** — backdrop วาดทึบตั้งแต่เฟรมแรก แก้อาการโปร่งเห็นหน้าหลังช่วงเปิด modal ~0.4s (P2-2 จาก UX audit)
+- **หลักฐานการตรวจสอบ:** `node --check` ผ่าน 5 ไฟล์ · `node --test tests/*.cjs` **210/210 PASS** · grep BigInt/1n ใน SW = 0 · `??` ใน app-core = 0 · AbortSignal.timeout = 0 · smoke boundedMediaRange คืนสตริง byte-identical ทุกกรณี (open-ended/offset/shrink/passthrough) · หมายเหตุ: adversarial range เริ่มที่ 20 หลักเกิน safe-integer แต่ unreachable กับไฟล์จริง (ยอมรับตาม brief)
+- **คงไว้:** ปกคลัง XBep การ์ดที่ไม่มีปกใน data (ต้องตัดสินใจเรื่องดึงปกจากไฟล์ลูก — แยกตามโอกาส)
+

@@ -24,8 +24,8 @@ const MEDIA_CHUNK_BYTES = 16777216;
 function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
   const open = range && range.match(/^bytes=(\d{1,20})-$/i);
   if (!open) return range;
-  const start = BigInt(open[1]);
-  return 'bytes=' + start + '-' + (start + BigInt(chunkBytes) - 1n);
+  const start = Number(open[1]);
+  return 'bytes=' + start + '-' + (start + chunkBytes - 1);
 }
 // One prefetched chunk for the next media request; lost if the worker restarts.
 let ahead = null;
@@ -44,13 +44,13 @@ async function fetchParallelChunk(id, start, end, token, signal) {
   // Split one bounded interval into four sub-intervals fetched in parallel
   // and stream them to the player in order; returns the composite 206
   // Response, or null to fall back to a single connection.
-  const total = end - start + 1n;
-  if (total < 4n) return null;
-  const part = total / 4n;
+  const total = end - start + 1;
+  if (total < 4) return null;
+  const part = Math.floor(total / 4);
   const ranges = [];
-  for (let i = 0n; i < 4n; i++) {
+  for (let i = 0; i < 4; i++) {
     const s = start + i * part;
-    ranges.push([s, i === 3n ? end : s + part - 1n]);
+    ranges.push([s, i === 3 ? end : s + part - 1]);
   }
   let responses;
   try {
@@ -64,23 +64,23 @@ async function fetchParallelChunk(id, start, end, token, signal) {
   for (let i = 0; i < responses.length; i++) {
     const res = responses[i];
     const actual = res.ok && res.status === 206 ? (res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i) : null;
-    const actualStart = actual ? BigInt(actual[1]) : -1n;
-    const actualEnd = actual ? BigInt(actual[2]) : -1n;
+    const actualStart = actual ? Number(actual[1]) : -1;
+    const actualEnd = actual ? Number(actual[2]) : -1;
     if (!actual || actualStart !== ranges[i][0] || actualEnd < actualStart || actualEnd > ranges[i][1] || (i < ranges.length - 1 && actualEnd !== ranges[i][1])) {
       for (const other of responses) if (other.body) other.body.cancel().catch(function () {});
       return null;
     }
   }
-  let delivered = 0n, known = true, fileTotal = null;
+  let delivered = 0, known = true, fileTotal = null;
   for (const res of responses) {
     const length = Number(res.headers.get('Content-Length'));
-    if (Number.isFinite(length) && length >= 0) delivered += BigInt(length); else known = false;
+    if (Number.isFinite(length) && length >= 0) delivered += length; else known = false;
     const headerTotal = (res.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
-    if (headerTotal && headerTotal[1] !== '*') fileTotal = BigInt(headerTotal[1]);
+    if (headerTotal && headerTotal[1] !== '*') fileTotal = Number(headerTotal[1]);
   }
-  if (!known || delivered === 0n) { for (const res of responses) if (res.body) res.body.cancel().catch(function () {}); return null; }
+  if (!known || delivered === 0) { for (const res of responses) if (res.body) res.body.cancel().catch(function () {}); return null; }
   const type = responses[responses.length - 1].headers.get('Content-Type') || 'application/octet-stream';
-  const stop = start + delivered - 1n;
+  const stop = start + delivered - 1;
   const compositeRange = 'bytes ' + start + '-' + stop + '/' + (fileTotal !== null && fileTotal > stop ? fileTotal.toString() : '*');
   const readers = responses.map(function (res) { return res.body.getReader(); });
   let index = 0;
@@ -181,19 +181,19 @@ async function trimHeads(cache) {
   } catch (_) {}
 }
 function serveHeadRange(head, requestedBound) {
-  const reqStart = BigInt(requestedBound[1]);
-  const reqEnd = BigInt(requestedBound[2]);
-  const headEnd = BigInt(head.blob.size) - 1n;
+  const reqStart = Number(requestedBound[1]);
+  const reqEnd = Number(requestedBound[2]);
+  const headEnd = head.blob.size - 1;
   if (reqEnd < reqStart || reqStart > headEnd) return null;
   const sliceEnd = reqEnd < headEnd ? reqEnd : headEnd;
-  const total = /^\d+$/.test(head.total) && BigInt(head.total) > sliceEnd ? head.total : '*';
+  const total = /^\d+$/.test(head.total) && Number(head.total) > sliceEnd ? head.total : '*';
   const type = head.type || 'video/mp4';
   const headers = new Headers({
     'Cache-Control': 'no-store', 'Content-Type': type,
     'Content-Range': 'bytes ' + reqStart + '-' + sliceEnd + '/' + total,
-    'Accept-Ranges': 'bytes', 'Content-Length': (sliceEnd - reqStart + 1n).toString()
+    'Accept-Ranges': 'bytes', 'Content-Length': (sliceEnd - reqStart + 1).toString()
   });
-  const body = head.blob.slice(Number(reqStart), Number(sliceEnd) + 1, type);
+  const body = head.blob.slice(reqStart, sliceEnd + 1, type);
   return {sliceEnd: sliceEnd.toString(), response: new Response(body, {status: 206, headers: headers})};
 }
 function scheduleAheadChunk(id, token, nextStart) {
@@ -205,7 +205,7 @@ function scheduleAheadChunk(id, token, nextStart) {
   const controller = new AbortController();
   const entry = {id: id, start: nextStart, controller: controller};
   const guard = setTimeout(function () { if (ahead === entry) { ahead = null; controller.abort(); } }, 120000);
-  const end = nextStart + BigInt(MEDIA_CHUNK_BYTES) - 1n;
+  const end = nextStart + MEDIA_CHUNK_BYTES - 1;
   const activeParallel = parallelOk === id || parallelFiles.has(id);
   const activeTotal = parallelFiles.has(id) ? parallelFiles.get(id) : (parallelOk === id ? parallelTotal : null);
   const nextReachesEnd = activeTotal !== null && end >= activeTotal;
@@ -293,7 +293,7 @@ async function streamFile(event, id, attempt) {
     let upstream = null;
     const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
     if (request.method === 'GET' && ahead) {
-      if (ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
+      if (ahead.id === id && requestedBound && ahead.start === Number(requestedBound[1])) {
         const hit = ahead;
         ahead = null;
         try {
@@ -313,19 +313,19 @@ async function streamFile(event, id, attempt) {
       if (head) {
         const served = serveHeadRange(head, requestedBound);
         if (served) {
-          const headEnd = BigInt(served.sliceEnd);
-          const headTotal = /^\d+$/.test(head.total) ? BigInt(head.total) : null;
-          if (!request.signal.aborted && (!headTotal || headEnd + 1n < headTotal)) scheduleAheadChunk(id, token, headEnd + 1n);
+          const headEnd = Number(served.sliceEnd);
+          const headTotal = /^\d+$/.test(head.total) ? Number(head.total) : null;
+          if (!request.signal.aborted && (!headTotal || headEnd + 1 < headTotal)) scheduleAheadChunk(id, token, headEnd + 1);
           return served.response;
         }
       }
     }
     const canParallel = parallelOk === id || parallelFiles.has(id);
     const knownTotal = parallelFiles.has(id) ? parallelFiles.get(id) : (parallelOk === id ? parallelTotal : null);
-    const reachesKnownEnd = canParallel && knownTotal !== null && requestedBound && BigInt(requestedBound[2]) >= knownTotal;
+    const reachesKnownEnd = canParallel && knownTotal !== null && requestedBound && Number(requestedBound[2]) >= knownTotal;
     if (!upstream) {
       if (request.method === 'GET' && requestedBound && boundedRange !== range && canParallel && !reachesKnownEnd) {
-        upstream = await fetchParallelChunk(id, BigInt(requestedBound[1]), BigInt(requestedBound[2]), token, request.signal);
+        upstream = await fetchParallelChunk(id, Number(requestedBound[1]), Number(requestedBound[2]), token, request.signal);
       }
       if (!upstream) {
         for (let retry = 0; retry < 3; retry++) {
@@ -355,7 +355,7 @@ async function streamFile(event, id, attempt) {
     // the next interval on; lengthless answers keep the single connection.
     if (upstream && upstream.status === 206 && upstream.headers.get('Content-Length')) {
       const totalMatch = (upstream.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
-      rememberParallelFile(id, totalMatch && totalMatch[1] !== '*' ? BigInt(totalMatch[1]) : (parallelFiles.get(id) || null));
+      rememberParallelFile(id, totalMatch && totalMatch[1] !== '*' ? Number(totalMatch[1]) : (parallelFiles.get(id) || null));
     }
     const type = upstream.headers.get('Content-Type') || '';
     if (!/^(video\/|audio\/|application\/octet-stream(?:;|$))/i.test(type)) {
@@ -368,9 +368,9 @@ async function streamFile(event, id, attempt) {
       // A 206 certifies the bounded interval; some responses hide Content-Range
       // from scripts (CORS exposure), so an unreadable header passes through.
       const rangeFailure = upstream.status !== 206 ? 'status' : !actual ? null
-        : BigInt(actual[1]) !== BigInt(requested[1]) ? 'start'
-        : BigInt(actual[2]) < BigInt(actual[1]) || BigInt(actual[2]) > BigInt(requested[2]) ? 'end'
-        : actual[3] !== '*' && BigInt(actual[3]) <= BigInt(actual[2]) ? 'total' : null;
+        : Number(actual[1]) !== Number(requested[1]) ? 'start'
+        : Number(actual[2]) < Number(actual[1]) || Number(actual[2]) > Number(requested[2]) ? 'end'
+        : actual[3] !== '*' && Number(actual[3]) <= Number(actual[2]) ? 'total' : null;
       if (rangeFailure) {
         if (upstream.body) await upstream.body.cancel();
         reporter.postMessage({type:'drive-stream-error',id,status:502,reason:'streamRangeUnsupported',attempt,rangeFailure,upstreamStatus:upstream.status});
@@ -379,7 +379,7 @@ async function streamFile(event, id, attempt) {
     }
     // Persist the opening chunk while it streams: one tee branch keeps feeding
     // the player, the other drains into the head cache in the background.
-    if (request.method === 'GET' && headCtx && upstream.status === 206 && requestedBound && BigInt(requestedBound[1]) === 0n && upstream.body) {
+    if (request.method === 'GET' && headCtx && upstream.status === 206 && requestedBound && Number(requestedBound[1]) === 0 && upstream.body) {
       const branches = upstream.body.tee();
       const upstreamTotal = (upstream.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
       const headType = upstream.headers.get('Content-Type') || '';
@@ -392,9 +392,9 @@ async function streamFile(event, id, attempt) {
     // prefetch; a failed one simply falls back to the normal fetch above.
     const servedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedRange || '');
     const servedTotal = (upstream.headers.get('Content-Range') || '').match(/^bytes \d+-\d+\/(\d+|\*)$/i);
-    const atFileEnd = servedTotal && servedTotal[1] !== '*' && servedBound && BigInt(servedTotal[1]) <= BigInt(servedBound[2]) + 1n;
+    const atFileEnd = servedTotal && servedTotal[1] !== '*' && servedBound && Number(servedTotal[1]) <= Number(servedBound[2]) + 1;
     if (request.method === 'GET' && servedBound && boundedRange !== range && !atFileEnd && !request.signal.aborted) {
-      scheduleAheadChunk(id, token, BigInt(servedBound[2]) + 1n);
+      scheduleAheadChunk(id, token, Number(servedBound[2]) + 1);
     }
     const responseHeaders = new Headers({'Cache-Control': 'no-store', 'Content-Type': type});
     for (const name of ['Content-Length', 'Content-Range', 'Accept-Ranges']) {
@@ -473,7 +473,7 @@ self.addEventListener('message', event => {
     try {
       if (await readHead(id, {scope: scope, size: size, modifiedTime: modifiedTime})) return true;
       let res = null;
-      try { res = await fetchParallelChunk(id, 0n, BigInt(MEDIA_CHUNK_BYTES) - 1n, token, controller.signal); } catch (_) { res = null; }
+      try { res = await fetchParallelChunk(id, 0, MEDIA_CHUNK_BYTES - 1, token, controller.signal); } catch (_) { res = null; }
       if (!res || !res.ok) {
         res = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media', {
           method: 'GET', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,

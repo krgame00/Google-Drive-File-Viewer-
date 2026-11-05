@@ -1190,7 +1190,7 @@
 
       function readPersonalData() {
         const read = (key, fallback) => {
-          try { return JSON.parse(lsGet(key) || "null") ?? fallback; } catch (_) { return fallback; }
+          try { const parsed = JSON.parse(lsGet(key) || "null"); return parsed === null || parsed === undefined ? fallback : parsed; } catch (_) { return fallback; }
         };
         const result = { format: "drive-viewer-personal", version: 1, favorites: [], watched: [], continueWatching: [], watchLater: [], covers: [], hideCovers: read("gdv_hide_covers", false) === true };
         const keys = { favorites: "gdv_favorites", watched: "gdv_watched", continueWatching: "gdv_continue", watchLater: "gdv_watch_later", covers: "gdv_covers" };

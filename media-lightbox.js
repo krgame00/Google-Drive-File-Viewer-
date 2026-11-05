@@ -186,8 +186,11 @@
         if (!document.fullscreenElement) {
           if (lightbox.requestFullscreen) lightbox.requestFullscreen().catch(() => {});
           else if (lightbox.webkitRequestFullscreen) lightbox.webkitRequestFullscreen();
+          else if (lightbox.classList.contains("pseudo-fullscreen")) lightbox.classList.remove("pseudo-fullscreen");
+          else lightbox.classList.add("pseudo-fullscreen");
         } else {
           if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+          lightbox.classList.remove("pseudo-fullscreen");
         }
       }
 
@@ -209,6 +212,7 @@
         if (document.fullscreenElement && document.exitFullscreen) {
           document.exitFullscreen().catch(() => {});
         }
+        lightbox.classList.remove("pseudo-fullscreen");
       }
 
       function updateLbCount() {
