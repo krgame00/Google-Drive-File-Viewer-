@@ -2289,9 +2289,9 @@
         get filesWrap() { return filesWrap; },
         get document() { return document; },
         get location() { return location; },
-        get fetch() { return fetch; },
-        get setTimeout() { return setTimeout; },
-        get clearTimeout() { return clearTimeout; },
+        // bind กลับเข้า global — เรียกแบบ app.fetch(...) ใน strict mode จะได้ this=Window ไม่งั้น Illegal invocation
+        get fetch() { return fetch.bind(globalThis); },
+        get setTimeout() { return setTimeout.bind(globalThis); },
         get navigator() { return navigator; },
         get window() { return window; },
         get Date() { return Date; },
