@@ -14,6 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 # index.html first (current layout), then the extracted modules (post-split).
 APP_SOURCES = (
     "index.html",
+    "app-core.js",
     "collections-data.js",
     "collection-viewer.js",
     "media-lightbox.js",

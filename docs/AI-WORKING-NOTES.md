@@ -1213,3 +1213,51 @@
 - **ตัวการ 3 ชั้น (จับด้วย elementsFromPoint ที่พิกัดปุ่ม):** (1) `.vid-trace` pointer-events:none ตั้งแต่ยุคกล่องใหญ่ → scroll ไม่ได้ (2) `#vidErrorStatus` (z-index 34) สูงกว่ากล่อง (33) — ข้อความ error ยาวทำแถบสูงขึ้นไปบังปุ่มพอดี (3) **ปุ่มคัดลอกอยู่ใต้พื้นที่ scroll ของกล่อง** — auto-scroll ไปบรรทัดล่าสุดเลื่อนปุ่มหลุดออกนอก clip (overflow:auto ของกล่อง) — บังทั้งเห็นและคลิก; บทเรียน: ครั้งก่อน Playwright คลิกจริง timeout แต่ผมข้ามด้วยการยิง el.click() (programmatic ข้าม hit-test) = พิสูจน์ผิดวิธี คราวนี้ยืนยันด้วย cua mouse click จริง
 - **การแก้ (video-player r12 + styles r15):** z-index 33→35 (กล่องอยู่เหนือ error strip) · pointer-events auto (กล่องเล็กมุมขวาบน ไม่บังอะไรแล้ว เลื่อน/เลือกข้อความได้) · **เฉพาะ `.vid-trace-lines` เป็นตัว scroll (max-height 7.5em) ส่วนเม็ด/ปุ่มตรึงนอก scroll เสมอ** + auto-scroll ที่ lines · user-select text บนบรรทัด (เผื่อกด Ctrl+C เอง) · feedback คัดลอกตรงไปตรงมา: สำเร็จ=คัดลอกแล้ว ✓, ทั้ง clipboard API และ execCommand ตก=คัดลอกไม่สำเร็จ—เลือกข้อความแล้วกด Ctrl+C (เดิมแฟลชสำเร็จแม้ตก) — buster video-player r11→r12, styles r13→r15(ผ่าน r14)
 - **หลักฐาน:** elementFromPoint ที่กลางปุ่ม = `BUTTON#vidTraceCopy` (เดิม DIV#vidErrorStatus) · cua.click จริง → "คัดลอกแล้ว ✓" · suite **216/216**
+
+
+### 62. แก้ไขบั๊ก TypeError: this.postEventProcId is not a function ในเกม TRATRITLE v1.3.5 (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่าน node harness รันจำลอง Game_Interpreter + ตรวจสอบ Map051.json ทั้ง 64 events ครบถ้วน)
+- **อาการผู้ใช้:** ภาพถ่ายหน้าจอแสดงกล่องข้อความสีดำบนเกม "เทรทริทิล ! || OwO - แค่อยากแปลเกม v1.3.5" ขึ้นข้อความ `TypeError: this.postEventProcId is not a function` เมื่อเข้าไปเลือกย้อนดูฉากความทรงจำของ Karina (Events 4 ถึง 9) ในห้อง Memorial Room (Map051)
+- **การวินิจฉัย (Root Cause Analysis):**
+  1. เมื่อตรวจสอบสคริปต์ใน `www/data/Map051.json` พบว่าในอีเวนต์ของคาริน่า (Event 4 ถึง 9: `カリナシーン１` ถึง `カリナシーン６`) หน้าที่ 3 มีคำสั่ง Script (Code 355) เรียก `this.postEventProcId(1);` ถึง `this.postEventProcId(6);`
+  2. เมื่อไล่ตรวจโค้ดทั้งหมดของเกม ทั้ง `rpg_*.js` และปลั๊กอินทั้งหมดใน `www/js/plugins/` พบว่าไม่มีการประกาศฟังก์ชัน `postEventProcId` ไว้ใน `Game_Interpreter.prototype` เลยแม้แต่ที่เดียว (เป็นฟังก์ชันค้างที่ผู้พัฒนาเกมเดิมเขียนไม่เสร็จหรือลืมลบออก)
+  3. ขณะที่อีเวนต์ของตัวละครอื่นในแผนที่เดียวกัน (Michelle Event 10-15, Rishue Event 16-21, Salia Event 22-27) ไม่มีการเรียก `this.postEventProcId` เลย แต่ตัดเข้าเซ็ต Switch/Variable 201 และ 131 แล้ววาร์ปเข้าแมพฉากทันที
+  4. คำสั่งบรรทัดถัดจาก `this.postEventProcId(X);` ในอีเวนต์ของคาริน่าก็มีการเปิด Switch 501-504 และตั้งค่าตัวแปร 201 และ 131 ไว้อยู่แล้วอย่างถูกต้อง
+- **การแก้ปัญหา (Two-layer Polyfill Solution):**
+  1. เสริม Polyfill ฟังก์ชัน `Game_Interpreter.prototype.postEventProcId = function(id) { return true; };` ลงในปลั๊กอิน `www/js/plugins/MemorialRoom.js` ซึ่งเป็นปลั๊กอินควบคุมระบบห้องย้อนความทรงจำโดยเฉพาะ
+  2. เสริม Polyfill ชุดเดียวกันลงใน `www/js/plugins/RuneTranslateFontFit.js` เพื่อความมั่นใจสองชั้นว่าจะถูกโหลดและทำงานแน่นอนในทุกเงื่อนไข
+  3. สำรองไฟล์เดิมไว้ที่ `Map051.json.bak` และ `MemorialRoom.js.bak`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - รันสคริปต์ทดสอบ `verify_fix.js` จำลองสภาพแวดล้อม RPG Maker MV และโหลดทั้งสองปลั๊กอิน:
+    - `typeof Game_Interpreter.prototype.postEventProcId === 'function'` -> PASS
+    - จำลองการเรียก `interp.postEventProcId(1..6)` ทำงานราบรื่นและคืนค่า `true` โดยไม่มีข้อผิดพลาด -> PASS
+    - ตรวจสอบทั้ง 64 อีเวนต์ใน Map051 ยืนยันว่าไม่มีสคริปต์เรียกฟังก์ชันที่ไม่มีอยู่จริงค้างอยู่อีก -> PASS
+
+
+### 50. ตรวจสอบสถานะลิงก์คลังไฟล์ XBep ประจำวันที่ 7 พ.ย. 69 (335 รายการ) (`2026-11-07`)
+- **สถานะ:** `VERIFIED WORKING`
+- **การแก้ไขและตรวจเช็ก:**
+  1. **แก้ไขสคริปต์ตัวช่วย `scripts/checks/_appsources.py`:** เพิ่ม `"app-core.js"` เข้าใน `APP_SOURCES` เพื่อให้ฟังก์ชัน `default_api_key()` ค้นหา `DEFAULT_APIKEY` เจออย่างถูกต้องหลังจากการแยกโมดูลในระยะก่อนหน้า
+  2. **ตรวจเช็กสถานะ Google Drive ผ่าน Drive API v3 (335 รายการ):**
+     - รอด (Alive): **114 ไฟล์** (34.0%)
+     - เสีย/เข้าถึงไม่ได้ (Dead): **221 ไฟล์** (66.0%)
+       - ข้อผิดพลาด 404 (Not Found / Deleted): 162 ไฟล์
+       - Trashed (ถูกย้ายไปถังขยะของ Drive): 59 ไฟล์ (กลุ่มนี้เป็นไฟล์เดือน ส.ค. 69 ที่ตรวจพบว่าปลิวเพิ่มจากการตรวจรอบ 12 ต.ค. 69)
+     - สรุปสถานะตามเดือน:
+       - พ.ค. 69 (5.69): รวม 120 | รอด 2 | เสีย 118 (98.3%)
+       - มิ.ย. 69 (6.69): รวม 60 | รอด 17 | เสีย 43 (71.7%)
+       - ก.ค. 69 (7.69): รวม 65 | รอด 65 | เสีย 0 (100% รอดครบถ้วน)
+       - ส.ค. 69 (8.69): รวม 63 | รอด 4 | เสีย 59 (93.7%)
+       - ก.ย. 69 (9.69): รวม 19 | รอด 19 | เสีย 0 (100% รอดครบถ้วน)
+       - ไม่ระบุ: รวม 8 | รอด 7 | เสีย 1 (12.5%)
+  3. **ตรวจเช็กสถานะลิงก์สำรอง MEGA (55 รายการ):**
+     - รอด: 20 รายการ
+     - เสีย (รหัส -9): 35 รายการ
+  4. **อัปเดตและซิงก์ข้อมูล:**
+     - รัน `scripts/data/patch_alive_from_report.py` อัปเดต `dead`, `dead_status`, `drive_name` และป้ายเวลาตรวจ `COLL_CHECKED_AT = "7 พ.ย. 69 (23:11 น.)"`
+     - รัน `tools/tag_categories.py` ปรับปรุงแท็ก `category` และ `category_primary` ให้มีแท็ก `dead` ครบทั้ง 221 รายการ
+     - รัน `node tools/collection_data.js extract` ซิงก์ข้อมูลตรงกัน 100% กับ `collections_merged.json`
+     - ปรับ cache buster ใน `index.html` เป็น `collections-data.js?v=20261107-r1`
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกัน (335 รายการ)
+  - `node --test tests/*.cjs` ผ่านครบถ้วน **216/216 tests PASS (0 failures, duration 23.4s)**
