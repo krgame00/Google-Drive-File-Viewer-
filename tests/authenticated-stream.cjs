@@ -4,7 +4,7 @@ const fs=require('node:fs'),vm=require('node:vm');
 const {MessageChannel}=require('node:worker_threads');
 function setup({token='test-token',status=206,type='video/mp4',client=true,fetchFails=false,contentRange='bytes 0-3/100'}={}) {
   const events={},calls=[],errors=[];
-  const theClient={url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else{errors.push(data)}}};
+  const theClient={url:'https://example.com/app/index.html',postMessage(data,ports){if(ports){ports[0].postMessage({token});ports[0].close()}else if(data&&data.type==='drive-stream-error'){errors.push(data)}}};
   // A stream body keeps Content-Length off the response, so the default mock
   // stays on the serial path and parallel tests opt in with sized bodies.
   const streamBody=s=>new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(s));c.close()}});

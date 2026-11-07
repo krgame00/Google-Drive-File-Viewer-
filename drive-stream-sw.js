@@ -316,8 +316,10 @@ async function streamFile(event, id, attempt) {
           const headEnd = Number(served.sliceEnd);
           const headTotal = /^\d+$/.test(head.total) ? Number(head.total) : null;
           if (!request.signal.aborted && (!headTotal || headEnd + 1 < headTotal)) scheduleAheadChunk(id, token, headEnd + 1);
+          try { reporter.postMessage({type:'drive-stream-debug', path:'head-cache', status:served.response.status, range:served.response.headers.get('Content-Range'), length:served.response.headers.get('Content-Length'), headTotal:String(head.total), headBytes:String(head.bytes ? head.bytes.byteLength : '')}); } catch (_) {}
           return served.response;
         }
+        try { reporter.postMessage({type:'drive-stream-debug', path:'head-cache-miss'}); } catch (_) {}
       }
     }
     const canParallel = parallelOk === id || parallelFiles.has(id);
@@ -401,6 +403,7 @@ async function streamFile(event, id, attempt) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);
     }
+    try { reporter.postMessage({type:'drive-stream-debug', path:'upstream', status:upstream.status, range:responseHeaders.get('Content-Range'), length:responseHeaders.get('Content-Length'), type:type}); } catch (_) {}
     return new Response(request.method === 'HEAD' ? null : upstream.body, {
       status: upstream.status, headers: responseHeaders
     });

@@ -628,6 +628,11 @@ function createVideoCenter(app) {
         handleDriveStreamError(event.data);
         return;
       }
+      if (event.data && event.data.type === 'drive-stream-debug') {
+        const d = event.data;
+        traceVideoEvent('swdbg', 'path=' + d.path + ' status=' + d.status + ' range=' + (d.range || '-') + ' len=' + (d.length || '-') + (d.type ? ' type=' + d.type : '') + (d.headTotal ? ' headTotal=' + d.headTotal : '') + (d.headBytes ? ' headBytes=' + d.headBytes : ''));
+        return;
+      }
       if (!event.ports || !event.ports[0]) return;
       if (!event.data || event.data.type !== 'drive-stream-token') return;
       const expiry = typeof app.tokenExpiry === 'function' ? app.tokenExpiry() : app.tokenExpiry;
