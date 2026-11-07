@@ -575,6 +575,11 @@ function createVideoCenter(app) {
   let videoStatus = (app && 'videoStatus' in app && app.videoStatus !== undefined) ? app.videoStatus : 'closed';
   let videoResumePos = (app && 'videoResumePos' in app && app.videoResumePos !== undefined) ? app.videoResumePos : 0;
   let streamWorkerReady = (app && 'streamWorkerReady' in app && app.streamWorkerReady !== undefined) ? app.streamWorkerReady : null;
+  // Each openVideo bumps the epoch; a registration attempt from an earlier
+  // epoch must not trace into, or fail, the session that reused it.
+  let streamWorkerEpoch = 0;
+  let streamWorkerAttemptEpoch = 0;
+  let streamWorkerDeadlineRefresh = null;
   let failedVideoAttempt = (app && 'failedVideoAttempt' in app && app.failedVideoAttempt !== undefined) ? app.failedVideoAttempt : null;
   let previewAspect = (app && 'previewAspect' in app && app.previewAspect !== undefined) ? app.previewAspect : null;
   let videoBlobTransfer = (app && 'videoBlobTransfer' in app && app.videoBlobTransfer !== undefined) ? app.videoBlobTransfer : null;
@@ -1035,6 +1040,7 @@ function createVideoCenter(app) {
 
       function openVideo(id, name) {
         resetVideoTrace();
+        streamWorkerEpoch++;
         traceVideoEvent('open', id + (name ? ' · ' + name : ''));
         hideNextUp();
         if (app.lightbox.classList.contains("show")) app.closeLightbox();
@@ -1697,24 +1703,40 @@ function createVideoCenter(app) {
         if (!('serviceWorker' in app.navigator)) { traceVideoEvent('sw', 'ข้าม: เบราว์เซอร์ไม่รองรับ Service Worker'); return Promise.resolve(false); }
         if (app.location.protocol === 'file:') { traceVideoEvent('sw', 'ข้าม: เปิดจาก file://'); return Promise.resolve(false); }
         if (!streamWorkerReady) {
-          streamWorkerReady = new Promise(function (resolve) {
+          streamWorkerAttemptEpoch = ++streamWorkerEpoch;
+          const attempt = new Promise(function (resolve) {
             const workers = app.navigator.serviceWorker;
             const script = new URL('drive-stream-sw.js', app.location.href).href;
             let done = false;
+            let timer = 0;
             function finish(ok, reason) {
               if (done) return;
               done = true;
               app.clearTimeout(timer);
               workers.removeEventListener('controllerchange', check);
-              traceVideoEvent('sw', ok ? 'พร้อม' : 'ลงทะเบียนไม่สำเร็จ' + (reason ? ': ' + reason : ''));
+              if (streamWorkerAttemptEpoch === streamWorkerEpoch) traceVideoEvent('sw', ok ? 'พร้อม' : 'ลงทะเบียนไม่สำเร็จ' + (reason ? ': ' + reason : ''));
               resolve(ok);
             }
             function check() { if (workers.controller && workers.controller.scriptURL === script) finish(true); }
-            const timer = app.setTimeout(function () { finish(false, 'หมดเวลา'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 12000));
+            // A later session reusing this in-flight attempt refreshes the
+            // deadline, so it always gets its own full window.
+            streamWorkerDeadlineRefresh = function () {
+              app.clearTimeout(timer);
+              timer = app.setTimeout(function () { finish(false, 'หมดเวลา'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 12000));
+              streamWorkerAttemptEpoch = streamWorkerEpoch;
+            };
+            streamWorkerDeadlineRefresh();
             workers.addEventListener('controllerchange', check);
             workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function (err) { finish(false, err && err.message ? err.message : (err && err.name) || 'ไม่ทราบสาเหตุ'); });
             check();
-          }).then(function (ok) { if (!ok) streamWorkerReady = null; return ok; });
+          });
+          streamWorkerReady = attempt.then(function (ok) {
+            // A stale epoch's late resolution must not clobber a newer attempt.
+            if (streamWorkerReady === attempt && !ok) { streamWorkerReady = null; streamWorkerDeadlineRefresh = null; }
+            return ok;
+          });
+        } else if (streamWorkerDeadlineRefresh) {
+          streamWorkerDeadlineRefresh();
         }
         return streamWorkerReady;
       }
