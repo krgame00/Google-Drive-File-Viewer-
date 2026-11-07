@@ -910,7 +910,7 @@ function createVideoCenter(app) {
         if (!box || !lines) return;
         lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
         if (typeof lines.scrollTop === 'number') lines.scrollTop = lines.scrollHeight;
-        box.hidden = videoStatus === 'playing' || videoStatus === 'buffering';
+        box.hidden = false;
       }
 
       function setVideoStatus(state, message) {

@@ -175,7 +175,7 @@ test('buffering overlay recovers via canplay after a seek', () => {
   assert.ok(elements.vidLoading.classList.contains('show'), 'buffering shows the overlay');
   handlers.canplay();
   assert.ok(!elements.vidLoading.classList.contains('show'), 'canplay clears the overlay');
-  assert.equal(elements.vidTrace.hidden, true, 'trace box hidden again once playback resumes');
+  assert.equal(elements.vidTrace.hidden, false, 'trace pill stays available once playback resumes');
 
   handlers.waiting();
   assert.ok(elements.vidLoading.classList.contains('show'), 'second stall shows the overlay again');
