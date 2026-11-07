@@ -1053,15 +1053,18 @@
 
     .title-overlay {
 
-      /* Sit above the native controls strip (~70px) and stay click-through:
-         only the link and the menu take input, the rest lets seeks through. */
-      position: absolute; inset: auto 0 76px 0; z-index: 38;
+      /* Flow row below the video (inside .video-box, after .ratio): never
+         covers the picture or the native controls. Only the link and the
+         menu take input. */
+      position: static;
 
       display: flex; align-items: center; gap: 10px;
 
-      padding: 10px 16px 8px;
+      padding: 8px 16px;
 
-      background: linear-gradient(transparent, rgba(0,0,0,0.62));
+      background: rgba(255,255,255,0.03);
+
+      border-top: 1px solid rgba(255,255,255,0.07);
 
       transition: opacity 0.25s ease;
 
@@ -2314,6 +2317,13 @@
       width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
+    /* Pseudo-fullscreen has no native controls strip, so the bar overlays the
+       video bottom edge there instead of taking flow space from the picture. */
+    .video-box.pseudo-fullscreen .title-overlay {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 38;
+      background: linear-gradient(transparent, rgba(0,0,0,0.62));
+    }
+
     .video-box.pseudo-fullscreen {
       height: 100vh;
       position: fixed; inset: 0; width: 100vw; height: 100dvh; z-index: 100000; margin: 0; background: #000;
@@ -2419,7 +2429,7 @@
       .chrome-top { gap: 6px; padding: 8px; }
       .chrome-btn, .chrome-top .media-nav { width: 30px; height: 30px; flex: 0 0 30px; }
       .chrome-top .media-nav { font-size: 16px; }
-      .title-overlay { padding: 8px 10px; gap: 8px; bottom: 72px; }
+      .title-overlay { padding: 6px 10px; gap: 8px; }
       .video-title { font-size: 12px; }
       .title-overlay #vidOpenTab { font-size: 10px; }
       .video-menu .menu-btn { height: 30px; padding: 0 10px; font-size: 11px; }
