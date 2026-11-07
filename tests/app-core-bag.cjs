@@ -49,3 +49,13 @@ test('every GDV*Api the page consumes is published by app-core',()=>{
     }
   }
 });
+
+test('the accessor bag exposes the bound global timers and fetch',()=>{
+  // The 2026-11-07 outage: 6484c20 re-bound fetch/setTimeout but dropped the
+  // clearTimeout getter, so every playback died at the startVideoPlayback
+  // cache race (app.clearTimeout is not a function) with no error strip.
+  const bag=src.slice(src.indexOf('get fetch()'));
+  for(const name of ['fetch','setTimeout','clearTimeout']){
+    assert(bag.includes('get '+name+'() { return '+name+'.bind(globalThis); }'),'bag must expose bound '+name+' for the playback path');
+  }
+});
