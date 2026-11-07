@@ -32,7 +32,7 @@ const TIMEOUTS = Object.freeze({
   cacheRaceMs: 350,
   bufferingMs: 2000,
   vlcHintMs: 3500,
-  workerRegisterMs: 6000,
+  workerRegisterMs: 12000,
   probeMs: 8000,
   genericMs: 12000,
   slowMs: 15000,
@@ -1704,7 +1704,7 @@ function createVideoCenter(app) {
               resolve(ok);
             }
             function check() { if (workers.controller && workers.controller.scriptURL === script) finish(true); }
-            const timer = app.setTimeout(function () { finish(false, 'หมดเวลา'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 6000));
+            const timer = app.setTimeout(function () { finish(false, 'หมดเวลา'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 12000));
             workers.addEventListener('controllerchange', check);
             workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function (err) { finish(false, err && err.message ? err.message : (err && err.name) || 'ไม่ทราบสาเหตุ'); });
             check();

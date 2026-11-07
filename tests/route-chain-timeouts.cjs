@@ -13,7 +13,7 @@ test('TIMEOUTS ladder has frozen, canonical values', () => {
   assert.equal(TIMEOUTS.cacheRaceMs, 350);
   assert.equal(TIMEOUTS.bufferingMs, 2000);
   assert.equal(TIMEOUTS.vlcHintMs, 3500);
-  assert.equal(TIMEOUTS.workerRegisterMs, 6000);
+  assert.equal(TIMEOUTS.workerRegisterMs, 12000);
   assert.equal(TIMEOUTS.probeMs, 8000);
   assert.equal(TIMEOUTS.genericMs, 12000);
   assert.equal(TIMEOUTS.slowMs, 15000);

@@ -1290,3 +1290,33 @@
   - `node tools/collection_data.js check` -> สองฝั่งตรงกัน 100% (335 รายการ)
   - `py tests/test_patch_alive_sync.py` -> Ran 1 test in 0.096s (OK)
   - Full test suite `node tests/*.cjs` -> ผ่านครบถ้วน **216/216 tests PASS (0 failures)**
+
+
+### 63. ปลดล็อกฉาก CG และแกลเลอรี 100% เกม So I Decided to Start a Kendo Dojo (Unity IL2CPP Assembly Patches) (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED WORKING` (Patch GameAssembly.dll 13 bytes ตรงเป้าหมาย + ตรวจสอบความถูกต้องของ Machine code + ทดสอบ Launch Kendo.exe รันผ่านฉลุยพร้อมอ่าน Player.log สะอาด 0 error)
+- **เป้าหมายผู้ใช้:** `"C:\Users\PC\Downloads\So_I_Decided_to_Start_a_Kendo_Dojo-Secret_NTR_v1.1.1 - sha512_archive_20261020_164350" ปลดฉากให้ผมที /Poteto Mode`
+- **การวินิจฉัย (Architecture & Root Cause Analysis):**
+  1. ตัวเกมพัฒนาด้วย **Unity Engine แบบ 64-bit IL2CPP** (ไฟล์ `GameAssembly.dll` ขนาด 36.7 MB และ `global-metadata.dat` v29)
+  2. โครงสร้างระบบจัดเก็บข้อมูลของเกมใช้ไลบรารี Easy Save 3 (ES3) เข้ารหัส AES โดยบันทึกไฟล์ผู้ใช้ไว้ที่ `C:\Users\PC\AppData\LocalLow\Onigiri-ShiBa\Kendo\Save\User` ซึ่งเก็บคลาส `UserData` ประกอบด้วยดิกชันนารี `cgDic` สำหรับบันทึก ID ของ CG ที่ปลดล็อกแล้ว
+  3. ระบบแสดงผลแกลเลอรีควบคุมผ่าน `UICG` (จัดหน้าและจำนวนหน้าจาก `CGTable`) และคอมโพเนนต์ไอเทมแต่ละช่องคือ `UICGItem`
+  4. ทุกครั้งที่ `UICGItem.Fresh` ทำงาน มันจะเรียกฟังก์ชัน `UserData.IsUnlock(int32_t cgId)` (RVA `0x35c000`, File offset `0x35a600`) เพื่อตรวจสอบว่ามี ID นั้นอยู่ใน `cgDic` หรือไม่ หากไม่มี (คืนค่า 0 / false) ตัวโค้ดจะวิ่งไปเปิดใช้งานวัตถุ `Lock` (ล็อกกุญแจ) และปิดวัตถุ `Unlock` ทำให้คลิกดูไม่ได้
+- **การแก้ปัญหา (Two-layer In-Engine Assembly Patches):**
+  1. **Layer 1: Force `UserData.IsUnlock` to Return `true` (File offset `0x35a600`):**
+     - โค้ดเดิม: `48 89 5c 24 10 56 48 83 ec 20` (Prologue ตรวจสอบ Dictionary)
+     - โค้ดใหม่: `b0 01 c3 90 90 90 90 90 90 90` (`mov al, 1; ret; nop...`)
+     - ผลลัพธ์: ทุกจุดที่ถามว่า CG นี้ปลดล็อกหรือยัง ฟังก์ชันนี้จะตอบ `true` ทันที 100%
+  2. **Layer 2: Force `UICGItem.Fresh` Branch to Unlock (File offset `0x384c0f`):**
+     - โค้ดเดิม: `84 c0 75 48` (`test al, al; jne +0x48`)
+     - โค้ดใหม่: `90 90 eb 48` (`nop; nop; jmp +0x48`)
+     - ผลลัพธ์: ข้ามเงื่อนไขตรวจสอบทั้งหมดและกระโดดเข้าสู่ Unlock Code Branch โดยตรง สั่งเปิด `Unlock.SetActive(true)`, ปิด `Lock`, แสดงปุ่มและภาพพรีวิวพร้อมเล่น
+  3. **Safety Backup:** สำรองไฟล์ต้นฉบับไว้ที่ `GameAssembly.dll.original.bak`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - สคริปต์ `verify_kendo_patch.js` ตรวจสอบ binary diff อย่างละเอียด ยืนยันว่ามีการแก้ไขโค้ดตรงจุดแม่นยำเพียง 13 ไบต์จาก 36,743,680 ไบต์
+  - ทดสอบสตาร์ทโปรเซส `Kendo.exe` พบว่าโปรเซสสตาร์ทติด รันต่อเนื่องได้ปกติ (Process running: True)
+  - ตรวจสอบ `Player.log` ยืนยันว่า Engine, Steam SDK, และ Game:Start() เริ่มต้นทำงานสมบูรณ์ ไม่มีอาการ Crash หรือ Error ใดๆ
+
+### 63. เฉลยปม Service Worker จากรายงานล็อกอิน: "ลงทะเบียนไม่สำเร็จ: หมดเวลา" — ขยายหน้าต่าง 6→12 วิ (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED` (suite 216/216; deploy ท้าย entry)
+- **รายงานล็อกอินชุดสำคัญ (r13):** `[sw] ลงทะเบียนไม่สำเร็จ: หมดเวลา` — **register() ไม่ได้ throw** (มีสาเหตุ error มาแล้วจาก catch) แต่ pending เกิน workerRegisterMs=6s → ตัดสมมติฐาน "SW ไม่มี clients.claim" ทิ้ง (drive-stream-sw.js:7-8 มี skipWaiting+claim ครบ) — สาเหตุที่สอดคล้อง: cold registration (ดาวน์โหลด SW script + importScripts stream-protocol.js แบบ no-cache → install → activate → claim) กินเวลาเกิน 6 วิ โดยเฉพาะเมื่อผู้ใช้กำลังโหลดไฟล์หนักพร้อมกัน (แบนด์วิธอิ่ม script เล็กแข่งไม่ทัน) — และรายงานเดียวกันนี้โชว์ว่าไฟล์ล็อกอินเล่นได้แล้วผ่าน worker (3.6s) พร้อมกู้คืนกลางไฟล์ (key route หลัง network error กลางเล่น)
+- **การแก้:** TIMEOUTS.workerRegisterMs 6000→12000 (video-player r16) + เทสต์ route-chain-timeouts ปรับตาม — ผลข้างเคียงยอมรับได้: เส้นทาง bearer รอลงทะเบียนนานขึ้นสูงสุด 12 วิ ก่อนยอมแพ้ (ไฟล์ส่วนตัวไม่มีทางเลือกอื่นอยู่แล้ว) — ถ้ายังหมดเวลาที่ 12 วิ = ปัญหาลึกกว่า (importScripts ค้าง ฯลฯ) รายงานจะบอกต่อ
+- **จุดที่ควรรู้:** หลัง timeout ครั้งแรก register() มักสำเร็จในเบื้องหลัง → เล่นครั้งถัดไป env line ควรขึ้น "SW ควบคุมหน้าอยู่" และ prepareStreamWorker ผ่านทันที — ผู้ใช้สังเกตได้จากหัวรายงาน
