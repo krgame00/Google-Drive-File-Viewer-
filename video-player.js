@@ -205,18 +205,18 @@ function createVideoBlobRunner(deps, fallbacks) {
         const directRoute = auth.mode === 'bearer' ? 'bearer' : 'key';
         const directBlocked = typeof routeCooldown !== 'undefined' && routeCooldown && routeCooldown.blocked(id, accessToken ? 'signedin' : 'public', directRoute);
         const turbo = isDownloadTurboEnabled();
-        const directConcurrency = turbo ? 6 : 4;
+        const directConcurrency = turbo ? 8 : 4;
         const directSource = {
-          note: turbo ? ' (⚡ สปีดสูงสุด 6 ท่อ)' : '',
+          note: turbo ? ' (⚡ สปีดสูงสุด 8 ท่อ)' : '',
           url: directUrl,
           headers: directHeaders,
           rangeOpts: {chunk: 8388608, limit: directConcurrency, retries: 2, priority: 'high'}
         };
         const workerSource = {
-          note: ' (ผ่านเซิร์ฟเวอร์สำรอง' + (turbo ? ' 6 ท่อ' : '') + ')',
+          note: ' (ผ่านเซิร์ฟเวอร์สำรอง' + (turbo ? ' 8 ท่อ' : '') + ')',
           url: WORKER_URL + '?id=' + encodeURIComponent(id) + '&continuous=1',
           headers: {},
-          rangeOpts: {chunk: 4194304, limit: 6, retries: 3, priority: 'high'}
+          rangeOpts: {chunk: 4194304, limit: 8, retries: 3, priority: 'high'}
         };
         // หากแหล่งตรงเพิ่งติดโควตา ให้ข้ามไปเริ่มดึงผ่าน Worker 6 ช่องขนานทันทีโดยไม่ต้องรอติด 403 ซ้ำ
         const sources = auth.mode === 'none' ? [workerSource] : (directBlocked ? [workerSource, directSource] : [directSource, workerSource]);
@@ -1662,10 +1662,10 @@ function createVideoCenter(app) {
         const turbo = isDownloadTurboEnabled();
         const btn = app.document.getElementById('vidTurboBlob');
         if (btn) {
-          btn.textContent = turbo ? '⚡ สปีดสูงสุด (6 ท่อ)' : 'สปีดปกติ (4 ท่อ)';
+          btn.textContent = turbo ? '⚡ สปีดสูงสุด (8 ท่อ)' : 'สปีดปกติ (4 ท่อ)';
           if (typeof btn.setAttribute === 'function') {
             btn.setAttribute('aria-pressed', turbo ? 'true' : 'false');
-            btn.setAttribute('title', turbo ? 'โหมดสปีดสูงสุด (6 ท่อขนานเต็มสูบ) — คลิกเพื่อสลับเป็น 4 ท่อ' : 'โหมดสปีดปกติ (4 ท่อขนาน) — คลิกเพื่อเร่งเป็นสปีดสูงสุด 6 ท่อ');
+            btn.setAttribute('title', turbo ? 'โหมดสปีดสูงสุด (8 ท่อขนานเต็มสูบ) — คลิกเพื่อสลับเป็น 4 ท่อ' : 'โหมดสปีดปกติ (4 ท่อขนาน) — คลิกเพื่อเร่งเป็นสปีดสูงสุด 8 ท่อ');
           }
         }
       }

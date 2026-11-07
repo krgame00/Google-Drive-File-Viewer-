@@ -308,7 +308,7 @@ test('reaching the end of the initial prefix swaps in newly downloaded contiguou
   await loadPromise;
 });
 
-test('download turbo mode enables 6 parallel connections for direct source and reports active worker pipes',async()=>{
+test('download turbo mode enables 8 parallel connections for direct source and reports active worker pipes',async()=>{
   const {ctx,api}=setupApi();
   const size=60*1048576;
   ctx.fileMetaOf=()=>({size});
@@ -331,9 +331,9 @@ test('download turbo mode enables 6 parallel connections for direct source and r
   };
   assert.equal(api.isDownloadTurboEnabled(),true);
   await ctx.loadVideoAsBlob('fileA');
-  assert.equal(maxConcurrent,6,'turbo mode connects across 6 parallel connections');
+  assert.equal(maxConcurrent,8,'turbo mode connects across 8 parallel connections');
   assert.equal(priorityHeader,'high','high fetch priority is requested');
-  assert.ok(progressCalls.some(p=>p.pipes===6||p.pipes===5||p.pipes===4),'active worker pipes reported to progress');
+  assert.ok(progressCalls.some(p=>p.pipes===8||p.pipes===7||p.pipes===6||p.pipes===5||p.pipes===4),'active worker pipes reported to progress');
 });
 
 test('toggleDownloadTurbo persists preference in localStorage and toggles between turbo and standard',async()=>{
