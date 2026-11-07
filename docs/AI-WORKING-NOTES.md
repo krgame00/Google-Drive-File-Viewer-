@@ -1158,3 +1158,39 @@
 - **การแก้:** ใช้หลักเดียวกับ entry 56 — ย้าย `#vidChrome` (.chrome-top) ออกจาก `.ratio` ไปเป็น flow row ของ `.video-box` ต่อจากกรอบวิดีโอ ก่อนแถบชื่อ — CSS static + พื้นจาง + border-top, chrome-hidden fade ยังทำงาน, โหมด :fullscreen/pseudo-fullscreen คง overlay ที่ขอบบน (fallback ไม่มี native controls) — buster styles r10→r11
 - **หลักฐาน:** วัดจริง: .ratio bottom=539 = chrome row top=539 (ต่อกันพอดี ทับ 0px) → title row top=584 ต่อจากปุ่ม — ภาพ t18_chrome_rows_below_video.png แสดงสองแถวใต้กรอบเรียบร้อย ไม่มีอะไรทับภาพ · suite **216/216**
 - **เกร็ดการทดสอบ:** ไฟล์ทดสอบในคลังโดน Google จำกัด (downloadQuotaExceeded) จากการเล่นซ้ำหลายรอบแบบไม่ล็อกอิน — trace แสดง ladder ครบ (worker→ลิงก์ตรง→API key พร้อมข้อความ quota) = ระบบวินิจฉัยใช้งานได้จริง; ปุ่มปิด "คลิกไม่ได้" ที่วัดได้ตอน error = เมนู ดูแบบอื่น เปิดอัตโนมัติตอน error แล้วแผงเมนูปิดทับจุดนั้น (พฤติกรรม dropdown ปกติ ไม่ใช่บั๊ก)
+
+
+### 58. ปลดล็อกและโกงเกม Handyman Legend 100% (Save Data + In-Engine Assembly Patches) (2026-11-07)
+- **สถานะ:** `VERIFIED WORKING` (Injected 4 Save Slots เข้า Registry + Patched Assembly-CSharp.dll + ทดสอบรัน Handyman Legend.exe ไม่มี Crash)
+- **อาการผู้ใช้:** "Handyman Legend มันยังไม่โกงและปลดล็อกทั้งหมดครับ"
+- **การวินิจฉัย (Root Cause Analysis):**
+  1. ตัวเกม Handyman Legend เป็น Unity Engine (Mono 64-bit) จัดเก็บเซฟผ่าน Unity `PlayerPrefs` ลงใน Windows Registry ที่ `HKCU\Software\SupaShinKen\Handyman Legend` ภายใต้คีย์ `SD0`..`SD3` (JSON binary data), `SDT0`..`SDT3` (ข้อมูลแสดงผลหน้า Load Data), `SDV0`..`SDV3` (Version 1001)
+  2. โครงสร้างข้อมูลเซฟจริงคือคลาส `PlayerInfo` (ไม่ใช่ `SaveData`) ซึ่งควบคุมเงิน (`m_Money`), พลังงาน (`m_Energy`), ตั๋ว (`NSSTC`, `SSSTC`), สถานะสาวทั้ง 3 คน (`girlInfos`: SLevel, RelationLevel, isFall, isSetCamera), เควสฉุกเฉิน (`emergenciesSaveData`), และการเปิดคอมพิวเตอร์ดู Gallery (`isEnableDisplayCG`)
+  3. เซฟเดิมในเครื่องของผู้ใช้มีเงินเพียง $7,000 / $8,000 และสาวๆ ยังมีเลเวล 0 ไม่ Fallen ทำให้เข้าเกมแล้วยังไม่มีอะไรปลดล็อก
+  4. หากผู้ใช้กด Start เริ่ม New Game ใหม่ โค้ดเกมเดิมใน `GameController.DoLoadData` จะรีเซ็ตค่าเป็น Day 0, เงิน 1,000, พลัง 100
+- **การแก้ปัญหา (Two-layer Solution):**
+  1. **Direct Save Injection (Windows Registry):** สร้าง Save Data ระดับ 100% ลงใน Registry ทั้ง 4 Slot (`SD0_h193467138`, `SD1_h193467139`, `SD2_h193467140`, `SD3_h193467141`)
+     - เงิน: $9,999,999 (เกือบสิบล้าน)
+     - พลังงาน: 999.0
+     - ตั๋วร้านค้าปกติ + ร้านค้าลับ: 999 ใบ
+     - สาวทั้ง 3 คน: SLevel 5 (Max), RelationLevel 5 (Max), Fallen = True, ติดกล้องครบ, ปลดล็อก CG ครบ 6/6 ทุกคน
+     - เควสฉุกเฉิน / อีเวนต์ (`emergenciesSaveData`): เปิดครบทุกฉาก
+     - ไอเทมร้านค้าปกติและร้านลับ (`isdata`): ซื้อครบ เลเวลเต็ม 5 ทุกชิ้น จำนวน 99 ชิ้น
+     - คอมพิวเตอร์ Gallery: ปลดล็อกเปิดใช้งานได้ทันที (`isEnableDisplayCG = true`)
+  2. **In-Engine Assembly Patches (`Assembly-CSharp.dll`):**
+     - `PlayerInfo.GainMoney`: ล็อกให้เงินกลายเป็น $9,999,999 ทุกครั้งที่มีการอัปเดตเงิน (เงินไม่มีวันลด)
+     - `PlayerInfo.GainEnergy`: ล็อกพลังงานไว้ที่ 999.0f เสมอ
+     - `PlayerInfo.CostNTicket` & `CostSTicket`: เมื่อใช้ตั๋วจะรีเซ็ตกลับเป็น 999 ใบเสมอ (ตั๋วไม่มีวันหมด)
+     - `GameController.DoLoadData`: ปรับค่าเริ่มต้นของ New Game ให้ได้เงิน $9,999,999 ทันที
+     - `PlayerInfo.InitGirlInfos`: ปรับค่าเริ่มต้นสาวทั้ง 3 คนให้ Fallen=True, SLevel=5, RelationLevel=5 ทันที
+     - `CGDisplayController.ShowGallery`: ข้ามเช็คปุ่ม เพื่อให้กดดู CG ในห้องคอมได้ทุกปุ่ม
+- **หลักฐานการตรวจสอบ:**
+  - รัน `test_launch_hl.js` ทดสอบ Launch `Handyman Legend.exe` (PID 14412) รันผ่านสมบูรณ์ ไม่มีการ Crash
+  - ตรวจสอบ `Player.log`: `MonoManager ReloadAssembly Completed in 0.178s` โหลดแอสเซมบลีสมบูรณ์
+  - ตรวจสอบ Registry ทั้ง 4 สล็อต ถูกเขียนทับด้วยข้อมูล 100% เรียบร้อย
+
+### 58. วิเคราะห์รายงานวินิจฉัยแรกจากผู้ใช้: SW ลงทะเบียนตก = ทางบัญชีตายทั้งสาย + เสริม trace ให้บอกสาเหตุ (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED` (suite 216/216; deploy ท้าย entry)
+- **รายงานแรกจากผู้ใช้จริง (กล่องวินิจฉัย + ปุ่มคัดลอกทำงานสมบูรณ์):** ล็อกอิน · ไฟล์ส่วนตัว · `SW ไม่มี controller` · `[sw] ลงทะเบียนไม่สำเร็จ` ×2 (4.5s จาก warm-up, 16.1s จาก tryStreamDirect) → เส้นทาง bearer (สตรีมบัญชี) ใช้ไม่ได้เพราะต้องมี SW จับ token → ladder ตกไปเส้นทางสาธารณะทั้งสาม (worker/ลิงก์ตรง/key) → ไฟล์ส่วนตัวเลย 404/403 ทุกเส้น (M4/N3/R0) → จบด้วย "เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้" — ลำดับ match กับโค้ดทุกเส้น (warmVideoStream→prepareStreamWorker, tryPublicStream→tryStreamDirect(skipPublic))
+- **จุดบอดที่ปิด (video-player r10):** (1) `prepareStreamWorker` เดิมกลืนสาเหตุ (`catch(){}` เงียบ) — ตอนนี้ finish(ok, reason) trace สาเหตุจริงจาก register().catch (err.message/err.name) + แยก "หมดเวลา" จาก timer + แยกข้าม-early-return ทั้งสามกรณี (ไม่ใช่ secure context / ไม่รองรับ SW / file://) พร้อม guard done กัน trace ซ้ำ (2) env line เพิ่ม origin + UA (slice 90) รู้ทันทีว่าเปิดจาก production/local + เบราว์เซอร์อะไร (3) traceVideoEvent ขยาย cap 160→220 ตัวอักษร (4) ข้อความ error "เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้" เพิ่มทางเลือก "โหลดทั้งไฟล์แทน" (เส้นทางเดียวที่ใช้ได้โดยไม่ต้องมี SW เพราะ fetch ด้วย bearer จากหน้าเว็บตรง) — buster video-player r9→r10
+- **รอข้อมูลต่อ:** สาเหตุที่ SW ลงทะเบียนตกบนเบราว์เซอร์ของผู้ใช้ (IAB ทดสอบเองลงทะเบียนได้ปกติ) — รายงานถัดไปจะมี err.message + UA + origin มาเอง; ทางแก้ขั้นเบื้องต้นให้ผู้ใช้ทันที = กด "โหลดทั้งไฟล์แทน" (ใช้ได้แม้ SW ตาย)

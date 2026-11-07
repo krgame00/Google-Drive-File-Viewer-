@@ -805,7 +805,7 @@ function createVideoCenter(app) {
 
       function traceVideoEvent(e, d) {
         if (videoTraceT0 === null) videoTraceT0 = (typeof app.Date !== 'undefined' ? app.Date : Date).now();
-        const dStr = String(d === undefined ? '' : d).slice(0, 160);
+        const dStr = String(d === undefined ? '' : d).slice(0, 220);
         const t = ((typeof app.Date !== 'undefined' ? app.Date : Date).now() - videoTraceT0) / 1000;
         const last = videoTrace[videoTrace.length - 1];
         if (last && last.e === String(e) && last.d === dStr) last.t = t;
@@ -835,7 +835,11 @@ function createVideoCenter(app) {
         try {
           sw = (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller) ? 'ควบคุมหน้าอยู่' : 'ไม่มี controller';
         } catch (_) {}
-        return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw;
+        let origin = '';
+        try { origin = app.location && app.location.origin ? String(app.location.origin) : ''; } catch (_) {}
+        let ua = '';
+        try { ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? ' · ' + String(navigator.userAgent).slice(0, 90) : ''; } catch (_) {}
+        return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw + (origin ? ' · ' + origin : '') + ua;
       }
 
       function resetVideoTrace() {
@@ -1666,22 +1670,28 @@ function createVideoCenter(app) {
       }
 
       function prepareStreamWorker() {
-        if (!app.window.isSecureContext || !('serviceWorker' in app.navigator) || app.location.protocol === 'file:') return Promise.resolve(false);
+        if (!app.window.isSecureContext) { traceVideoEvent('sw', 'ข้าม: ไม่ใช่ secure context'); return Promise.resolve(false); }
+        if (!('serviceWorker' in app.navigator)) { traceVideoEvent('sw', 'ข้าม: เบราว์เซอร์ไม่รองรับ Service Worker'); return Promise.resolve(false); }
+        if (app.location.protocol === 'file:') { traceVideoEvent('sw', 'ข้าม: เปิดจาก file://'); return Promise.resolve(false); }
         if (!streamWorkerReady) {
           streamWorkerReady = new Promise(function (resolve) {
             const workers = app.navigator.serviceWorker;
             const script = new URL('drive-stream-sw.js', app.location.href).href;
-            function finish(ok) {
+            let done = false;
+            function finish(ok, reason) {
+              if (done) return;
+              done = true;
               app.clearTimeout(timer);
               workers.removeEventListener('controllerchange', check);
+              traceVideoEvent('sw', ok ? 'พร้อม' : 'ลงทะเบียนไม่สำเร็จ' + (reason ? ': ' + reason : ''));
               resolve(ok);
             }
             function check() { if (workers.controller && workers.controller.scriptURL === script) finish(true); }
-            const timer = app.setTimeout(function () { finish(false); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 6000));
+            const timer = app.setTimeout(function () { finish(false, 'หมดเวลา'); }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.workerRegisterMs : 6000));
             workers.addEventListener('controllerchange', check);
-            workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function () { finish(false); });
+            workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function (err) { finish(false, err && err.message ? err.message : (err && err.name) || 'ไม่ทราบสาเหตุ'); });
             check();
-          }).then(function (ok) { if (!ok) streamWorkerReady = null; traceVideoEvent('sw', ok ? 'พร้อม' : 'ลงทะเบียนไม่สำเร็จ'); return ok; });
+          }).then(function (ok) { if (!ok) streamWorkerReady = null; return ok; });
         }
         return streamWorkerReady;
       }
@@ -1715,7 +1725,7 @@ function createVideoCenter(app) {
         prepareStreamWorker().then(function (ready) {
           if (session !== mediaSession || token !== app.accessToken || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
           if (!ready || app.Date.now() >= app.tokenExpiry) {
-            showStreamFailure(app.Date.now() >= app.tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ หรือเลือกใช้พรีวิว Google');
+            showStreamFailure(app.Date.now() >= app.tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ ใช้พรีวิว Google หรือกด "โหลดทั้งไฟล์แทน" ในเมนู ดูแบบอื่น');
             return;
           }
           revokeCurrentVideo();
