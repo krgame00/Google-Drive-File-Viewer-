@@ -438,7 +438,9 @@ function createVideoBlobRunner(deps, fallbacks) {
             const turboBtn2 = document.getElementById('vidTurboBlob');
             if (turboBtn2) turboBtn2.hidden = true;
             if (err && err.name === 'AbortError') { if (btn) btn.disabled = false; return; }
-            setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + (err && err.message ? err.message : 'ลองใหม่อีกครั้ง') + ')' + prior);
+            const blobFailMsg = err && err.message ? err.message : 'ลองใหม่อีกครั้ง';
+            const blobHint = !accessToken && /40[13]/.test(blobFailMsg) ? ' — ลองล็อกอิน Google ก่อนแล้วกดใหม่ (ไฟล์ส่วนตัว หรือ Google จำกัดโควตาการดาวน์โหลดของคนไม่ล็อกอิน)' : '';
+            setVideoStatus('error', 'โหลดทั้งไฟล์ไม่สำเร็จ (' + blobFailMsg + ')' + blobHint + prior);
             if (btn) btn.disabled = false;
             if (onGiveUp) onGiveUp();
           });
@@ -838,7 +840,7 @@ function createVideoCenter(app) {
         let origin = '';
         try { origin = app.location && app.location.origin ? String(app.location.origin) : ''; } catch (_) {}
         let ua = '';
-        try { ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? ' · ' + String(navigator.userAgent).slice(0, 90) : ''; } catch (_) {}
+        try { ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? ' · ' + String(navigator.userAgent).slice(0, 120) : ''; } catch (_) {}
         return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw + (origin ? ' · ' + origin : '') + ua;
       }
 
@@ -885,11 +887,19 @@ function createVideoCenter(app) {
         } catch (_) {}
       }
 
+      function toggleVideoTrace() {
+        const doc = app.document;
+        const box = doc && doc.getElementById ? doc.getElementById('vidTrace') : null;
+        if (box && box.classList) box.classList.toggle('collapsed');
+      }
+
       function renderVideoTrace() {
         const doc = app.document;
         if (!doc || !doc.getElementById) return;
         const box = doc.getElementById('vidTrace');
         const lines = doc.getElementById('vidTraceLines');
+        const toggle = doc.getElementById('vidTraceToggle');
+        if (toggle) toggle.textContent = 'วินิจฉัย (' + videoTrace.length + ')';
         if (!box || !lines) return;
         lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
         if (typeof box.scrollTop === 'number') box.scrollTop = box.scrollHeight;
@@ -2658,8 +2668,9 @@ function createVideoCenter(app) {
     const vidCloseBtn = getEl('vidClose');
     safeOn(vidCloseBtn, 'click', closeVideo);
 
-    // Diagnostics trace copy button (element lives next to vidErrorStatus)
+    // Diagnostics trace copy + collapse toggle (elements live next to vidErrorStatus)
     safeOn(getEl('vidTraceCopy'), 'click', copyVideoTrace);
+    safeOn(getEl('vidTraceToggle'), 'click', toggleVideoTrace);
 
     // Prev / Next buttons
     const vidPrevBtn = getEl('vidPrev');

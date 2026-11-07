@@ -2685,6 +2685,16 @@
 
 .vid-trace[hidden] { display: none; }
 
+.vid-trace.collapsed { max-width: none; overflow: visible; }
+
+.vid-trace.collapsed #vidTraceLines, .vid-trace.collapsed #vidTraceCopy { display: none; }
+
+.vid-trace-toggle {
+  pointer-events: auto; width: 100%; text-align: left;
+  background: none; border: none; padding: 2px 4px;
+  color: rgba(255, 255, 255, 0.8); font: inherit; font-size: 10px; cursor: pointer;
+}
+
 .vid-trace-copy {
   margin-top: 5px; pointer-events: auto;
   background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.25);

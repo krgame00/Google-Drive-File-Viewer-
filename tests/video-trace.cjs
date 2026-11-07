@@ -96,7 +96,7 @@ test('trace renders into the modal elements via the real center functions', () =
   const persisted = [];
   const elements = {};
   const makeEl = () => ({ hidden: true, textContent: '', style: {}, classList: { add() {}, remove() {} }, open: false, setAttribute() {}, getAttribute() { return null; }, removeAttribute() {} });
-  for (const id of ['vidErrorStatus', 'vidLoadingText', 'vidHelp', 'vidTitle', 'vidFullTitle', 'vidPreviewNote', 'vidInfo', 'vidSlowActions', 'vidTrace', 'vidTraceLines']) {
+  for (const id of ['vidErrorStatus', 'vidLoadingText', 'vidHelp', 'vidTitle', 'vidFullTitle', 'vidPreviewNote', 'vidInfo', 'vidSlowActions', 'vidTrace', 'vidTraceLines', 'vidTraceToggle']) {
     elements[id] = makeEl();
   }
   const bridge = {
@@ -121,6 +121,7 @@ test('trace renders into the modal elements via the real center functions', () =
   tryVideoSrc(new URL('https://site.example/__drive_stream?id=file-render'), (reason) => fails.push(reason), 4000, 'bearer');
 
   assert.ok(elements.vidTraceLines.textContent.indexOf('bearer เริ่ม (หมดเวลา 4 วิ)') !== -1, 'route start rendered, got: ' + elements.vidTraceLines.textContent);
+  assert.ok(elements.vidTraceToggle.textContent.indexOf('วินิจฉัย') === 0 && /\(\d+\)/.test(elements.vidTraceToggle.textContent), 'toggle shows the event count, got: ' + elements.vidTraceToggle.textContent);
   assert.ok(elements.vidTraceLines.textContent.indexOf('[status] loading') !== -1, 'status transitions rendered too');
   assert.equal(elements.vidTrace.hidden, false, 'trace box visible while loading');
   assert.ok(persisted.length > 0 && persisted[0][0] === 'gdv_video_trace_v1', 'trace persisted to the localStorage key');
@@ -152,7 +153,7 @@ test('buffering overlay recovers via canplay after a seek', () => {
   const { loadVideoPlayerApi } = require('./helpers/load-video-player-api.cjs');
   const elements = {};
   const makeEl = () => ({ hidden: true, textContent: '', style: {}, classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } }, open: false, setAttribute() {}, getAttribute() { return null; }, removeAttribute() {} });
-  for (const id of ['vidErrorStatus', 'vidLoading', 'vidLoadingText', 'vidHelp', 'vidTitle', 'vidFullTitle', 'vidPreviewNote', 'vidInfo', 'vidSlowActions', 'vidTrace', 'vidTraceLines']) {
+  for (const id of ['vidErrorStatus', 'vidLoading', 'vidLoadingText', 'vidHelp', 'vidTitle', 'vidFullTitle', 'vidPreviewNote', 'vidInfo', 'vidSlowActions', 'vidTrace', 'vidTraceLines', 'vidTraceToggle']) {
     elements[id] = makeEl();
   }
   const handlers = {};
