@@ -222,7 +222,7 @@ function playerSetup() {
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
     streamBlocked:()=>false,rememberStreamBlocked(){},clearStreamBlocked(){},
     showStreamFailure:message=>errors.push(message),
-    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id})};
+    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id}),traceVideoEvent(){}};
   ctx.app=ctx;vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
   return {ctx,sources,fallbacks,errors,ready:async(value)=>{ready(value);await Promise.resolve()}};
 }

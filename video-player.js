@@ -1729,10 +1729,11 @@ function createVideoCenter(app) {
 
       function tryStreamDirect(id, usePreferred = true, skipPublic = false) {
         if (!app.accessToken) { tryPublicStream(id); return; }
-        if (!skipPublic && typeof app.routeCooldown !== 'undefined' && app.routeCooldown && app.routeCooldown.blocked(id, 'signedin', 'bearer')) { tryPublicStream(id); return; }
+        if (!skipPublic && typeof app.routeCooldown !== 'undefined' && app.routeCooldown && app.routeCooldown.blocked(id, 'signedin', 'bearer')) { traceVideoEvent('route', 'ข้าม bearer: เพิ่งล้ม (cooldown) → ลองสาธารณะก่อน'); tryPublicStream(id); return; }
         const preferred = usePreferred ? preferredPlaybackRoute(id) : null;
         // A remembered public route (including the Worker) plays without bearer setup first.
         if (['usercontent', 'key', 'worker'].includes(preferred) && (preferred !== 'key' || app.apiKey)) {
+          traceVideoEvent('route', 'ข้าม bearer: จำเส้นทางเดิม (' + preferred + ') → ลองสาธารณะก่อน');
           tryPublicStream(id, function () { tryStreamDirect(id, false, true); }, false);
           return;
         }
