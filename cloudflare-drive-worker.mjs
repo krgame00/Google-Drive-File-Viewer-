@@ -1,5 +1,5 @@
 // Public files only. Never forward an account token or Google cookies.
-export const WORKER_REVISION = '2026-10-14-r1';
+export const WORKER_REVISION = '2026-11-07-r2';
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -47,16 +47,16 @@ function setCachedConfirmUrl(id, url) {
   if (confirmUrlCache.size > 20) confirmUrlCache.delete(confirmUrlCache.keys().next().value);
 }
 async function fetchParallelChunk(id, start, end, signal, fetchImpl) {
-  // Split one bounded interval into four sub-intervals fetched in parallel
+  // Split one bounded interval into eight sub-intervals fetched in parallel
   // through the confirmation flow and stream them in order; returns
   // {res, servedRange} or null to fall back to a single connection.
   const total = end - start + 1n;
-  if (total < 4n) return null;
-  const part = total / 4n;
+  if (total < 8n) return null;
+  const part = total / 8n;
   const ranges = [];
-  for (let i = 0n; i < 4n; i++) {
+  for (let i = 0n; i < 8n; i++) {
     const s = start + i * part;
-    ranges.push([s, i === 3n ? end : s + part - 1n]);
+    ranges.push([s, i === 7n ? end : s + part - 1n]);
   }
   const outcomes = await Promise.all(ranges.map(function (pair) {
     return fetchMediaChunk(id, 'bytes=' + pair[0] + '-' + pair[1], signal, fetchImpl).catch(function () { return null; });

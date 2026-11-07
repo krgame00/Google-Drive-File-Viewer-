@@ -115,28 +115,28 @@ test('a failed read-ahead falls back to a fresh upstream fetch',async()=>{
  assert.equal(second.status,206);assert.equal(await second.text(),'bytes=8388608-16777215');
  assert.equal(n,4,'the dropped prefetch triggered one replacement fetch plus the next read-ahead');
 });
-test('chunks after a length-bearing answer stream four parallel sub-intervals in order',async()=>{
+test('chunks after a length-bearing answer stream eight parallel sub-intervals in order',async()=>{
  const {createDriveWorker}=await worker;const ranges=[];
  const app=createDriveWorker(async(url,opts)=>{
   const range=opts.headers.get('Range');ranges.push(range);
   const m=/^bytes=(\d+)-(\d+)$/.exec(range);
   const body=new Uint8Array(Number(m[2])-Number(m[1])+1);
-  body.fill(Number(m[1])/2097152+1);
+  body.fill(Number(m[1])/1048576+1);
   return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+m[1]+'-'+m[2]+'/999999999','Content-Length':String(body.length)}});
  });
  const warmup=await app.fetch(request('w15'));
  assert.equal(await warmup.text().then(t=>t.length),8388608,'the warmup chunk is serial and marks the file parallel-capable');
- assert.deepEqual(ranges,['bytes=0-8388607','bytes=8388608-10485759','bytes=10485760-12582911','bytes=12582912-14680063','bytes=14680064-16777215'],'the warmup prefetches the next chunk in parallel');
+ assert.deepEqual(ranges,['bytes=0-8388607','bytes=8388608-9437183','bytes=9437184-10485759','bytes=10485760-11534335','bytes=11534336-12582911','bytes=12582912-13631487','bytes=13631488-14680063','bytes=14680064-15728639','bytes=15728640-16777215'],'the warmup prefetches the next chunk in parallel');
  const res=await app.fetch(new Request('https://worker.test/?id=w15',{headers:{Range:'bytes=8388608-'}}));
  assert.equal(res.status,206);
- assert.deepEqual(ranges.slice(1,5),['bytes=8388608-10485759','bytes=10485760-12582911','bytes=12582912-14680063','bytes=14680064-16777215']);
+ assert.deepEqual(ranges.slice(1,9),['bytes=8388608-9437183','bytes=9437184-10485759','bytes=10485760-11534335','bytes=11534336-12582911','bytes=12582912-13631487','bytes=13631488-14680063','bytes=14680064-15728639','bytes=15728640-16777215']);
  assert.equal(res.headers.get('Content-Range'),'bytes 8388608-16777215/999999999');
  const text=await res.text();
  assert.equal(text.length,8388608);
- assert.equal(text.charCodeAt(0),5);assert.equal(text.charCodeAt(2097152),6);
- assert.equal(text.charCodeAt(4194304),7);assert.equal(text.charCodeAt(6291456),8);
- assert.equal(ranges.length,9,'the read-ahead prefetches the next chunk as four parallel sub-intervals');
- assert.deepEqual(ranges.slice(5),['bytes=16777216-18874367','bytes=18874368-20971519','bytes=20971520-23068671','bytes=23068672-25165823']);
+ assert.equal(text.charCodeAt(0),9);assert.equal(text.charCodeAt(1048576),10);
+ assert.equal(text.charCodeAt(2097152),11);assert.equal(text.charCodeAt(3145728),12);
+ assert.equal(ranges.length,17,'the read-ahead prefetches the next chunk as eight parallel sub-intervals');
+ assert.deepEqual(ranges.slice(9),['bytes=16777216-17825791','bytes=17825792-18874367','bytes=18874368-19922943','bytes=19922944-20971519','bytes=20971520-22020095','bytes=22020096-23068671','bytes=23068672-24117247','bytes=24117248-25165823']);
 });
 test('a truncated intermediate sub-interval falls back to a single bounded fetch instead of stitching a byte gap',async()=>{
  const {createDriveWorker}=await worker;const ranges=[];
@@ -171,12 +171,12 @@ test('open-ended media requests stream past the first 8 MiB in one continuous 20
  const body=new Uint8Array(await res.arrayBuffer());
  assert.equal(body.length,total,'body must continue past the initial 8 MiB boundary');
  assert.equal(body[0],1);assert.equal(body[8388608],2);
- assert.equal(ranges.length,5,'initial chunk plus four parallel continuation ranges');
+ assert.equal(ranges.length,9,'initial chunk plus eight parallel continuation ranges');
 });
 
 test('worker responses expose revision header via CORS without credentials',async()=>{
  const {createDriveWorker,WORKER_REVISION}=await worker;
- assert.match(WORKER_REVISION,/^2026-10-14/);
+ assert.match(WORKER_REVISION,/^2026-11-07/);
  const optRes=await createDriveWorker().fetch(new Request('https://worker.test/?id=w17',{method:'OPTIONS'}));
  assert.equal(optRes.status,204);
  assert.equal(optRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);
@@ -195,12 +195,12 @@ test('tail open-ended request reaching known EOF aborts stale prefetch immediate
   return new Response(body,{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes '+start+'-'+end+'/20000000','Content-Length':String(body.length)}});
  });
  await app.fetch(request('w18'));
- assert.equal(ranges.length,5,'warmup request plus 4 parallel prefetch sub-intervals');
+ assert.equal(ranges.length,9,'warmup request plus 8 parallel prefetch sub-intervals');
  const tailRes=await app.fetch(new Request('https://worker.test/?id=w18',{headers:{Range:'bytes=19500000-'}}));
  assert.equal(tailRes.status,206);
- assert.ok(signals.slice(1,5).every(s=>s.aborted),'stale prefetch aborted before tail fetch');
- assert.equal(ranges.length,6,'tail request reaching known EOF uses a single bounded fetch instead of 4 parallel sub-intervals past EOF');
- assert.equal(ranges[5],'bytes=19500000-27888607');
+ assert.ok(signals.slice(1,9).every(s=>s.aborted),'stale prefetch aborted before tail fetch');
+ assert.equal(ranges.length,10,'tail request reaching known EOF uses a single bounded fetch instead of 8 parallel sub-intervals past EOF');
+ assert.equal(ranges[9],'bytes=19500000-27888607');
 });
 
 test('parallelFiles LRU retains parallel capability when switching between multiple video files',async()=>{
@@ -218,7 +218,7 @@ test('parallelFiles LRU retains parallel capability when switching between multi
  ranges.length=0;
  const seekA=await app.fetch(new Request('https://worker.test/?id=fileA',{headers:{Range:'bytes=16777216-'}}));
  assert.equal(seekA.status,206);
- assert.ok(ranges.filter(r=>r.startsWith('fileA:')).length>=4,'fileA still streams in 4 parallel sub-intervals after fileB was opened');
+ assert.ok(ranges.filter(r=>r.startsWith('fileA:')).length>=8,'fileA still streams in 8 parallel sub-intervals after fileB was opened');
 });
 test('confirmUrlCache reuses confirmed uuid URL on subsequent range requests without re-fetching HTML warning',async()=>{
  const {createDriveWorker}=await worker;const urls=[];

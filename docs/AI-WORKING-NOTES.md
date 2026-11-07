@@ -1261,3 +1261,10 @@
 - **หลักฐานการตรวจสอบ (Verification Evidence):**
   - `node tools/collection_data.js check` -> สองฝั่งตรงกัน (335 รายการ)
   - `node --test tests/*.cjs` ผ่านครบถ้วน **216/216 tests PASS (0 failures, duration 23.4s)**
+
+### 62. ความเร็ว: ท่อดาวน์โหลด 6→8 และ worker แตก chunk 4→8 สายขนาน (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED` (suite 216/216 รวม public-worker 22/22; ท่อฝั่งหน้าเว็บขึ้น CDN แล้ว, worker รอผู้ใช้ deploy ที่ Cloudflare)
+- **บริบท:** ผู้ใช้ถาม "มีความเร็วที่โหลดเร็วกว่านี้อีกไหม" (เห็น 6.0 MB/s กับ 6 ท่อ) และรายงาน "เล่นไปก็สะดุด" (stall ยาวสุด 71 วิ ในรายงาน) — Google จำกัด ~1 MB/s ต่อการเชื่อมต่อ → aggregate ขยายตามจำนวนสายขนาน
+- **การแก้ 2 ชั้น:** (1) ฝั่งหน้าเว็บ (video-player r15): turbo 6→8 ท่อ (direct 8MiB chunks + worker fallback 4MiB chunks limit 8) — เทสต์ video-download ปรับจาก 6 เป็น 8 — CDN verified · (2) ฝั่ง Cloudflare Worker (cloudflare-drive-worker.mjs — **ผู้ใช้ชี้ว่าไฟล์อยู่ในโปรเจก, ผมพลาดตอน ls *.js เพราะเป็น .mjs**): fetchParallelChunk แตก 4→8 sub-intervals (1 MiB/ส่วน), WORKER_REVISION 2026-10-14-r1→2026-11-07-r2 — เทสต์ public-worker ปรับที่ตรึงไว้ 5 จุด (w15 ranges/charCodeAt ต่อ 1MiB, w17 ranges.length 5→9, w18 5→9 + tail index, LRU >=4→>=8, revision regex) — w16 ผ่านเอง (คุณสมบัติห้ามเย็บช่องว่างยังถูกพิสูจน์)
+- **เพดานที่ต้องรู้:** ถ้าสายผู้ใช้ ~50 Mbps (6 MB/s) กำลังวิ่งเต็มสายอยู่แล้ว 8 ท่อจะไม่ช่วย; ยิง Google แรมเกินจะเสี่ยง 403/429 กลับ — 8 คือจุดสมดุล, วัดผลจากตัว MB/s บนหน้าจอได้ทันที
+- **การ deploy worker (ทำโดยผู้ใช้):** Cloudflare dashboard → Workers → google-drive-file-viewer → แก้โค้ดตาม cloudflare-drive-worker.mjs ใน repo แล้ว Deploy — X-GDV-Worker-Rev จะขึ้น 2026-11-07-r2 (ยืนยันได้ด้วย curl -I)
