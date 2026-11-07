@@ -51,6 +51,10 @@ function createPublicStreamRunner(deps, fallbacks) {
     get(t, key) { if (deps && key in deps) return deps[key]; if (fallbacks && key in fallbacks) return fallbacks[key]; return undefined; },
     set(t, key, value) { if (deps) deps[key] = value; return true; }
   });
+  // Deps-only test invocations omit the fallbacks, so default the trace to a no-op.
+  const traceVideoEvent = (deps && typeof deps.traceVideoEvent === 'function') ? deps.traceVideoEvent
+    : (fallbacks && typeof fallbacks.traceVideoEvent === 'function') ? fallbacks.traceVideoEvent
+    : function () {};
         return function tryPublicStream(id, onFail, googleOnly = false) {
           with (scope) {
         revokeCurrentVideo();
@@ -64,6 +68,7 @@ function createPublicStreamRunner(deps, fallbacks) {
         let publicError = null;
         const note = function (label, reason, diagnostic) {
           notes.push(label + ': ' + (reason === 'timeout' ? 'หมดเวลา' : diagnostic || reason));
+          traceVideoEvent('fail', label + ': ' + (reason === 'timeout' ? 'หมดเวลา' : diagnostic || reason));
         };
         const fail = function () {
           if (onFail) { onFail(notes); return; }
@@ -448,6 +453,10 @@ function createVideoSourceRunner(deps, fallbacks) {
     get(t, key) { if (deps && key in deps) return deps[key]; if (fallbacks && key in fallbacks) return fallbacks[key]; return undefined; },
     set(t, key, value) { if (deps) deps[key] = value; return true; }
   });
+  // Deps-only test invocations omit the fallbacks, so default the trace to a no-op.
+  const traceVideoEvent = (deps && typeof deps.traceVideoEvent === 'function') ? deps.traceVideoEvent
+    : (fallbacks && typeof fallbacks.traceVideoEvent === 'function') ? fallbacks.traceVideoEvent
+    : function () {};
         return function tryVideoSrc(url, onFail, timeoutMs = (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.genericMs : 12000), route = null) {
           with (scope) {
         cancelVideoBlobTransfer();
@@ -464,6 +473,7 @@ function createVideoSourceRunner(deps, fallbacks) {
 
         if (url && url.searchParams) url.searchParams.set('attempt', String(attempt));
         vidPlayer.playbackRoute = route ? {id: vidCurrentId, session: session, mode: accessToken ? 'signedin' : 'public', route: route, url: new URL(String(url), location.href).href} : null;
+        traceVideoEvent('route', (route || 'src') + ' เริ่ม (หมดเวลา ' + Math.round(timeoutMs / 1000) + ' วิ)');
 
         let done = false;
         vidPlayer.onloadedmetadata = function () {
@@ -471,7 +481,7 @@ function createVideoSourceRunner(deps, fallbacks) {
           applyNativeVideoAspect();
         };
 
-        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('timeout'); } }, timeoutMs);
+        const timer = videoAttemptTimer = setTimeout(function () { if (!done && session === mediaSession && attempt === videoAttempt) { done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; traceVideoEvent('fail', (route || 'src') + ' หมดเวลา'); onFail('timeout'); } }, timeoutMs);
 
         // โหลดช้ากว่าปกติ — แจ้งเตือนหลัง 15 วินาที แต่ยังรอต่อถึงเพดานที่ตั้งไว้
         videoSlowTimer = setTimeout(function () {
@@ -498,7 +508,7 @@ function createVideoSourceRunner(deps, fallbacks) {
           if (done || session !== mediaSession || attempt !== videoAttempt) return;
 
           const diagnostic = 'M' + (Number(vidPlayer.error && vidPlayer.error.code) || 0) + '/N' + (Number(vidPlayer.networkState) || 0) + '/R' + (Number(vidPlayer.readyState) || 0);
-          done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; onFail('media', diagnostic);
+          done = true; cancelVideoAttempt(); failedVideoAttempt = attempt; traceVideoEvent('fail', (route || 'src') + ' media ' + diagnostic); onFail('media', diagnostic);
 
         };
 
@@ -638,6 +648,7 @@ function createVideoCenter(app) {
     recordActivePlaybackRoute: recordActivePlaybackRoute,
     setVideoStatus: setVideoStatus,
     handleDriveStreamError: handleDriveStreamError,
+    traceVideoEvent: traceVideoEvent,
     cancelVideoAttempt: cancelVideoAttempt,
     resetMediaPlayback: resetMediaPlayback,
     cachedVideoThumb: cachedVideoThumb,
@@ -786,9 +797,105 @@ function createVideoCenter(app) {
         }, 2500);
       }
 
+      // On-screen route diagnostics: signed-in playback failures cannot be
+      // reproduced without the user's account, so the route ladder reports
+      // itself here and the user copies one report for the developer.
+      const videoTrace = [];
+      let videoTraceT0 = null;
+
+      function traceVideoEvent(e, d) {
+        if (videoTraceT0 === null) videoTraceT0 = (typeof app.Date !== 'undefined' ? app.Date : Date).now();
+        const dStr = String(d === undefined ? '' : d).slice(0, 160);
+        const t = ((typeof app.Date !== 'undefined' ? app.Date : Date).now() - videoTraceT0) / 1000;
+        const last = videoTrace[videoTrace.length - 1];
+        if (last && last.e === String(e) && last.d === dStr) last.t = t;
+        else videoTrace.push({ t: t, e: String(e), d: dStr });
+        if (videoTrace.length > 60) videoTrace.splice(0, videoTrace.length - 60);
+        if (typeof app.lsSet === 'function') { try { app.lsSet('gdv_video_trace_v1', JSON.stringify(videoTrace)); } catch (_) {} }
+        renderVideoTrace();
+      }
+
+      function videoTraceEnvLine() {
+        let versions = 'ไม่ทราบเวอร์ชัน';
+        try {
+          const tags = [];
+          const scripts = app.document && app.document.scripts;
+          for (let i = 0; scripts && i < scripts.length; i++) {
+            const m = String(scripts[i].src || '').match(/(video-player|app-core)\.js\?v=[^?]*?(r\d+)/);
+            if (m) tags.push(m[1] + ' ' + m[2]);
+          }
+          if (tags.length) versions = tags.join(', ');
+        } catch (_) {}
+        let login = 'ไม่ล็อกอิน';
+        try {
+          const token = typeof app.accessToken === 'function' ? app.accessToken() : app.accessToken;
+          if (token) login = 'ล็อกอิน';
+        } catch (_) {}
+        let sw = 'ไม่ทราบสถานะ';
+        try {
+          sw = (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller) ? 'ควบคุมหน้าอยู่' : 'ไม่มี controller';
+        } catch (_) {}
+        return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw;
+      }
+
+      function resetVideoTrace() {
+        videoTrace.length = 0;
+        videoTraceT0 = null;
+        traceVideoEvent('env', videoTraceEnvLine());
+      }
+
+      function videoTraceReport() {
+        const lines = ['รายงานวินิจฉัยวิดีโอ ' + new (typeof app.Date !== 'undefined' ? app.Date : Date)().toISOString(), videoTraceEnvLine(), vidCurrentId ? 'ไฟล์ ' + vidCurrentId : 'ไม่ทราบไฟล์'];
+        videoTrace.forEach(function (ev, i) { lines.push((i + 1) + '. ' + ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d); });
+        return lines.join('\n');
+      }
+
+      function copyVideoTrace() {
+        const text = videoTraceReport();
+        const doc = app.document;
+        const btn = doc && doc.getElementById ? doc.getElementById('vidTraceCopy') : null;
+        const flash = function () {
+          if (!btn) return;
+          const prev = btn.textContent;
+          btn.textContent = 'คัดลอกแล้ว ✓';
+          app.setTimeout(function () { if (btn.textContent === 'คัดลอกแล้ว ✓') btn.textContent = prev; }, 2000);
+        };
+        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          navigator.clipboard.writeText(text).then(flash, function () { copyVideoTraceFallback(text, flash); });
+          return;
+        }
+        copyVideoTraceFallback(text, flash);
+      }
+
+      function copyVideoTraceFallback(text, flash) {
+        try {
+          const ta = app.document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          app.document.body.appendChild(ta);
+          ta.select();
+          app.document.execCommand('copy');
+          app.document.body.removeChild(ta);
+          flash();
+        } catch (_) {}
+      }
+
+      function renderVideoTrace() {
+        const doc = app.document;
+        if (!doc || !doc.getElementById) return;
+        const box = doc.getElementById('vidTrace');
+        const lines = doc.getElementById('vidTraceLines');
+        if (!box || !lines) return;
+        lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
+        if (typeof box.scrollTop === 'number') box.scrollTop = box.scrollHeight;
+        box.hidden = videoStatus === 'playing';
+      }
+
       function setVideoStatus(state, message) {
         const prev = videoStatus;
         videoStatus = state;
+        traceVideoEvent('status', state + (message ? ' — ' + message : ''));
         const status = app.document.getElementById ? app.document.getElementById('vidErrorStatus') : null;
         const loadingText = app.document.getElementById ? app.document.getElementById('vidLoadingText') : null;
         const help = app.document.getElementById ? app.document.getElementById('vidHelp') : null;
@@ -825,6 +932,7 @@ function createVideoCenter(app) {
         if (data.id !== vidCurrentId || !app.videoModal.classList.contains('show')) return false;
         const failedAttempt = typeof failedVideoAttempt === 'undefined' ? null : failedVideoAttempt;
         if (data.attempt != null && Number(data.attempt) !== videoAttempt && !(videoStatus === 'error' && failedAttempt !== null && Number(data.attempt) === failedAttempt)) return false;
+        traceVideoEvent('swerr', 'status ' + data.status + (data.reason ? ' ' + data.reason : '') + (data.upstreamStatus ? ' HTTP ' + data.upstreamStatus : ''));
         if (data.reason === 'streamRangeUnsupported') {
           const kinds = ['status','header','start','end','total'];
           const kind = kinds.includes(data.rangeFailure) ? data.rangeFailure : 'unknown';
@@ -899,6 +1007,8 @@ function createVideoCenter(app) {
       }
 
       function openVideo(id, name) {
+        resetVideoTrace();
+        traceVideoEvent('open', id + (name ? ' · ' + name : ''));
         hideNextUp();
         if (app.lightbox.classList.contains("show")) app.closeLightbox();
         if (!app.videoModal.classList.contains("show")) mediaPreviousOverflow = app.document.body.style.overflow;
@@ -1571,7 +1681,7 @@ function createVideoCenter(app) {
             workers.addEventListener('controllerchange', check);
             workers.register(script, {scope: './', updateViaCache: 'none'}).then(check).catch(function () { finish(false); });
             check();
-          }).then(function (ok) { if (!ok) streamWorkerReady = null; return ok; });
+          }).then(function (ok) { if (!ok) streamWorkerReady = null; traceVideoEvent('sw', ok ? 'พร้อม' : 'ลงทะเบียนไม่สำเร็จ'); return ok; });
         }
         return streamWorkerReady;
       }
@@ -2537,6 +2647,9 @@ function createVideoCenter(app) {
     // Close button
     const vidCloseBtn = getEl('vidClose');
     safeOn(vidCloseBtn, 'click', closeVideo);
+
+    // Diagnostics trace copy button (element lives next to vidErrorStatus)
+    safeOn(getEl('vidTraceCopy'), 'click', copyVideoTrace);
 
     // Prev / Next buttons
     const vidPrevBtn = getEl('vidPrev');

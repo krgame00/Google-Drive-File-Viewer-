@@ -2641,3 +2641,27 @@
 .reco-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
 .reco-loading { color: var(--muted); font-size: 0.9rem; }
 .reco-error { color: var(--badge-warn-text); font-size: 0.88rem; line-height: 1.5; }
+
+.vid-trace {
+  position: absolute; left: 12px; bottom: 150px; z-index: 33;
+  max-width: 78%; max-height: 9em; overflow: auto;
+  background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 8px 10px;
+  font: 11px/1.45 Consolas, Menlo, monospace; color: rgba(255, 255, 255, 0.85);
+  white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none;
+  text-align: left;
+}
+
+.vid-trace[hidden] { display: none; }
+
+.vid-trace-copy {
+  margin-top: 6px; pointer-events: auto;
+  background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff; border-radius: 6px; padding: 4px 10px;
+  font: inherit; font-size: 11px; cursor: pointer;
+}
+
+.vid-trace-copy:hover { background: rgba(255, 255, 255, 0.2); }
+
+@media (max-width: 640px) {
+  .vid-trace { max-width: 92%; bottom: 132px; }
+}
