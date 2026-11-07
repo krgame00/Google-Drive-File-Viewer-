@@ -623,7 +623,13 @@ function createVideoCenter(app) {
       if (!event.data || event.data.type !== 'drive-stream-token') return;
       const expiry = typeof app.tokenExpiry === 'function' ? app.tokenExpiry() : app.tokenExpiry;
       const tokenNow = (app.Date || Date).now();
-      const allowed = event.data.id === vidCurrentId && app.videoModal && app.videoModal.classList && app.videoModal.classList.contains('show') && tokenNow < expiry;
+      const idMatch = event.data.id === vidCurrentId;
+      const modalOpen = !!(app.videoModal && app.videoModal.classList && app.videoModal.classList.contains('show'));
+      const sessionValid = tokenNow < expiry;
+      const allowed = idMatch && modalOpen && sessionValid;
+      traceVideoEvent('swtok', allowed
+        ? 'ตอบ token ให้ SW (ไฟล์ตรง เซสชันโอเค)'
+        : 'ปฏิเสธ: ' + (!idMatch ? 'ไฟล์ไม่ตรง' : !modalOpen ? 'โมดัลปิด' : 'เซสชันหมดอายุ'));
       let streamMeta = null;
       if (allowed && vidCurrentId && typeof app.fileMetaOf === 'function') {
         try { streamMeta = app.fileMetaOf(vidCurrentId); } catch (_) { streamMeta = null; }

@@ -278,7 +278,7 @@ async function streamFile(event, id, attempt) {
     const reporter = targets[0];
     const reply = await requestToken(targets, id);
     if (!reply || !reply.token) {
-      reporter.postMessage({type:'drive-stream-error',id,status:401,attempt});
+      reporter.postMessage({type:'drive-stream-error',id,status:401,attempt,reason:'noToken'});
       return failure(401);
     }
     const token = reply.token;
