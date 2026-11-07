@@ -2675,10 +2675,10 @@
 .reco-error { color: var(--badge-warn-text); font-size: 0.88rem; line-height: 1.5; }
 
 .vid-trace {
-  position: absolute; left: 12px; bottom: 150px; z-index: 33;
-  max-width: 78%; max-height: 9em; overflow: auto;
-  background: rgba(0, 0, 0, 0.6); border-radius: 8px; padding: 8px 10px;
-  font: 11px/1.45 Consolas, Menlo, monospace; color: rgba(255, 255, 255, 0.85);
+  position: absolute; right: 8px; top: 8px; left: auto; bottom: auto; z-index: 33;
+  max-width: 46%; max-height: 7.5em; overflow: auto;
+  background: rgba(0, 0, 0, 0.5); border-radius: 8px; padding: 6px 8px;
+  font: 10px/1.4 Consolas, Menlo, monospace; color: rgba(255, 255, 255, 0.78);
   white-space: pre-wrap; overflow-wrap: anywhere; pointer-events: none;
   text-align: left;
 }
@@ -2686,14 +2686,14 @@
 .vid-trace[hidden] { display: none; }
 
 .vid-trace-copy {
-  margin-top: 6px; pointer-events: auto;
+  margin-top: 5px; pointer-events: auto;
   background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #fff; border-radius: 6px; padding: 4px 10px;
-  font: inherit; font-size: 11px; cursor: pointer;
+  color: #fff; border-radius: 6px; padding: 3px 8px;
+  font: inherit; font-size: 10px; cursor: pointer;
 }
 
 .vid-trace-copy:hover { background: rgba(255, 255, 255, 0.2); }
 
 @media (max-width: 640px) {
-  .vid-trace { max-width: 92%; bottom: 132px; }
+  .vid-trace { max-width: 64%; }
 }
