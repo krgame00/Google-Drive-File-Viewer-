@@ -49,7 +49,8 @@ new_full = "const XBEP_COLLECTION = " + json.dumps(coll, ensure_ascii=False) + "
 s2 = s[:m.start()] + new_full + s[m.end():]
 # อัปเดตป้ายวันตรวจสถานะที่การ์ดคลังแสดง (COLL_CHECKED_AT ใน collections-data.js)
 import datetime
-now = datetime.datetime.now()
+tz_bkk = datetime.timezone(datetime.timedelta(hours=7))
+now = datetime.datetime.now(tz_bkk)
 THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."]
 stamp = f'{now.day} {THAI_MONTHS[now.month-1]} {str(now.year+543)[-2:]} ({now.hour:02d}:{now.minute:02d} น.)'
 s2, nsub = re.subn(r'const COLL_CHECKED_AT = ".*?";', f'const COLL_CHECKED_AT = "{stamp}";', s2)

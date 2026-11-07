@@ -1268,3 +1268,25 @@
 - **การแก้ 2 ชั้น:** (1) ฝั่งหน้าเว็บ (video-player r15): turbo 6→8 ท่อ (direct 8MiB chunks + worker fallback 4MiB chunks limit 8) — เทสต์ video-download ปรับจาก 6 เป็น 8 — CDN verified · (2) ฝั่ง Cloudflare Worker (cloudflare-drive-worker.mjs — **ผู้ใช้ชี้ว่าไฟล์อยู่ในโปรเจก, ผมพลาดตอน ls *.js เพราะเป็น .mjs**): fetchParallelChunk แตก 4→8 sub-intervals (1 MiB/ส่วน), WORKER_REVISION 2026-10-14-r1→2026-11-07-r2 — เทสต์ public-worker ปรับที่ตรึงไว้ 5 จุด (w15 ranges/charCodeAt ต่อ 1MiB, w17 ranges.length 5→9, w18 5→9 + tail index, LRU >=4→>=8, revision regex) — w16 ผ่านเอง (คุณสมบัติห้ามเย็บช่องว่างยังถูกพิสูจน์)
 - **เพดานที่ต้องรู้:** ถ้าสายผู้ใช้ ~50 Mbps (6 MB/s) กำลังวิ่งเต็มสายอยู่แล้ว 8 ท่อจะไม่ช่วย; ยิง Google แรมเกินจะเสี่ยง 403/429 กลับ — 8 คือจุดสมดุล, วัดผลจากตัว MB/s บนหน้าจอได้ทันที
 - **การ deploy worker (ทำโดยผู้ใช้):** Cloudflare dashboard → Workers → google-drive-file-viewer → แก้โค้ดตาม cloudflare-drive-worker.mjs ใน repo แล้ว Deploy — X-GDV-Worker-Rev จะขึ้น 2026-11-07-r2 (ยืนยันได้ด้วย curl -I)
+
+### 63. ตั้งค่า GitHub Actions Workflow ตรวจเช็กลิงก์ Drive/XBep อัตโนมัติทุกวันพร้อม Deploy หน้าเว็บ (/Poteto Mode) (2026-11-07)
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบ dry-run 335 รายการ, sync สองฝั่ง, และรัน test suite ครบ 216/216 PASS)
+- **การดำเนินการ:**
+  1. **สร้าง `.github/workflows/daily-drive-check.yml`:**
+     - ตั้งเวลาทำงานอัตโนมัติ `schedule.cron: '0 21 * * *'` (21:00 UTC = 04:00 น. ตามเวลาประเทศไทย UTC+7 ทุกวัน)
+     - รองรับการกดรันด้วยตนเองผ่าน `workflow_dispatch` บนแท็บ Actions
+     - กำหนดสิทธิ์ `permissions: contents: write` เพื่อให้ `GITHUB_TOKEN` สามารถ commit และ push การอัปเดตกลับเข้า branch `main` ได้
+     - ตั้งค่า environment `TZ: 'Asia/Bangkok'` และ `PYTHONIOENCODING: 'utf-8'`
+  2. **ปรับปรุงกระบวนการทำงานใน `scripts/daily_drive_check_and_push.py`:**
+     - จัดลำดับการทำงานแบบ 5 ขั้นตอนอัตโนมัติ: (1) Probe Drive API -> (2) Patch dead status & Thai timestamp -> (3) Normalize tags ด้วย `tools/tag_categories.py` -> (4) ซิงก์และตรวจเช็ก `collections_merged.json` ด้วย `tools/collection_data.js` -> (5) ตรวจสอบการเปลี่ยนแปลงและ bump cache buster ใน `index.html`
+     - รองรับพารามิเตอร์ `--dry` และ `--no-push` สำหรับรันทดสอบในเครื่องโดยไม่ push เข้า git
+     - แก้ไขปัญหา Unicode / charmap crash บน Windows console ด้วย `reconfigure(encoding="utf-8")` และระบุ `encoding="utf-8", errors="replace"` ในทุก subprocess
+     - ป้องกัน push conflict ด้วย `git pull --rebase origin main` ก่อนรัน `git push origin HEAD:main`
+  3. **ปรับปรุงความเข้ากันได้ของสคริปต์เสริม:**
+     - ใน `scripts/data/patch_alive_from_report.py`: ปรับให้ใช้ `datetime.timezone(datetime.timedelta(hours=7))` เพื่อรับประกันเวลาประเทศไทยเสมอไม่ว่าสภาพแวดล้อม runner จะเป็น timezone ใด
+     - ใน `tools/tag_categories.py`: ปรับปรุง `sys.stdout.reconfigure(encoding="utf-8")` ป้องกัน UnicodeEncodeError จากอีโมจิ
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - รัน `py scripts/daily_drive_check_and_push.py --dry` สำเร็จครบถ้วน 5 ขั้นตอน ตรวจสอบ 335 รายการ (รอด 114, เสีย 221)
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกัน 100% (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> Ran 1 test in 0.096s (OK)
+  - Full test suite `node tests/*.cjs` -> ผ่านครบถ้วน **216/216 tests PASS (0 failures)**

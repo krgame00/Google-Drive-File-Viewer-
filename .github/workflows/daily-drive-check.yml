@@ -1,0 +1,40 @@
+name: Daily Drive Alive Check
+
+on:
+  schedule:
+    # รันอัตโนมัติทุกวันเวลา 21:00 UTC (ตรงกับ 04:00 น. ตามเวลาประเทศไทย UTC+7)
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  drive-alive-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configure Git author
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Daily Drive Check & Push
+        env:
+          TZ: 'Asia/Bangkok'
+          PYTHONIOENCODING: 'utf-8'
+        run: python scripts/daily_drive_check_and_push.py
