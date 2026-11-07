@@ -866,14 +866,20 @@ function createVideoCenter(app) {
           btn.textContent = 'คัดลอกแล้ว ✓';
           app.setTimeout(function () { if (btn.textContent === 'คัดลอกแล้ว ✓') btn.textContent = prev; }, 2000);
         };
+        const fail = function () {
+          if (!btn) return;
+          const prev = btn.textContent;
+          btn.textContent = 'คัดลอกไม่สำเร็จ — เลือกข้อความแล้วกด Ctrl+C';
+          app.setTimeout(function () { if (btn.textContent !== prev) btn.textContent = prev; }, 2500);
+        };
         if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          navigator.clipboard.writeText(text).then(flash, function () { copyVideoTraceFallback(text, flash); });
+          navigator.clipboard.writeText(text).then(flash, function () { copyVideoTraceFallback(text, flash, fail); });
           return;
         }
-        copyVideoTraceFallback(text, flash);
+        copyVideoTraceFallback(text, flash, fail);
       }
 
-      function copyVideoTraceFallback(text, flash) {
+      function copyVideoTraceFallback(text, flash, fail) {
         try {
           const ta = app.document.createElement('textarea');
           ta.value = text;
@@ -881,10 +887,11 @@ function createVideoCenter(app) {
           ta.style.opacity = '0';
           app.document.body.appendChild(ta);
           ta.select();
-          app.document.execCommand('copy');
+          const ok = app.document.execCommand('copy');
           app.document.body.removeChild(ta);
-          flash();
-        } catch (_) {}
+          if (ok) flash();
+          else if (fail) fail();
+        } catch (_) { if (fail) fail(); }
       }
 
       function toggleVideoTrace() {
@@ -902,7 +909,7 @@ function createVideoCenter(app) {
         if (toggle) toggle.textContent = 'วินิจฉัย (' + videoTrace.length + ')';
         if (!box || !lines) return;
         lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
-        if (typeof box.scrollTop === 'number') box.scrollTop = box.scrollHeight;
+        if (typeof lines.scrollTop === 'number') lines.scrollTop = lines.scrollHeight;
         box.hidden = videoStatus === 'playing' || videoStatus === 'buffering';
       }
 
