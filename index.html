@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261107-r10" />
+  <link rel="stylesheet" href="styles.css?v=20261107-r11" />
 
 </head>
 
@@ -424,7 +424,14 @@
           <button type="button" class="btn-ghost btn-sm" id="vidNextUpCancel">ยกเลิก</button>
         </div>
 
-        <!-- Cinematic overlay chrome — ลอยบนวิดีโอ (Prototype A) -->
+
+        <div class="vid-error-overlay" id="vidErrorStatus" role="status" aria-live="polite" hidden></div>
+        <div class="vid-trace" id="vidTrace" hidden><div class="vid-trace-lines" id="vidTraceLines"></div><button type="button" class="vid-trace-copy" id="vidTraceCopy">คัดลอกรายงานสำหรับนักพัฒนา</button></div>
+
+
+      </div>
+
+        <!-- Cinematic chrome — แถวปุ่มใต้วิดีโอ (ไม่ทับภาพ/ปุ่มควบคุม) -->
         <div class="chrome-top" id="vidChrome">
           <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า" title="วิดีโอก่อนหน้า">&#8249;</button>
           <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป" title="วิดีโอถัดไป">&#8250;</button>
@@ -435,12 +442,6 @@
           <button type="button" class="chrome-btn accent" id="vidQuickPreview" aria-label="สลับไปใช้พรีวิว Google" title="ใช้พรีวิว Google">G</button>
           <button type="button" class="chrome-btn close" id="vidClose" aria-label="ปิด" title="ปิด">&times;</button>
         </div>
-
-        <div class="vid-error-overlay" id="vidErrorStatus" role="status" aria-live="polite" hidden></div>
-        <div class="vid-trace" id="vidTrace" hidden><div class="vid-trace-lines" id="vidTraceLines"></div><button type="button" class="vid-trace-copy" id="vidTraceCopy">คัดลอกรายงานสำหรับนักพัฒนา</button></div>
-
-
-      </div>
 
         <div class="title-overlay">
           <div class="video-title" id="vidTitle">วิดีโอ</div>

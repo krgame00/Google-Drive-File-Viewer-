@@ -987,13 +987,17 @@
 
     .chrome-top {
 
-      position: absolute; inset: 0 0 auto 0; z-index: 30;
+      /* Flow row below the video (in .video-box, above .title-overlay):
+         buttons never cover the picture or the native controls. */
+      position: static;
 
       display: flex; align-items: center; gap: 8px;
 
-      padding: 10px 12px;
+      padding: 6px 12px;
 
-      background: linear-gradient(rgba(0,0,0,0.62), transparent);
+      background: rgba(255,255,255,0.03);
+
+      border-top: 1px solid rgba(255,255,255,0.07);
 
       transition: opacity 0.25s ease;
 
@@ -2317,11 +2321,17 @@
       width: 100%; max-width: none; height: 100%; max-height: none; border-radius: 0; overflow: hidden;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
     }
-    /* Pseudo-fullscreen has no native controls strip, so the bar overlays the
-       video bottom edge there instead of taking flow space from the picture. */
+    /* Pseudo-fullscreen has no native controls strip, so both bars overlay the
+       video edges there instead of taking flow space from the picture. */
     .video-box.pseudo-fullscreen .title-overlay {
       position: absolute; left: 0; right: 0; bottom: 0; z-index: 38;
       background: linear-gradient(transparent, rgba(0,0,0,0.62));
+    }
+
+    .video-box:fullscreen .chrome-top,
+    .video-box.pseudo-fullscreen .chrome-top {
+      position: absolute; left: 0; right: 0; top: 0; z-index: 30;
+      background: linear-gradient(rgba(0,0,0,0.62), transparent);
     }
 
     .video-box.pseudo-fullscreen {
