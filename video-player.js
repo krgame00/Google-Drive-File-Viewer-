@@ -616,8 +616,12 @@ function createVideoCenter(app) {
   const nav = app.navigator || (typeof navigator !== 'undefined' ? navigator : null);
   const loc = app.location || (typeof location !== 'undefined' ? location : null);
   const URLCtor = app.URL || (typeof URL !== 'undefined' ? URL : null);
+  // SW_SCRIPT_REV must be bumped whenever drive-stream-sw.js changes: the
+  // registration URL carries it so a fresh release never races a poisoned
+  // CDN edge cache of the un-versioned script URL.
+  const SW_SCRIPT_REV = '20261107-r2';
   if (nav && 'serviceWorker' in nav && loc && URLCtor) {
-    const streamSwScript = new URLCtor('drive-stream-sw.js', loc.href).href;
+    const streamSwScript = new URLCtor('drive-stream-sw.js?v=' + SW_SCRIPT_REV, loc.href).href;
     nav.serviceWorker.addEventListener('message', function (event) {
       if (!event.source || event.source.scriptURL !== streamSwScript) return;
       if (event.data && event.data.type === 'drive-stream-error') {
@@ -1706,7 +1710,7 @@ function createVideoCenter(app) {
           streamWorkerAttemptEpoch = ++streamWorkerEpoch;
           const attempt = new Promise(function (resolve) {
             const workers = app.navigator.serviceWorker;
-            const script = new URL('drive-stream-sw.js', app.location.href).href;
+            const script = new URL('drive-stream-sw.js?v=' + SW_SCRIPT_REV, app.location.href).href;
             let done = false;
             let timer = 0;
             function finish(ok, reason) {
