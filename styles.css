@@ -946,9 +946,15 @@
 
       flex-direction: column; align-items: center; justify-content: center;
 
-      background: rgba(0,0,0,0.85); color: #fff; gap: 10px;
+      background: rgba(0,0,0,0.6); color: #fff; gap: 10px;
+
+      /* Spinner is a visual state only: clicks must reach the video and its
+         native controls beneath, or a mid-watch buffer blocks seeking. */
+      pointer-events: none;
 
     }
+
+    .vid-loading button { pointer-events: auto; }
 
     .vid-loading.show { display: flex; }
 

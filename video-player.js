@@ -889,7 +889,7 @@ function createVideoCenter(app) {
         if (!box || !lines) return;
         lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
         if (typeof box.scrollTop === 'number') box.scrollTop = box.scrollHeight;
-        box.hidden = videoStatus === 'playing';
+        box.hidden = videoStatus === 'playing' || videoStatus === 'buffering';
       }
 
       function setVideoStatus(state, message) {
@@ -2694,6 +2694,18 @@ function createVideoCenter(app) {
       });
       safeOn(app.vidPlayer, 'waiting', function () {
         if (vModal && vModal.classList.contains('show') && videoStatus !== 'error') setVideoStatus('buffering');
+      });
+      // canplay completes the buffering transition: a mid-watch seek can
+      // recover without the browser firing 'playing' again, which left the
+      // loading overlay stuck over the native controls (can't seek).
+      safeOn(app.vidPlayer, 'canplay', function () {
+        if (vModal && vModal.classList.contains('show') && videoStatus === 'buffering' && !app.vidPlayer.paused) setVideoStatus('playing');
+      });
+      // timeupdate is the ground truth for progressing playback: a slow
+      // upstream can hold readyState at 2 with frames advancing, and waiting
+      // for canplay kept the curtain over a video that was already moving.
+      safeOn(app.vidPlayer, 'timeupdate', function () {
+        if (vModal && vModal.classList.contains('show') && videoStatus === 'buffering' && !app.vidPlayer.paused && app.vidPlayer.readyState >= 2) setVideoStatus('playing');
       });
       // Pausing must bring the overlay chrome back even without pointer movement
       // (ended shares the single ended listener below, per the one-listener rule)

@@ -147,3 +147,43 @@ test('runners without a trace dependency fall back to a no-op', () => {
   assert.doesNotThrow(() => sources[0].fail('timeout'));
   assert.equal(sources.length, 2);
 });
+
+test('buffering overlay recovers via canplay after a seek', () => {
+  const { loadVideoPlayerApi } = require('./helpers/load-video-player-api.cjs');
+  const elements = {};
+  const makeEl = () => ({ hidden: true, textContent: '', style: {}, classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); } }, open: false, setAttribute() {}, getAttribute() { return null; }, removeAttribute() {} });
+  for (const id of ['vidErrorStatus', 'vidLoading', 'vidLoadingText', 'vidHelp', 'vidTitle', 'vidFullTitle', 'vidPreviewNote', 'vidInfo', 'vidSlowActions', 'vidTrace', 'vidTraceLines']) {
+    elements[id] = makeEl();
+  }
+  const handlers = {};
+  const bridge = {
+    document: { getElementById: (id) => elements[id] || null },
+    window: {},
+    videoModal: { classList: { contains: () => true, add() {}, remove() {} } },
+    vidPlayer: { style: {}, removeAttribute() {}, setAttribute() {}, addEventListener(type, fn) { handlers[type] = fn; }, paused: false },
+    vidLoading: elements.vidLoading,
+    location: { href: 'https://site.example/index.html' },
+    accessToken: null,
+    lsSet: () => {}
+  };
+  loadVideoPlayerApi(bridge);
+  assert.equal(typeof handlers.waiting, 'function', 'waiting listener wired');
+  assert.equal(typeof handlers.canplay, 'function', 'canplay recovery listener wired');
+
+  handlers.waiting();
+  assert.ok(elements.vidLoading.classList.contains('show'), 'buffering shows the overlay');
+  handlers.canplay();
+  assert.ok(!elements.vidLoading.classList.contains('show'), 'canplay clears the overlay');
+  assert.equal(elements.vidTrace.hidden, true, 'trace box hidden again once playback resumes');
+
+  handlers.waiting();
+  assert.ok(elements.vidLoading.classList.contains('show'), 'second stall shows the overlay again');
+  bridge.vidPlayer.readyState = 2;
+  handlers.timeupdate();
+  assert.ok(!elements.vidLoading.classList.contains('show'), 'advancing frames at readyState 2 clear the overlay');
+  bridge.vidPlayer.readyState = 1;
+  handlers.waiting();
+  bridge.vidPlayer.readyState = 1;
+  handlers.timeupdate();
+  assert.ok(elements.vidLoading.classList.contains('show'), 'no frame data yet keeps the buffering overlay');
+});
