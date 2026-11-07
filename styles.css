@@ -1053,7 +1053,9 @@
 
     .title-overlay {
 
-      position: absolute; inset: auto 0 48px 0; z-index: 38;
+      /* Sit above the native controls strip (~70px) and stay click-through:
+         only the link and the menu take input, the rest lets seeks through. */
+      position: absolute; inset: auto 0 76px 0; z-index: 38;
 
       display: flex; align-items: center; gap: 10px;
 
@@ -1063,7 +1065,11 @@
 
       transition: opacity 0.25s ease;
 
+      pointer-events: none;
+
     }
+
+    .title-overlay #vidOpenTab, .title-overlay #vidHelp { pointer-events: auto; }
 
     .video-title {
 
@@ -2413,7 +2419,7 @@
       .chrome-top { gap: 6px; padding: 8px; }
       .chrome-btn, .chrome-top .media-nav { width: 30px; height: 30px; flex: 0 0 30px; }
       .chrome-top .media-nav { font-size: 16px; }
-      .title-overlay { padding: 8px 10px; gap: 8px; bottom: 44px; }
+      .title-overlay { padding: 8px 10px; gap: 8px; bottom: 72px; }
       .video-title { font-size: 12px; }
       .title-overlay #vidOpenTab { font-size: 10px; }
       .video-menu .menu-btn { height: 30px; padding: 0 10px; font-size: 11px; }
