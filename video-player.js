@@ -580,6 +580,10 @@ function createVideoCenter(app) {
   let streamWorkerEpoch = 0;
   let streamWorkerAttemptEpoch = 0;
   let streamWorkerDeadlineRefresh = null;
+  // One automatic wedge recovery per page load: unregister the worker and
+  // drop its head cache, then re-register. A loop here would spin forever on
+  // genuinely broken environments.
+  let streamWorkerRecoveryDone = false;
   let failedVideoAttempt = (app && 'failedVideoAttempt' in app && app.failedVideoAttempt !== undefined) ? app.failedVideoAttempt : null;
   let previewAspect = (app && 'previewAspect' in app && app.previewAspect !== undefined) ? app.previewAspect : null;
   let videoBlobTransfer = (app && 'videoBlobTransfer' in app && app.videoBlobTransfer !== undefined) ? app.videoBlobTransfer : null;
@@ -1729,6 +1733,22 @@ function createVideoCenter(app) {
         return next;
       }
 
+      function recoverStreamWorker() {
+        // The page owns its origin's workers: unregistering here is the
+        // in-app equivalent of the browser's clear-site-data fix that
+        // revived a wedged registration on the user's machine.
+        if (streamWorkerRecoveryDone || typeof app.navigator === 'undefined' || !app.navigator.serviceWorker || typeof app.navigator.serviceWorker.getRegistrations !== 'function') return Promise.resolve(false);
+        streamWorkerRecoveryDone = true;
+        const headCacheName = app.window && app.window.GDVStreamProtocol ? app.window.GDVStreamProtocol.HEAD_CACHE_NAME : null;
+        return app.navigator.serviceWorker.getRegistrations().then(function (regs) {
+          traceVideoEvent('sw', 'ล้าง SW เก่า ' + regs.length + ' registration');
+          return Promise.all(regs.map(function (r) { return r.unregister().catch(function () { return false; }); }));
+        }).then(function () {
+          if (!headCacheName || typeof caches === 'undefined' || !caches.delete) return false;
+          return caches.delete(headCacheName).catch(function () { return false; });
+        }).then(function () { return true; }).catch(function () { return false; });
+      }
+
       function prepareStreamWorker() {
         if (!app.window.isSecureContext) { traceVideoEvent('sw', 'ข้าม: ไม่ใช่ secure context'); return Promise.resolve(false); }
         if (!('serviceWorker' in app.navigator)) { traceVideoEvent('sw', 'ข้าม: เบราว์เซอร์ไม่รองรับ Service Worker'); return Promise.resolve(false); }
@@ -1801,10 +1821,30 @@ function createVideoCenter(app) {
         const token = app.accessToken;
         prepareStreamWorker().then(function (ready) {
           if (session !== mediaSession || token !== app.accessToken || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
-          if (!ready || app.Date.now() >= app.tokenExpiry) {
-            showStreamFailure(app.Date.now() >= app.tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ ใช้พรีวิว Google หรือกด "โหลดทั้งไฟล์แทน" ในเมนู ดูแบบอื่น');
+          // A wedged registration gets one automatic clear-and-retry before
+          // the failure message — the user never opens DevTools for this.
+          const retryAfterRecovery = function () {
+            return recoverStreamWorker().then(function () {
+              streamWorkerReady = null;
+              return prepareStreamWorker();
+            });
+          };
+          const settle = function (ready) {
+            if (session !== mediaSession || token !== app.accessToken || id !== vidCurrentId || !app.videoModal.classList.contains('show')) return;
+            if (!ready || app.Date.now() >= app.tokenExpiry) {
+              showStreamFailure(app.Date.now() >= app.tokenExpiry ? 'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่' : 'เบราว์เซอร์นี้ยังใช้สตรีมบัญชีไม่ได้ กดลองเล่นใหม่ ใช้พรีวิว Google หรือกด "โหลดทั้งไฟล์แทน" ในเมนู ดูแบบอื่น');
+              return;
+            }
+            startBearer(id, session, token);
+          };
+          if (!ready && !streamWorkerRecoveryDone) {
+            traceVideoEvent('sw', 'ลงทะเบียนค้าง — ล้าง SW เก่าให้อัตโนมัติแล้วลองใหม่ (ผู้ใช้ไม่ต้องทำอะไร)');
+            retryAfterRecovery().then(settle);
             return;
           }
+          settle(ready);
+        });
+          function startBearer(id, session, token) {
           revokeCurrentVideo();
           // CORS mode is required for service-worker partial media responses,
           // including this same-origin endpoint; configure it before src.
@@ -1866,7 +1906,7 @@ function createVideoCenter(app) {
               else tryPublicStream(id, finishFailure, false);
             }
           }, (typeof TIMEOUTS !== 'undefined' ? TIMEOUTS.bearerMs : 60000), 'bearer');
-        });
+          }
       }
 
       function probePublicStreamError(id) {
