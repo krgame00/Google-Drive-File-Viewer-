@@ -2860,3 +2860,45 @@ html[data-theme="light"] .mega-badge, html[data-theme="light"] .od-badge, html[d
   .coll-card .coll-actions .btn-ghost:hover,
   .coll-card .coll-actions .btn-primary:not([disabled]):hover { transition: none; transform: none; }
 }
+
+/* ===== Phase 3 — continue-watching hero (#cwHero) =====
+   เติมเนื้อหาโดย video-player.js (renderCwHero); hidden เมื่อไม่มีรายการดูต่อ
+   กฎที่ตั้งสีด้วยค่าคงที่มีคู่ html[data-theme="light"] ด้านล่าง */
+.cw-hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: stretch; }
+.cw-hero[hidden] { display: none; }
+.cw-hero-thumb { position: relative; min-height: 190px; border-radius: 12px; overflow: hidden; background: var(--thumb-bg); border: 1px solid var(--border); }
+.cw-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+.cw-hero-img.loaded { opacity: 1; }
+.cw-hero-thumb:not(.has-thumb)::before {
+  content: '▶';
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-size: 34px; color: var(--muted-soft);
+}
+.cw-hero-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: rgba(0, 0, 0, 0.45); }
+.cw-hero-progress-bar { height: 100%; background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+.cw-hero-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cw-hero-label {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent-text);
+}
+.cw-hero-title {
+  font-size: 1.05rem; font-weight: 700; line-height: 1.4; color: var(--text-strong);
+  overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cw-hero-meta { font-size: 0.8rem; color: var(--muted); }
+.cw-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+.cw-hero-actions .btn-primary,
+.cw-hero-actions .btn-ghost { min-height: 44px; flex: 1 1 140px; border-radius: 999px; font-weight: 600; }
+.cw-hero-actions .btn-ghost:hover { transform: translateY(-1px); }
+@media (max-width: 680px) {
+  .cw-hero { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .cw-hero-thumb { min-height: 0; aspect-ratio: 16 / 9; }
+  .cw-hero-title { font-size: 0.95rem; }
+  .cw-hero-actions .btn-primary, .cw-hero-actions .btn-ghost { flex: 1 1 100%; }
+}
+html[data-theme="light"] .cw-hero-progress { background: rgba(15, 18, 34, 0.45); }
+@media (prefers-reduced-motion: reduce) {
+  .cw-hero-img { transition: none; }
+  .cw-hero-actions .btn-ghost:hover { transform: none; }
+}

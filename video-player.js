@@ -2324,6 +2324,7 @@ function createVideoCenter(app) {
         }
         section.innerHTML = '<h3>ดูต่อจากครั้งล่าสุด</h3><p>บันทึกในเบราว์เซอร์นี้ สูงสุด 30 รายการ · จำเวลาได้เฉพาะเครื่องเล่นโดยตรง ไม่รวมพรีวิว Google Drive</p>';
         const items = loadContinueWatching();
+        renderCwHero(items);
         if (!items.length) {
           const empty = app.document.createElement("p");
           empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
@@ -2384,6 +2385,71 @@ function createVideoCenter(app) {
         });
         section.appendChild(grid);
         if (app.window.updateMyLibraryBadge) app.window.updateMyLibraryBadge();
+      }
+
+      // Hero "ดูต่อจากครั้งล่าสุด" บนหน้าหลัก (#cwHero) — การ์ดใหญ่ของรายการแรก
+      // ใช้โครง/ตัวเลขชุดเดียวกับการ์ดดูต่อใน drawer และเส้นทางเดิม (openVideo) ทุกปุ่ม
+      // ไม่มี #cwHero หรือไม่มีรายการ → ซ่อน การ์ดใน drawer ไม่ถูกแตะ
+      function renderCwHero(items) {
+        const hero = app.document.getElementById("cwHero");
+        if (!hero) return;
+        const first = items[0];
+        if (!first) { hero.hidden = true; hero.innerHTML = ""; return; }
+        const minutes = Math.floor(first.position / 60);
+        const seconds = String(first.position % 60).padStart(2, "0");
+        const progressPercent = Math.min(96, Math.max(8, Math.round((first.position / (first.duration || (first.position + 120))) * 100)));
+        const safeName = (first.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
+        const cachedThumb = (function () {
+          if (typeof app.mediaThumbs !== "undefined" && app.mediaThumbs && app.mediaThumbs[first.id]) return app.mediaThumbs[first.id];
+          try { return localStorage.getItem("gdv_thumb_" + first.id); } catch (_) { return null; }
+        })();
+        const thumbUrl = cachedThumb || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(first.id) + "&sz=w640");
+        const safeThumbUrl = (thumbUrl || "").replace(/"/g, '&quot;');
+        const safeId = (first.id || "").replace(/['"\\]/g, "");
+
+        hero.innerHTML = "";
+        const thumbBox = app.document.createElement("div");
+        thumbBox.className = "cw-hero-thumb" + (cachedThumb ? " has-thumb" : "");
+        thumbBox.setAttribute("aria-hidden", "true");
+        thumbBox.innerHTML = `
+          <img class="cw-hero-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
+          <div class="cw-hero-progress"><div class="cw-hero-progress-bar" style="width:${progressPercent}%"></div></div>
+        `;
+        const info = app.document.createElement("div");
+        info.className = "cw-hero-info";
+        const label = app.document.createElement("span");
+        label.className = "cw-hero-label";
+        label.textContent = "ดูต่อจากครั้งล่าสุด";
+        const titleEl = app.document.createElement("span");
+        titleEl.className = "cw-hero-title";
+        titleEl.textContent = first.name || "วิดีโอ";
+        titleEl.title = safeName;
+        const meta = app.document.createElement("span");
+        meta.className = "cw-hero-meta";
+        meta.textContent = "ดูต่อที่ " + minutes + ":" + seconds + " · ความคืบหน้า " + progressPercent + "%";
+        const actions = app.document.createElement("div");
+        actions.className = "cw-hero-actions";
+        const playBtn = app.document.createElement("button");
+        playBtn.type = "button";
+        playBtn.className = "btn-primary cw-hero-play";
+        playBtn.textContent = "▶ เล่นต่อ";
+        playBtn.onclick = () => {
+          if (app.window.closeMyLibraryDrawer) app.window.closeMyLibraryDrawer();
+          app.lsSet("gdv_vpos_" + first.id, first.position);
+          openVideo(first.id, first.name);
+        };
+        const folderBtn = app.document.createElement("button");
+        folderBtn.type = "button";
+        folderBtn.className = "btn-ghost cw-hero-folder";
+        folderBtn.textContent = "เปิดโฟลเดอร์";
+        folderBtn.title = "เปิดไฟล์นี้ใน Google Drive — จากหน้าไฟล์จะเข้าโฟลเดอร์แม่ได้";
+        folderBtn.onclick = () => {
+          try { app.window.open("https://drive.google.com/file/d/" + first.id + "/view", "_blank", "noopener"); } catch (_) {}
+        };
+        actions.append(playBtn, folderBtn);
+        info.append(label, titleEl, meta, actions);
+        hero.append(thumbBox, info);
+        hero.hidden = false;
       }
 
       function revokeCurrentVideo() {
