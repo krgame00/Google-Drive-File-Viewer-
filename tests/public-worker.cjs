@@ -176,7 +176,7 @@ test('open-ended media requests stream past the first 8 MiB in one continuous 20
 
 test('worker responses expose revision header via CORS without credentials',async()=>{
  const {createDriveWorker,WORKER_REVISION}=await worker;
- assert.match(WORKER_REVISION,/^2026-11-07/);
+ assert.match(WORKER_REVISION,/^2026-11-08/);
  const optRes=await createDriveWorker().fetch(new Request('https://worker.test/?id=w17',{method:'OPTIONS'}));
  assert.equal(optRes.status,204);
  assert.equal(optRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);

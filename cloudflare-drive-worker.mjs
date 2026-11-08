@@ -1,5 +1,5 @@
 // Public files only. Never forward an account token or Google cookies.
-export const WORKER_REVISION = '2026-11-07-r2';
+export const WORKER_REVISION = '2026-11-08-r3';
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
@@ -189,16 +189,24 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
   let currentEnd = firstEnd;
   let reader = current.body ? current.body.getReader() : null;
   let nextStart = firstEnd + 1n;
-  function scheduleNext(offset) {
-    if (offset >= total) return null;
-    const end = offset + BigInt(MEDIA_CHUNK_BYTES) - 1n < total - 1n ? offset + BigInt(MEDIA_CHUNK_BYTES) - 1n : total - 1n;
-    return (useParallel ? fetchParallelChunk(id, offset, end, signal, fetchImpl) : Promise.resolve(null))
-      .then(function (outcome) {
-        if (outcome && outcome.res) return outcome;
-        return fetchMediaChunk(id, 'bytes=' + offset + '-', signal, fetchImpl);
-      }).catch(function () { return null; });
+  // A deep pipeline keeps several chunks in flight so a slow or throttled
+  // upstream chunk is consumed from already-buffered data instead of stalling
+  // the player at the buffer edge.
+  const PIPELINE = 3;
+  const queue = [];
+  function fillQueue() {
+    while (queue.length < PIPELINE && nextStart < total) {
+      const offset = nextStart;
+      const end = offset + BigInt(MEDIA_CHUNK_BYTES) - 1n < total - 1n ? offset + BigInt(MEDIA_CHUNK_BYTES) - 1n : total - 1n;
+      nextStart = end + 1n;
+      queue.push({start: offset, end: end, promise: (useParallel ? fetchParallelChunk(id, offset, end, signal, fetchImpl) : Promise.resolve(null))
+        .then(function (outcome) {
+          if (outcome && outcome.res) return outcome;
+          return fetchMediaChunk(id, 'bytes=' + offset + '-', signal, fetchImpl);
+        }).catch(function () { return null; })});
+    }
   }
-  let nextFetch = scheduleNext(nextStart);
+  fillQueue();
   const stream = new ReadableStream({
     async pull(controller) {
       try {
@@ -209,20 +217,19 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
             if (!part.done) { controller.enqueue(part.value); return; }
             reader = null;
           }
-          if (nextStart >= total) { controller.close(); return; }
-          const outcome = nextFetch ? await nextFetch : await scheduleNext(nextStart);
-          nextFetch = null;
+          fillQueue();
+          if (!queue.length) { controller.close(); return; }
+          const item = queue.shift();
+          const outcome = await item.promise;
           if (!outcome || !outcome.res || outcome.res.status !== 206) throw new Error('mediaContinuationFailed');
           const match = (outcome.res.headers.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
-          if (!match || BigInt(match[1]) !== nextStart || BigInt(match[2]) < nextStart || BigInt(match[2]) >= total || (match[3] !== '*' && BigInt(match[3]) !== total)) {
+          if (!match || BigInt(match[1]) !== item.start || BigInt(match[2]) < item.start || BigInt(match[2]) >= total || (match[3] !== '*' && BigInt(match[3]) !== total)) {
             if (outcome.res.body) await outcome.res.body.cancel().catch(() => {});
             throw new Error('mediaContinuationRangeMismatch');
           }
           current = outcome.res;
           currentEnd = BigInt(match[2]);
           reader = current.body ? current.body.getReader() : null;
-          nextStart = currentEnd + 1n;
-          nextFetch = scheduleNext(nextStart);
           if (!reader) continue;
         }
       } catch (error) {
@@ -232,7 +239,10 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
     cancel() {
       if (abortController) abortController.abort();
       try { if (reader) reader.cancel().catch(() => {}); } catch (_) {}
-      try { if (nextFetch) nextFetch.then(function (o) { if (o && o.res && o.res.body) o.res.body.cancel().catch(function () {}); }); } catch (_) {}
+      for (const item of queue) {
+        item.promise.then(function (o) { if (o && o.res && o.res.body) o.res.body.cancel().catch(function () {}); }).catch(function () {});
+      }
+      queue.length = 0;
     }
   });
   const headers = new Headers(cors);
