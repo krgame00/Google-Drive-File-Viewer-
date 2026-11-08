@@ -8,9 +8,13 @@
 
           color-scheme: dark;
 
-          --bg: #08090a;
+          --bg: #0c0d14;
 
           --bg-elevated: #0f1011;
+
+          --rail-w: 196px;
+
+          --rail-bg: #12141f;
 
           --card: rgba(255,255,255,0.02);
 
@@ -90,6 +94,8 @@
           --bg: #f5f6fa;
 
           --bg-elevated: #ffffff;
+
+          --rail-bg: #ffffff;
 
           --card: #ffffff;
 
@@ -173,6 +179,11 @@
 
       min-height: 100vh;
 
+      /* ระยะขอบหน้า — .page-shell/.page-main อ้างอิงตัวแปรนี้เพื่อให้ rail ชิดขอบจอทุก breakpoint */
+      --shell-inset-top: 24px;
+      --shell-inset-x: 16px;
+      --shell-inset-bottom: 48px;
+
       padding: 24px 16px 48px;
 
       -webkit-font-smoothing: antialiased;
@@ -188,6 +199,78 @@
 
 
     .wrap { max-width: 960px; margin: 0 auto; }
+
+
+
+    /* ===== Page shell — rail ข้าง + เนื้อหาหลัก (redesign A · phase 1) ===== */
+
+    .page-shell {
+
+      display: flex; align-items: flex-start; min-height: 100vh;
+
+      /* ดึงระยะขอบของ body กลับมาที่ .page-main เพื่อให้ rail ชิดขอบจอ แต่เมตริกเนื้อหาเดิมเท่าเดิม */
+
+      margin: calc(-1 * var(--shell-inset-top)) calc(-1 * var(--shell-inset-x)) calc(-1 * var(--shell-inset-bottom));
+
+    }
+
+    .page-rail {
+
+      position: sticky; top: 0;
+
+      flex: 0 0 var(--rail-w); width: var(--rail-w); height: 100vh;
+
+      display: flex; flex-direction: column; gap: 4px;
+
+      padding: 16px 10px;
+
+      background: var(--rail-bg);
+
+      border-right: 1px solid var(--border);
+
+      overflow-y: auto;
+
+    }
+
+    .page-main { flex: 1 1 auto; min-width: 0; padding: var(--shell-inset-top) var(--shell-inset-x) var(--shell-inset-bottom); }
+
+    .rail-logo { padding: 4px 10px 12px; font-weight: 700; font-size: 1.05rem; letter-spacing: .4px; color: var(--text-strong); }
+
+    .rail-btn {
+
+      display: flex; align-items: center; gap: 10px; width: 100%;
+
+      padding: 9px 12px; border: 0; border-radius: 9px;
+
+      background: none; color: var(--muted);
+
+      font: inherit; font-size: .84rem; text-align: left; cursor: pointer;
+
+      transition: background var(--transition), color var(--transition);
+
+    }
+
+    .rail-ic { flex: 0 0 auto; width: 18px; text-align: center; font-size: .95rem; }
+
+    .rail-btn:hover { background: var(--surface-subtle-hover); color: var(--text-strong); }
+
+    .rail-btn.on { background: var(--accent-hover); color: #fff; }
+
+    .rail-foot {
+
+      margin-top: auto; padding: 10px 12px 2px;
+
+      border-top: 1px solid var(--border-soft);
+
+      font-size: .68rem; color: var(--muted-soft);
+
+    }
+
+    @media (max-width: 899px) {
+
+      .page-rail { display: none; }
+
+    }
 
 
 
@@ -1927,7 +2010,7 @@
 
         @media (max-width: 600px) {
 
-          body { padding: 16px 12px 40px; }
+          body { padding: 16px 12px 40px; --shell-inset-top: 16px; --shell-inset-x: 12px; --shell-inset-bottom: 40px; }
 
           .card { padding: 16px; }
 
@@ -2244,7 +2327,7 @@
 
     /* Compact touch layout: keep controls tappable without oversized cards. */
     @media (max-width: 680px) {
-      body { padding: 12px 10px 80px; }
+      body { padding: 12px 10px 80px; --shell-inset-top: 12px; --shell-inset-x: 10px; --shell-inset-bottom: 80px; }
       .card { padding: 12px; }
       .favorite-folders { margin: 12px 0; min-width: 0; }
       .favorite-folders h3 { margin: 0 0 6px; font-size: 15px; }

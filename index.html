@@ -33,11 +33,57 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261107-r15" />
+  <link rel="stylesheet" href="styles.css?v=20261109-r1" />
 
 </head>
 
 <body>
+
+  <!-- ===== Page shell — rail ข้าง (redesign A · phase 1) ครอบเนื้อหาเดิมแบบ additive ===== -->
+
+  <div class="page-shell" id="pageShell">
+
+  <aside class="page-rail" id="pageRail" aria-label="เมนูหลักของหน้า">
+
+    <div class="rail-logo" aria-hidden="true">GDFV</div>
+
+    <button type="button" class="rail-btn on" data-rail-section="home">
+
+      <span class="rail-ic" aria-hidden="true">⌂</span>
+
+      <span>หน้าหลัก</span>
+
+    </button>
+
+    <button type="button" class="rail-btn" data-rail-section="collections">
+
+      <span class="rail-ic" aria-hidden="true">▤</span>
+
+      <span>คลัง XBep</span>
+
+    </button>
+
+    <button type="button" class="rail-btn" data-rail-section="browser">
+
+      <span class="rail-ic" aria-hidden="true">▸</span>
+
+      <span>สำรวจไดรฟ์</span>
+
+    </button>
+
+    <button type="button" class="rail-btn" id="railLibraryBtn">
+
+      <span class="rail-ic" aria-hidden="true">★</span>
+
+      <span>คลังของฉัน</span>
+
+    </button>
+
+    <div class="rail-foot">เลื่อนไปหมวดไหน กดจากแถบนี้</div>
+
+  </aside>
+
+  <div class="page-main" id="pageMain">
 
   <div class="wrap">
 
@@ -492,7 +538,9 @@
 
   </div>
 
+  </div><!-- /pageMain — จบเนื้อหาเดิมที่ครอบไว้ -->
 
+  </div><!-- /pageShell -->
 
   <!-- ===== Mobile bottom bar (มือถือ) ===== -->
 
@@ -558,6 +606,59 @@
   <script src="media-lightbox.js?v=20261104-r5"></script>
   <script src="collections-data.js?v=20261108-r1" defer></script>
   <script src="collection-viewer.js?v=20261106-r6" defer></script>
+
+  <!-- ===== Rail navigation — scroll-spy + เลื่อนไปยังหมวด (guard ทุก ID ให้หน้าขาด card ได้) ===== -->
+  <script>
+  (function () {
+    var rail = document.getElementById("pageRail");
+    if (!rail) return;
+    var sections = [];
+    [["home", null], ["collections", "collectionsCard"], ["browser", "browserCard"]].forEach(function (def) {
+      var btn = rail.querySelector('[data-rail-section="' + def[0] + '"]');
+      if (!btn) return;
+      sections.push({ name: def[0], el: def[1] ? document.getElementById(def[1]) : null, btn: btn });
+    });
+    if (!sections.length) return;
+
+    function currentSection() {
+      var probe = window.scrollY + Math.max(120, window.innerHeight * 0.25);
+      var name = "home", lastName = "home";
+      sections.forEach(function (s) {
+        if (!s.el) return;
+        lastName = s.name;
+        if (s.el.getBoundingClientRect().top + window.scrollY <= probe) name = s.name;
+      });
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) name = lastName;
+      return name;
+    }
+
+    var lastName = "home";
+    function updateSpy() {
+      var name = currentSection();
+      if (name === lastName) return;
+      lastName = name;
+      sections.forEach(function (s) { s.btn.classList.toggle("on", s.name === name); });
+    }
+    window.addEventListener("scroll", updateSpy, { passive: true });
+    window.addEventListener("resize", updateSpy, { passive: true });
+    updateSpy();
+
+    rail.addEventListener("click", function (ev) {
+      var btn = ev.target && ev.target.closest ? ev.target.closest(".rail-btn") : null;
+      if (!btn) return;
+      if (btn.id === "railLibraryBtn") {
+        var toggle = document.getElementById("myLibraryToggle");
+        if (toggle) toggle.click();
+        return;
+      }
+      var name = btn.getAttribute("data-rail-section");
+      if (!name) return;
+      if (name === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      var target = document.getElementById(name === "collections" ? "collectionsCard" : "browserCard");
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  })();
+  </script>
 
 </body>
 
