@@ -1805,6 +1805,18 @@ function createVideoCenter(app) {
                   const failedAttempt = videoAttempt;
                   probeStreamEndpoint(id, 'probe').then(function (verdict) {
                     if (session !== mediaSession || failedAttempt !== videoAttempt || !app.videoModal.classList.contains('show') || id !== vidCurrentId || videoStatus !== 'error') return;
+                    // The probe fetches the file fine while the media element
+                    // rejected the SW response: tell the SW to skip the head
+                    // cache and retry the bearer route once, same trace.
+                    if (String(verdict) === 'works' && typeof app.navigator !== 'undefined' && app.navigator.serviceWorker && app.navigator.serviceWorker.controller) {
+                      try {
+                        app.navigator.serviceWorker.controller.postMessage({type:'drive-stream-bypass-head'});
+                        traceVideoEvent('swdbg', 'probe ยืนยันข้อมูลโอเค — สั่ง bypass head-cache แล้วลอง bearer ใหม่');
+                        app.setTimeout(function () {
+                          if (session === mediaSession && id === vidCurrentId && app.videoModal.classList.contains('show') && videoStatus === 'error') tryStreamDirect(id, true, true);
+                        }, 1200);
+                      } catch (_) {}
+                    }
                     const status = app.document.getElementById('vidErrorStatus');
                     if (!status || status.hidden || typeof status.textContent !== 'string' || status.textContent.indexOf(app.MEDIA_STREAM_FAIL_MSG) !== 0) return;
                     if (String(verdict).indexOf('codec:') === 0 && typeof app.fallbackIframe === 'function') {

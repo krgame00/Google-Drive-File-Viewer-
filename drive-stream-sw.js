@@ -29,6 +29,9 @@ function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
 }
 // One prefetched chunk for the next media request; lost if the worker restarts.
 let ahead = null;
+// Set by a page control message when the media element rejected a served
+// response that a plain token fetch proved fine — skip the head cache then.
+let headServeBlockedUntil = 0;
 // Files whose source answered with a usable length stream in parallel (LRU up to 10 files).
 let parallelOk = null;
 let parallelTotal = null;
@@ -308,7 +311,7 @@ async function streamFile(event, id, attempt) {
     }
     // Re-open or seek into the opening chunk: serve from the head cache and
     // warm the next chunk so playback continues without waiting on Google.
-    if (!upstream && request.method === 'GET' && headCtx && requestedBound) {
+    if (!upstream && request.method === 'GET' && headCtx && requestedBound && Date.now() >= headServeBlockedUntil) {
       const head = await readHead(id, headCtx);
       if (head) {
         const served = serveHeadRange(head, requestedBound);
@@ -456,6 +459,10 @@ self.addEventListener('message', event => {
     })();
     if (event.waitUntil) event.waitUntil(job.catch(() => {}));
     if (port) job.then(reply => { try { port.postMessage(reply); } catch (_) {} }).catch(() => {});
+    return;
+  }
+  if (data.type === 'drive-stream-bypass-head') {
+    headServeBlockedUntil = Date.now() + 600000;
     return;
   }
   if (data.type !== 'drive-stream-prefetch') return;
