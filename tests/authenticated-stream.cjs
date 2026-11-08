@@ -222,7 +222,7 @@ function playerSetup() {
     prepareStreamWorker:()=>new Promise(resolve=>{ready=resolve}),
     streamBlocked:()=>false,rememberStreamBlocked(){},clearStreamBlocked(){},
     showStreamFailure:message=>errors.push(message),
-    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id}),traceVideoEvent(){}};
+    tryVideoSrc:(url,fail,timeout)=>sources.push({url,fail,timeout,cors:ctx.vidPlayer.crossorigin}),fallbackIframe:id=>fallbacks.push(id),tryPublicStream:id=>sources.push({public:id}),loadVideoAsBlob:id=>fallbacks.push(id),setVideoStatus(){},traceVideoEvent(){}};
   ctx.app=ctx;vm.createContext(ctx);vm.runInContext(html.slice(start,end+8),ctx);
   return {ctx,sources,fallbacks,errors,ready:async(value)=>{ready(value);await Promise.resolve()}};
 }
@@ -258,8 +258,8 @@ test('account media failure tries Google backup and ignores its callback after c
   }
 });
 test('unsupported browser explains failure and signed-out user keeps public playback',async()=>{
-  const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
-  ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');
+ const {ctx,sources,ready,fallbacks,errors}=playerSetup();ctx.tryStreamDirect('file1');await ready(false);assert.deepEqual(fallbacks,[]);assert.equal(errors.length,1);
+ ctx.accessToken=null;ctx.tryStreamDirect('file1');assert.equal(sources[0].public,'file1');
 });
 test('remembered signed-in public route is tried before bearer without repeating public routes',async()=>{
  const {ctx,sources,ready}=playerSetup();ctx.preferredPlaybackRoute=()=> 'usercontent';let backup;
