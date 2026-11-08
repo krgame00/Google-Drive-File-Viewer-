@@ -1155,6 +1155,18 @@ function createVideoCenter(app) {
         return ' เบราว์เซอร์ระบุว่ารองรับ: ' + support.map(function (s) { return s.label + (s.ok ? ' ✓' : ' ✗'); }).join(' ');
       }
 
+      function audioCanPlay(format) {
+        // canPlayType decides AC-3 support (Edge/Safari with OS codecs vs
+        // plain Chrome); undecidable contexts default to supported so the
+        // probe never false-positives.
+        try {
+          const doc = app.document || (typeof document !== 'undefined' ? document : null);
+          if (!doc || !doc.createElement) return true;
+          const probe = doc.createElement('video');
+          return !!probe.canPlayType(format === 'ac-3' ? 'video/mp4; codecs="ac-3"' : 'video/mp4; codecs="ec-3"');
+        } catch (_) { return true; }
+      }
+
       function readMp4CodecInfo(bytes) {
         // Best-effort read of the first video sample entry in a bounded MP4
         // prefix. Returns null while the needed boxes are incomplete, else
@@ -1191,11 +1203,14 @@ function createVideoCenter(app) {
         if (!stsdBoxes.length) return null;
         const profiles = {66: 'Baseline', 77: 'Main', 88: 'Extended', 100: 'High', 110: 'High 10 (Hi10P)', 122: 'High 4:2:2', 244: 'High 4:4:4'};
         let fallback = null;
+        let videoVerdict = null;
+        let audioLimit = null;
         for (const [stsdBody, stsdEnd] of stsdBoxes) {
           if (stsdBody + 16 > stsdEnd || !u32(stsdBody + 4)) return null;
           const entry = stsdBody + 8, entryEnd = entry + u32(entry);
           if (entryEnd > bytes.length) return null;
           const format = typeAt(entry);
+          if ((format === 'ac-3' || format === 'ec-3') && !audioLimit) audioLimit = format;
           if (format === 'avc1' || format === 'avc3' || format === 'encv') {
             // 8-byte header + 6 reserved + 2 data refs + 70 visual fields = +86
             if (entryEnd < entry + 94) return null;
@@ -1209,10 +1224,17 @@ function createVideoCenter(app) {
             }
             if (!avcC || avcC[0] + 4 > avcC[1]) return null;
             const profile = bytes[avcC[0] + 1];
-            return {playable: [66, 77, 88, 100].indexOf(profile) !== -1, label: 'H.264 โปรไฟล์ ' + (profiles[profile] || ('รหัส ' + profile))};
+            if (!videoVerdict) videoVerdict = {playable: [66, 77, 88, 100].indexOf(profile) !== -1, label: 'H.264 โปรไฟล์ ' + (profiles[profile] || ('รหัส ' + profile))};
           }
           if (!fallback) fallback = {playable: true, label: format === 'hvc1' || format === 'hev1' ? 'HEVC' : format === 'vp09' ? 'VP9' : format === 'av01' ? 'AV1' : 'รูปแบบ ' + format};
         }
+        // The video may decode fine while the audio track is AC-3: browsers
+        // without OS-level AC-3 support break the clip mid-playback instead of
+        // failing up front, so gate on canPlayType when the file carries it.
+        if (videoVerdict && videoVerdict.playable && audioLimit && !audioCanPlay(audioLimit)) {
+          return {playable: false, label: 'เสียง ' + (audioLimit === 'ac-3' ? 'AC-3' : 'E-AC-3')};
+        }
+        if (videoVerdict) return videoVerdict;
         return fallback;
       }
 

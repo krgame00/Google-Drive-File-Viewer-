@@ -2,11 +2,12 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {loadVideoPlayerApi}=require('./helpers/load-video-player-api.cjs');
 
-function setup(fetchImpl){
+function setup(fetchImpl,opts){
  const timers=[];
  const api=loadVideoPlayerApi({
   location:{href:'https://example.test/app/'},
   fetch:fetchImpl,
+  document:opts&&opts.document,
   setTimeout:callback=>{timers.push(callback);return timers.length;},
   clearTimeout(){}
  });
@@ -96,4 +97,35 @@ test('an mp4 whose moov is at the end of the file fetches the tail range and rea
  const verdict=await api.probeStreamEndpoint('file-tail','probe');
  assert.equal(verdict,'codec:H.264 โปรไฟล์ High 10 (Hi10P)');
  assert.deepEqual(ranges,['bytes=0-1048575','bytes=4194304-5242879']);
+});
+
+function dualTrakMp4(audioFormat,profile){
+ const avcC=[1,profile,192,64,255,225,0,2,103,64,0];
+ const avc1=box('avc1',merge([new Uint8Array(78),box('avcC',avcC)]));
+ const videoStsd=box('stsd',merge([new Uint8Array([0,0,0,0,0,0,0,1]),avc1]));
+ const audioEntry=box(audioFormat,new Uint8Array(20));
+ const audioStsd=box('stsd',merge([new Uint8Array([0,0,0,0,0,0,0,1]),audioEntry]));
+ const mk=stsd=>{const stbl=box('stbl',stsd),minf=box('minf',stbl),mdia=box('mdia',minf);return box('trak',mdia);};
+ const moov=box('moov',merge([mk(videoStsd),mk(audioStsd)]));
+ return merge([box('ftyp',new TextEncoder().encode('isom')),moov]);
+}
+
+test('an AC-3 audio track on an unsupported browser gates playback up front',async()=>{
+ const media=dualTrakMp4('ac-3',66);
+ const document={createElement:()=>({canPlayType:mime=>(mime.includes('ac-3')||mime.includes('ec-3'))?'':'probably'})};
+ const {api}=setup(async()=>({status:200,body:{getReader(){return {read:async()=>({value:media,done:false}),cancel:async()=>{},releaseLock(){}};}}}),{document});
+ assert.equal(await api.probeStreamEndpoint('file','probe'),'codec:เสียง AC-3');
+});
+
+test('a browser with OS-level AC-3 support plays the same file',async()=>{
+ const media=dualTrakMp4('ec-3',66);
+ const document={createElement:()=>({canPlayType:mime=>(mime.includes('ac-3')||mime.includes('ec-3'))?'probably':''})};
+ const {api}=setup(async()=>({status:200,body:{getReader(){return {read:async()=>({value:media,done:false}),cancel:async()=>{},releaseLock(){}};}}}),{document});
+ assert.equal(await api.probeStreamEndpoint('file','probe'),'works');
+});
+
+test('files without AC-3 stay unaffected when the audio probe cannot run',async()=>{
+ const media=tinyMp4(66);
+ const {api}=setup(async()=>({status:200,body:{getReader(){return {read:async()=>({value:media,done:false}),cancel:async()=>{},releaseLock(){}};}}}),{document:undefined});
+ assert.equal(await api.probeStreamEndpoint('file','probe'),'works');
 });
