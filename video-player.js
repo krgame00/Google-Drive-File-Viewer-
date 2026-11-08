@@ -2797,11 +2797,18 @@ function createVideoCenter(app) {
     const vidNextBtn = getEl('vidNext');
     safeOn(vidNextBtn, 'click', function () { onNav(1); });
 
-    // Consolidated menu (details/summary toggles natively) — close on outside click
+    // Consolidated menu (details/summary toggles natively) — close on outside
+    // click and on picking an action item. Without the action-item close the
+    // floating panel stayed over the download cancel button, so the cancel
+    // click landed on a menu item instead (audit 2026-11-08).
     const vidHelpMenu = getEl('vidHelp');
     safeOn(doc, 'click', function (e) {
       if (!vidHelpMenu || !vidHelpMenu.open || typeof vidHelpMenu.contains !== 'function') return;
-      if (e && e.target && vidHelpMenu.contains(e.target)) return;
+      if (e && e.target && vidHelpMenu.contains(e.target)) {
+        const t = e.target;
+        if (t.closest && t.closest('button') && !t.closest('summary')) vidHelpMenu.open = false;
+        return;
+      }
       vidHelpMenu.open = false;
     });
 
