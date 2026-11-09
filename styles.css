@@ -16,6 +16,11 @@
 
           --rail-bg: #12141f;
 
+          /* แถบแท็บล่างมือถือ (phase 4) — --tabs-h ความสูงตัวแถบ, --tabs-chrome รวม safe area สำหรับยกเนื้อหา/แถบอื่น */
+          --tabs-h: 58px;
+          --tabs-bg: #171a26;
+          --tabs-chrome: calc(var(--tabs-h) + env(safe-area-inset-bottom, 0px));
+
           --card: rgba(255,255,255,0.02);
 
           --card-hover: rgba(255,255,255,0.04);
@@ -96,6 +101,8 @@
           --bg-elevated: #ffffff;
 
           --rail-bg: #ffffff;
+
+          --tabs-bg: #f0f1f7;
 
           --card: #ffffff;
 
@@ -2096,7 +2103,7 @@
 
                                  ของ body ไม่ถูกนับเข้าความสูงที่ scroll ได้ (scrollbar สุดแล้วยังโดนบัง) */
 
-                              body.has-mobile-bar .wrap { padding-bottom: 96px; }
+                              body.has-mobile-bar .wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
                             }
 
@@ -2902,3 +2909,37 @@ html[data-theme="light"] .cw-hero-progress { background: rgba(15, 18, 34, 0.45);
   .cw-hero-img { transition: none; }
   .cw-hero-actions .btn-ghost:hover { transform: none; }
 }
+
+/* ===== Mobile tab bar — แถบแท็บล่างตลอดเวลา (redesign A · phase 4) =====
+   โชว์เฉพาะ ≤899px (จอกว้างมี rail แล้ว) · พื้นต่างเฉดจาก rail ผ่าน --tabs-bg คู่มืด+สว่าง
+   แถบเดิม #mobileBar ตอนเปิดโฟลเดอร์จะถูกยกขึ้นเหนือแถบนี้ด้วย --tabs-chrome */
+
+.mobile-tabs {
+  display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 89;
+  height: var(--tabs-chrome);
+  padding: 6px 6px env(safe-area-inset-bottom, 0px);
+  background: var(--tabs-bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35);
+  justify-content: space-around;
+}
+.mobile-tabs button {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: none; border: 0; color: var(--muted);
+  font: inherit; font-size: 0.64rem; padding: 6px 2px;
+  border-radius: var(--radius-sm); cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.mobile-tabs .mt-ic { font-size: 1.15rem; line-height: 1; }
+.mobile-tabs button:active { background: var(--accent-soft); color: var(--accent-text); }
+.mobile-tabs button.on { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+html[data-theme="light"] .mobile-tabs { box-shadow: 0 -6px 18px rgba(15, 18, 34, 0.12); }
+
+@media (max-width: 899px) {
+  .mobile-tabs { display: flex; }
+  /* เผื่อพื้นที่ใต้เนื้อหาให้พ้นแถบแท็บตลอดเวลา — ใส่ที่ .wrap ด้วยเหตุผลเดียวกับ has-mobile-bar ด้านบน */
+  .wrap { padding-bottom: var(--tabs-chrome); }
+}
+
+/* ตอนเปิดโฟลเดอร์ (body.has-mobile-bar) แถบลัดเดิมยกขึ้นเหนือแถบแท็บ — สองชั้นไม่ทับกัน */
+body.has-mobile-bar .mobile-bar { bottom: var(--tabs-chrome); }

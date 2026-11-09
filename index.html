@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261109-r2" />
+  <link rel="stylesheet" href="styles.css?v=20261109-r3" />
 
 </head>
 
@@ -545,6 +545,52 @@
 
   </div><!-- /pageShell -->
 
+  <!-- ===== Mobile tab bar — แถบแท็บล่างตลอดเวลา (redesign A · phase 4, ≤899px) ===== -->
+
+  <nav class="mobile-tabs" id="mobileTabs" aria-label="เมนูลัดด้านล่าง">
+
+    <button type="button" class="mt-btn on" data-rail-section="home">
+
+      <span class="mt-ic" aria-hidden="true">⌂</span>
+
+      หน้าหลัก
+
+    </button>
+
+    <button type="button" class="mt-btn" data-rail-section="collections">
+
+      <span class="mt-ic" aria-hidden="true">▤</span>
+
+      คลัง
+
+    </button>
+
+    <button type="button" class="mt-btn" data-rail-section="browser">
+
+      <span class="mt-ic" aria-hidden="true">▸</span>
+
+      สำรวจ
+
+    </button>
+
+    <button type="button" class="mt-btn" id="tabsLibraryBtn">
+
+      <span class="mt-ic" aria-hidden="true">★</span>
+
+      คลังของฉัน
+
+    </button>
+
+    <button type="button" class="mt-btn" id="tabsSearchBtn">
+
+      <span class="mt-ic" aria-hidden="true">⌕</span>
+
+      ค้นหา
+
+    </button>
+
+  </nav>
+
   <!-- ===== Mobile bottom bar (มือถือ) ===== -->
 
   <nav class="mobile-bar" id="mobileBar" aria-hidden="true">
@@ -615,13 +661,28 @@
   (function () {
     var rail = document.getElementById("pageRail");
     if (!rail) return;
+    var tabs = document.getElementById("mobileTabs");
     var sections = [];
     [["home", null], ["collections", "collectionsCard"], ["browser", "browserCard"]].forEach(function (def) {
-      var btn = rail.querySelector('[data-rail-section="' + def[0] + '"]');
-      if (!btn) return;
-      sections.push({ name: def[0], el: def[1] ? document.getElementById(def[1]) : null, btn: btn });
+      var btns = [];
+      var railBtn = rail.querySelector('[data-rail-section="' + def[0] + '"]');
+      if (railBtn) btns.push(railBtn);
+      var tabBtn = tabs ? tabs.querySelector('[data-rail-section="' + def[0] + '"]') : null;
+      if (tabBtn) btns.push(tabBtn);
+      if (!btns.length) return;
+      sections.push({ name: def[0], el: def[1] ? document.getElementById(def[1]) : null, btns: btns });
     });
     if (!sections.length) return;
+
+    function openLibrary() {
+      var toggle = document.getElementById("myLibraryToggle");
+      if (toggle) toggle.click();
+    }
+    function goToSection(name) {
+      if (name === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      var target = document.getElementById(name === "collections" ? "collectionsCard" : "browserCard");
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     function currentSection() {
       var probe = window.scrollY + Math.max(120, window.innerHeight * 0.25);
@@ -640,7 +701,9 @@
       var name = currentSection();
       if (name === lastName) return;
       lastName = name;
-      sections.forEach(function (s) { s.btn.classList.toggle("on", s.name === name); });
+      sections.forEach(function (s) {
+        s.btns.forEach(function (b) { b.classList.toggle("on", s.name === name); });
+      });
     }
     window.addEventListener("scroll", updateSpy, { passive: true });
     window.addEventListener("resize", updateSpy, { passive: true });
@@ -649,17 +712,29 @@
     rail.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest(".rail-btn") : null;
       if (!btn) return;
-      if (btn.id === "railLibraryBtn") {
-        var toggle = document.getElementById("myLibraryToggle");
-        if (toggle) toggle.click();
-        return;
-      }
+      if (btn.id === "railLibraryBtn") { openLibrary(); return; }
       var name = btn.getAttribute("data-rail-section");
       if (!name) return;
-      if (name === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
-      var target = document.getElementById(name === "collections" ? "collectionsCard" : "browserCard");
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      goToSection(name);
     });
+
+    if (tabs) {
+      tabs.addEventListener("click", function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest(".mt-btn") : null;
+        if (!btn) return;
+        if (btn.id === "tabsLibraryBtn") { openLibrary(); return; }
+        if (btn.id === "tabsSearchBtn") {
+          var card = document.getElementById("collectionsCard");
+          var input = document.getElementById("collSearch");
+          if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+          if (input) input.focus({ preventScroll: true });
+          return;
+        }
+        var name = btn.getAttribute("data-rail-section");
+        if (!name) return;
+        goToSection(name);
+      });
+    }
   })();
   </script>
 
