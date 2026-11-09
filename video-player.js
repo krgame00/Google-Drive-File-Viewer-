@@ -2442,8 +2442,14 @@ function createVideoCenter(app) {
         folderBtn.type = "button";
         folderBtn.className = "btn-ghost cw-hero-folder";
         folderBtn.textContent = "เปิดโฟลเดอร์";
-        folderBtn.title = "เปิดไฟล์นี้ใน Google Drive — จากหน้าไฟล์จะเข้าโฟลเดอร์แม่ได้";
+        folderBtn.title = "เปิดโฟลเดอร์แม่ของคลิปนี้ในแอป (มีคลัง) — ถ้าไม่มีจะเปิดหน้าไฟล์บน Google Drive แทน";
         folderBtn.onclick = () => {
+          // app.window คือ window จริงในเบราว์เซอร์ (getter ใน app-core) — GDVCollectionApi อยู่ที่นั่น
+          const collApi = app.window && app.window.GDVCollectionApi;
+          if (collApi && typeof collApi.openItemById === "function") {
+            collApi.openItemById(first.id);
+            return;
+          }
           try { app.window.open("https://drive.google.com/file/d/" + first.id + "/view", "_blank", "noopener"); } catch (_) {}
         };
         actions.append(playBtn, folderBtn);

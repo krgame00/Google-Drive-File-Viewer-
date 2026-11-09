@@ -144,4 +144,100 @@ function findEl(root, className) {
   assert.equal(findEl(hero, 'cw-hero-title'), null, 'no hero title remains after the list empties');
   console.log('PASS cwHero renders the first item with progress and buttons, and hides when empty');
 }
+
+// Hero folder button opens the item's folder. With the collection bridge
+// present it must go through window.GDVCollectionApi.openItemById (in-app
+// folder), never an external tab; without it the Drive file URL fallback
+// stays. The bridge is the page's real boundary — what it receives is behavior.
+{
+  const folderData = new Map();
+  const folderCalls = [];
+  const openedUrls = [];
+  const folderEls = { cwHero: makeDomEl('div'), myLibraryContent: makeDomEl('div') };
+  const classListStub = () => ({ _s: new Set(), contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } });
+  const folderBridge = {
+    window: {
+      GDVCollectionApi: { openItemById(id) { folderCalls.push(id); } },
+      open(url) { openedUrls.push(url); }
+    },
+    document: { getElementById: id => folderEls[id] || null, createElement: t => makeDomEl(t), body: { style: { overflow: '' } } },
+    lsGet: key => folderData.get(key),
+    lsSet: (key, value) => folderData.set(key, String(value)),
+    lsRemove: key => folderData.delete(key),
+    pruneVpos() {},
+    Date: Date,
+    apiKey: undefined,
+    accessToken: undefined,
+    location: { href: 'http://localhost/index.html' },
+    vidPlayer: { currentTime: 0, duration: 0, style: { display: 'none' }, classList: classListStub(), pause() {}, load() {}, removeAttribute() {}, setAttribute() {} },
+    vidFrame: { src: '', style: {}, removeAttribute() {} },
+    vidTitle: { textContent: '' },
+    vidOpenTab: { href: '' },
+    vidProgressBar: { style: {} },
+    vidLoading: { classList: classListStub() },
+    lightbox: { classList: { contains: () => false } },
+    videoModal: { classList: classListStub(), setAttribute() {}, querySelector: () => null },
+    resetPdfViewer() {},
+    revokeCurrentDoc() {},
+    fetch: () => Promise.resolve({ headers: { get: () => null } }),
+    setTimeout: () => 0,
+    clearTimeout: () => {}
+  };
+  folderBridge.window.closeMyLibraryDrawer = () => {};
+  const folderPlayer = installPlayer(folderBridge);
+  folderData.set('gdv_continue', JSON.stringify([{ id: 'folder-id-9', name: 'คลิปทดสอบ #9', position: 10, duration: 100, updated: 1 }]));
+
+  folderPlayer.renderContinueWatching();
+  const folderHero = folderEls.cwHero;
+  const folderBtn = findEl(folderHero, 'cw-hero-folder');
+  assert.ok(folderBtn && typeof folderBtn.onclick === 'function', 'hero folder button is wired');
+  folderBtn.onclick();
+  assert.deepEqual(folderCalls, ['folder-id-9'], 'folder button asks the collection bridge to open the item folder in-app, got calls ' + JSON.stringify(folderCalls));
+  assert.deepEqual(openedUrls, [], 'folder button must not open an external tab when the bridge has openItemById');
+  console.log('PASS cwHero folder button opens the folder through the collection bridge');
+}
+
+// Fallback: a bridge without openItemById (collection-viewer not loaded or
+// older app) keeps the old behavior — open the Drive file page in a new tab.
+{
+  const fbData = new Map();
+  const openedUrls = [];
+  const fbEls = { cwHero: makeDomEl('div'), myLibraryContent: makeDomEl('div') };
+  const classListStub = () => ({ _s: new Set(), contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } });
+  const fbBridge = {
+    window: { open(url) { openedUrls.push(url); } },
+    document: { getElementById: id => fbEls[id] || null, createElement: t => makeDomEl(t), body: { style: { overflow: '' } } },
+    lsGet: key => fbData.get(key),
+    lsSet: (key, value) => fbData.set(key, String(value)),
+    lsRemove: key => fbData.delete(key),
+    pruneVpos() {},
+    Date: Date,
+    apiKey: undefined,
+    accessToken: undefined,
+    location: { href: 'http://localhost/index.html' },
+    vidPlayer: { currentTime: 0, duration: 0, style: { display: 'none' }, classList: classListStub(), pause() {}, load() {}, removeAttribute() {}, setAttribute() {} },
+    vidFrame: { src: '', style: {}, removeAttribute() {} },
+    vidTitle: { textContent: '' },
+    vidOpenTab: { href: '' },
+    vidProgressBar: { style: {} },
+    vidLoading: { classList: classListStub() },
+    lightbox: { classList: { contains: () => false } },
+    videoModal: { classList: classListStub(), setAttribute() {}, querySelector: () => null },
+    resetPdfViewer() {},
+    revokeCurrentDoc() {},
+    fetch: () => Promise.resolve({ headers: { get: () => null } }),
+    setTimeout: () => 0,
+    clearTimeout: () => {}
+  };
+  fbBridge.window.closeMyLibraryDrawer = () => {};
+  const fbPlayer = installPlayer(fbBridge);
+  fbData.set('gdv_continue', JSON.stringify([{ id: 'fallback-id-1', name: 'คลิปทดสอบ #F', position: 5, duration: 60, updated: 1 }]));
+
+  fbPlayer.renderContinueWatching();
+  const fbBtn = findEl(fbEls.cwHero, 'cw-hero-folder');
+  assert.ok(fbBtn && typeof fbBtn.onclick === 'function', 'fallback hero still wires the folder button');
+  fbBtn.onclick();
+  assert.deepEqual(openedUrls, ['https://drive.google.com/file/d/fallback-id-1/view'], 'folder button keeps the Drive file URL fallback, got ' + JSON.stringify(openedUrls));
+  console.log('PASS cwHero folder button falls back to the Drive file URL without the bridge');
+}
 console.log('PASS cwHero red-green cases');

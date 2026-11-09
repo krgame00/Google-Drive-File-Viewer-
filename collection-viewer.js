@@ -295,6 +295,11 @@
       appApi.openFolderAndReveal(extId);
     }
   }
+  // เปิดรายการคลังตาม id ผ่าน bridge — เส้นทางเดียวกับการ์ดคลัง/ปุ่มสุ่ม (hero ดูต่อยิงมาที่นี่)
+  appApi.openItemById = function (id) {
+    var item = (typeof XBEP_COLLECTION !== "undefined" ? XBEP_COLLECTION : []).find(function (x) { return x.id === id; });
+    if (item) openCollectionItem(item);
+  };
   function randomPick(pool, avoidId){
     if(!pool || !pool.length) return null;
     if(pool.length>1 && avoidId!=null){
