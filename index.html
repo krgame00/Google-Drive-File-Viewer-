@@ -679,9 +679,12 @@
       if (toggle) toggle.click();
     }
     function goToSection(name) {
-      if (name === "home") { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+      // Instant scroll only: smooth scrollIntoView silently failed on the
+      // in-app browser (reproduced on desktop and mobile with a clean
+      // document), leaving rail and mobile tabs not navigating at all.
+      if (name === "home") { window.scrollTo(0, 0); return; }
       var target = document.getElementById(name === "collections" ? "collectionsCard" : "browserCard");
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (target) target.scrollIntoView({ block: "start" });
     }
 
     function currentSection() {
@@ -726,7 +729,7 @@
         if (btn.id === "tabsSearchBtn") {
           var card = document.getElementById("collectionsCard");
           var input = document.getElementById("collSearch");
-          if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+          if (card) card.scrollIntoView({ block: "start" });
           if (input) input.focus({ preventScroll: true });
           return;
         }
