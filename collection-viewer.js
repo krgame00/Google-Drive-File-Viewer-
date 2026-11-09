@@ -189,6 +189,10 @@
 
     if(toggleBtn) toggleBtn.textContent = collapsed ? "แสดง" : "ซ่อน";
 
+    // แถวม้วนรายเดือน: จุดเรียกเดียว — ครอบทั้งตอนเปิดหน้าและทุกครั้งที่พับ/แสดงคลังสด ๆ
+    // (ไม่ผูกกับ render() เพราะ render() ถูกเรียกทุกคีสตรอกและจะ rebuild แถวจน scroll หลุด)
+    renderMonthShelves();
+
   }
 
   applyCollapsed();
@@ -789,6 +793,73 @@
   if(recoCloseBtn) recoCloseBtn.addEventListener("click", recoHide);
 
   // ===== Reco end =====
+
+  // ===== แถวม้วนรายเดือนบนหน้าหลัก (redesign A · round A) =====
+
+  // Pure: เดือนจาก date "d.m.yy" → กลุ่ม "m.yy" เรียงใหม่→เก่า (เทียบปีก่อนแล้วค่อยเทียบเดือน)
+  // รายการที่วันที่อ่านไม่ออกไม่เข้ากลุ่มใด
+  function monthGroupsOf(items){
+    var ABBR=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    var byKey={};
+    (items||[]).forEach(function(c){
+      var m=(c.date||"").match(/^\d{1,2}\.(\d{1,2})\.(\d{2,4})$/);
+      if(!m) return;
+      var mo=parseInt(m[1],10), yy=m[2], key=mo+"."+yy;
+      if(!byKey[key]) byKey[key]={month:key,label:(mo>=1&&mo<=12?ABBR[mo-1]+" "+yy:key),count:0,alive:0,items:[]};
+      var g=byKey[key];
+      g.count++; if(!c.dead) g.alive++;
+      g.items.push(c);
+    });
+    return Object.keys(byKey).map(function(k){ return byKey[k]; }).sort(function(a,b){
+      var pa=a.month.split("."), pb=b.month.split(".");
+      return (parseInt(pb[1],10)-parseInt(pa[1],10)) || (parseInt(pb[0],10)-parseInt(pa[0],10));
+    });
+  }
+  appApi.monthGroupsOf = monthGroupsOf;
+
+  // เรนเดอร์แถวม้วน — mount #homeShelves ใน index.html · พับคลัง = ซ่อน · idempotent (ทับ innerHTML เดิม)
+  function renderMonthShelves(){
+    var mount=document.getElementById("homeShelves");
+    if(!mount) return;
+    var groups = localStorage.getItem("gdv_coll_collapsed")==="1" ? [] : monthGroupsOf(XBEP_COLLECTION).slice(0,6);
+    if(!groups.length){ mount.hidden=true; mount.innerHTML=""; return; }
+    var html="";
+    groups.forEach(function(g){
+      html+='<div class="shelf-group">'+
+        '<div class="shelf-head">'+
+          '<h3 class="shelf-month">'+recoEsc(g.label)+'</h3>'+
+          '<span class="shelf-count">'+(g.alive===g.count ? "พร้อมครบ "+g.count : "พร้อม "+g.alive+"/"+g.count)+'</span>'+
+          '<button type="button" class="shelf-all" data-shelf-all>ดูทั้งหมด ›</button>'+
+        '</div>'+
+        '<div class="shelf-row">';
+      g.items.slice(0,12).forEach(function(c){
+        var alive=!c.dead;
+        var folderId = alive && c.kind!=="file" ? appApi.extractId(c.url) : null;
+        html+='<button type="button" class="shelf-card'+(alive?"":" is-dead")+'" data-open="'+recoEsc(c.id)+'">'+
+          '<span class="shelf-cover"><span class="file-thumb collection-cover"'+(folderId?' data-folder-cover="'+recoEsc(folderId)+'"':'')+'>'+appApi.genericIconSvg("folder")+'</span></span>'+
+          '<span class="shelf-title">'+recoEsc(String(c.title||""))+'</span>'+
+          '<span class="shelf-meta"><span class="shelf-dot '+(alive?"ok":"dead")+'"></span>'+(alive?"พร้อม":"เสีย")+'<span class="shelf-date">'+recoEsc(c.date||"")+'</span></span>'+
+        '</button>';
+      });
+      html+='</div></div>';
+    });
+    mount.innerHTML=html;
+    mount.hidden=false;
+    appApi.observeFolderCovers(mount);
+    // เปิดจากการ์ดใช้ flow เดิมของคลัง — ไม่สร้างเส้นทางเปิดโฟลเดอร์ใหม่
+    mount.querySelectorAll("[data-open]").forEach(function(card){
+      card.addEventListener("click", function(){
+        var item=XBEP_COLLECTION.find(function(x){return x.id===card.getAttribute("data-open")});
+        if(item) openCollectionItem(item);
+      });
+    });
+    mount.querySelectorAll("[data-shelf-all]").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var target=document.getElementById("collectionsCard");
+        if(target) target.scrollIntoView({ block:"start" }); // instant เท่านั้น — smooth scrollIntoView พังใน IAB (บั๊ก 1569bbf)
+      });
+    });
+  }
 
 
 

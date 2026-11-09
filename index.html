@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261109-r3" />
+  <link rel="stylesheet" href="styles.css?v=20261109-r4" />
 
 </head>
 
@@ -213,6 +213,9 @@
 
     <!-- ===== Continue-watching hero (redesign A · phase 3) — video-player.js เติมเนื้อหาเมื่อมีรายการดูต่อ ===== -->
     <div class="card cw-hero" id="cwHero" hidden></div>
+
+    <!-- ===== แถวม้วนรายเดือน (redesign A · round A) — collection-viewer.js เรนเดอร์ · พับคลัง = ซ่อน ===== -->
+    <div class="home-shelves" id="homeShelves" hidden></div>
 
     <details class="card" id="videoCacheSettings">
       <summary>คลิปที่เก็บไว้ในเครื่อง</summary>
@@ -654,7 +657,7 @@
   <script src="drive-explorer.js?v=20261104-r6"></script>
   <script src="media-lightbox.js?v=20261104-r5"></script>
   <script src="collections-data.js?v=20261109-r1" defer></script>
-  <script src="collection-viewer.js?v=20261106-r6" defer></script>
+  <script src="collection-viewer.js?v=20261109-r1" defer></script>
 
   <!-- ===== Rail navigation — scroll-spy + เลื่อนไปยังหมวด (guard ทุก ID ให้หน้าขาด card ได้) ===== -->
   <script>
