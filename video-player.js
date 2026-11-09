@@ -2445,9 +2445,9 @@ function createVideoCenter(app) {
         folderBtn.title = "เปิดโฟลเดอร์แม่ของคลิปนี้ในแอป (มีคลัง) — ถ้าไม่มีจะเปิดหน้าไฟล์บน Google Drive แทน";
         folderBtn.onclick = () => {
           // app.window คือ window จริงในเบราว์เซอร์ (getter ใน app-core) — GDVCollectionApi อยู่ที่นั่น
+          // คลิปที่ไม่อยู่ในคลัง (เช่น ลิงก์ที่วางเอง) openItemById คืน false — fallback เปิดหน้าไฟล์บน Drive
           const collApi = app.window && app.window.GDVCollectionApi;
-          if (collApi && typeof collApi.openItemById === "function") {
-            collApi.openItemById(first.id);
+          if (collApi && typeof collApi.openItemById === "function" && collApi.openItemById(first.id)) {
             return;
           }
           try { app.window.open("https://drive.google.com/file/d/" + first.id + "/view", "_blank", "noopener"); } catch (_) {}

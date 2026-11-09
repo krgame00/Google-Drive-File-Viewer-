@@ -157,7 +157,7 @@ function findEl(root, className) {
   const classListStub = () => ({ _s: new Set(), contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } });
   const folderBridge = {
     window: {
-      GDVCollectionApi: { openItemById(id) { folderCalls.push(id); } },
+      GDVCollectionApi: { openItemById(id) { folderCalls.push(id); return true; } },
       open(url) { openedUrls.push(url); }
     },
     document: { getElementById: id => folderEls[id] || null, createElement: t => makeDomEl(t), body: { style: { overflow: '' } } },
@@ -195,6 +195,57 @@ function findEl(root, className) {
   assert.deepEqual(folderCalls, ['folder-id-9'], 'folder button asks the collection bridge to open the item folder in-app, got calls ' + JSON.stringify(folderCalls));
   assert.deepEqual(openedUrls, [], 'folder button must not open an external tab when the bridge has openItemById');
   console.log('PASS cwHero folder button opens the folder through the collection bridge');
+}
+
+// A clip that is not in the collection (pasted Drive links) cannot open an
+// in-app folder — openItemById reports false and the button falls back to
+// the Drive file page instead of doing nothing silently.
+{
+  const missData = new Map();
+  const missCalls = [];
+  const openedUrls = [];
+  const missEls = { cwHero: makeDomEl('div'), myLibraryContent: makeDomEl('div') };
+  const classListStub = () => ({ _s: new Set(), contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } });
+  const missBridge = {
+    window: {
+      GDVCollectionApi: { openItemById(id) { missCalls.push(id); return false; } },
+      open(url) { openedUrls.push(url); }
+    },
+    document: { getElementById: id => missEls[id] || null, createElement: t => makeDomEl(t), body: { style: { overflow: '' } } },
+    lsGet: key => missData.get(key),
+    lsSet: (key, value) => missData.set(key, String(value)),
+    lsRemove: key => missData.delete(key),
+    pruneVpos() {},
+    Date: Date,
+    apiKey: undefined,
+    accessToken: undefined,
+    location: { href: 'http://localhost/index.html' },
+    vidPlayer: { currentTime: 0, duration: 0, style: { display: 'none' }, classList: classListStub(), pause() {}, load() {}, removeAttribute() {}, setAttribute() {} },
+    vidFrame: { src: '', style: {}, removeAttribute() {} },
+    vidTitle: { textContent: '' },
+    vidOpenTab: { href: '' },
+    vidProgressBar: { style: {} },
+    vidLoading: { classList: classListStub() },
+    lightbox: { classList: { contains: () => false } },
+    videoModal: { classList: classListStub(), setAttribute() {}, querySelector: () => null },
+    resetPdfViewer() {},
+    revokeCurrentDoc() {},
+    fetch: () => Promise.resolve({ headers: { get: () => null } }),
+    setTimeout: () => 0,
+    clearTimeout: () => {}
+  };
+  missBridge.window.closeMyLibraryDrawer = () => {};
+  const missPlayer = installPlayer(missBridge);
+  missData.set('gdv_continue', JSON.stringify([{ id: 'not-in-collection-1', name: 'คลิปนอกคลัง', position: 10, duration: 100, updated: 1 }]));
+
+  missPlayer.renderContinueWatching();
+  const missHero = missEls.cwHero;
+  const missBtn = findEl(missHero, 'cw-hero-folder');
+  assert.ok(missBtn && typeof missBtn.onclick === 'function', 'hero folder button is wired');
+  missBtn.onclick();
+  assert.deepEqual(missCalls, ['not-in-collection-1'], 'folder button still asks the bridge first, got calls ' + JSON.stringify(missCalls));
+  assert.deepEqual(openedUrls, ['https://drive.google.com/file/d/not-in-collection-1/view'], 'missing collection item must fall back to the Drive file page, got ' + JSON.stringify(openedUrls));
+  console.log('PASS cwHero folder button falls back to the Drive file page when the clip is not in the collection');
 }
 
 // Fallback: a bridge without openItemById (collection-viewer not loaded or
