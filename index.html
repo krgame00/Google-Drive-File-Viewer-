@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261109-r5" />
+  <link rel="stylesheet" href="styles.css?v=20261109-r6" />
 
 </head>
 
@@ -123,6 +123,7 @@
             <div class="top-search" role="search">
               <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input id="topSearch" class="top-search-input" type="search" placeholder="ค้นหาคลังหรือโฟลเดอร์…" autocomplete="off" aria-label="ค้นหาคลังหรือโฟลเดอร์ (กรองการ์ดคลังด้านล่างแบบทันที)" />
+              <kbd class="top-search-kbd" aria-hidden="true">/</kbd>
             </div>
             <div style="display:inline-flex; align-items:center; gap:8px;">
               <button type="button" id="topRandomBtn" class="btn-ghost btn-sm" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
@@ -701,6 +702,14 @@
     // collection-viewer.js (input listener บน #collSearch) ทำงานเองทั้งหมด
     var topSearch = document.getElementById("topSearch");
     var collSearch = document.getElementById("collSearch");
+    // คีย์ลัด "/" โฟกัสช่องค้นหาบนแถบบน (ตามโปรโตไทป์ A) — ไม่แทรก / เข란ช่องพิมพ์อื่น
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key !== "/" || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var t = ev.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || (t.isContentEditable))) return;
+      var box = document.getElementById("topSearch");
+      if (box) { ev.preventDefault(); box.focus(); box.select(); }
+    });
     if (topSearch && collSearch) {
       function syncTopFromColl() {
         if (topSearch.value !== collSearch.value) topSearch.value = collSearch.value;

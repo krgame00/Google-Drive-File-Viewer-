@@ -301,6 +301,10 @@
 
     .logo-full { color: var(--muted); font-weight: 500; font-size: 0.9rem; border-left: 1px solid var(--border); padding-left: 10px; letter-spacing: 0; }
 
+    /* จอกลาง (rail ยังโชว์ ≥900px) พื้นที่แถวหัวแคบ — ซ่อนชื่อเต็มให้แถวเดียวพอ ชื่อเต็มกลับมาที่จอใหญ่ */
+
+    @media (max-width: 1150px) { .logo-full { display: none; } }
+
     header p {
 
       margin-top: 4px; color: var(--muted); font-size: 0.875rem;
@@ -313,7 +317,7 @@
 
     .top-search {
 
-      flex: 1 1 220px; min-width: 180px; max-width: 460px;
+      flex: 1 1 160px; min-width: 150px; max-width: 560px;
 
       display: flex; align-items: center; gap: 8px;
 
@@ -346,6 +350,8 @@
     }
 
     .top-search-input::placeholder { color: var(--muted); }
+
+    .top-search-kbd { margin-left: auto; flex: 0 0 auto; font-size: 10px; color: var(--muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; line-height: 1.6; }
 
     @media (max-width: 560px) {
 
