@@ -1527,3 +1527,11 @@
 - **ผลตรวจรับ:** 920px = แถวเดียว + kbd โชว์ + ไม่ล้น (เดิมแตกสองแถว) · 1280px = ชื่อเต็มกลับมา + แถวเดียว (ค้นหา 271px) · 390px = เลย์เอาต์มือถือเดิม (ค้นหาเต็มแถวใต้ปุ่ม) ไม่ล้น · light theme อ่านชัด · คีย์ลัด / โฟกัสจริง (synthetic keydown) · suite 228/228 + branding PASS · console error 0
 - **ข้อจำกัด:** ที่ 920px ชื่อเต็มหายไปชั่วคราวตามดีไซน์ · การแก้ไม่แตะ JS module / เทสเดิม / gui-test-screenshots
 - **ค้างอื่น:** ชั้นดูต่อหลายใบ + seek 9.8s/status lag (#65) + เนื้อหา amendment #69 ถูก restore กลับไฟล์แล้ว (b35261a — rebase เมื่อวานทำ 54 บรรทัดหลุดจากไฟล์ที่ commit)
+
+### 71. ชั้นดูต่อของฉัน (#cwShelf) — ชิ้นสุดท้ายของ parity โปรโตไทป์ A (/Poteto Mode) (2026-11-11)
+- **สถานะ:** `VERIFIED WORKING` (commit รอบนี้บน main, ยังไม่ push; suite 228/228 + เคสชั้นใหม่แดงก่อนเขียว; busters video-player 20261109-r5 / styles 20261109-r7)
+- **งาน:** renderCwShelf(items) ใน video-player.js ข้าง renderCwHero — เรนเดอร์การ์ดรายการดูต่อทุกใบ (ปกจาก mediaThumbs/gdv_thumb, แถบความคืบหน้า %, ดูต่อ M:SS) ลง mount #cwShelf ถัดจาก hero, โชว์เมื่อ items ≥ 2 (ใบเดียว hero ครอบ), ปุ่มการ์ดใช้เส้นทางเดียวกับ hero (close drawer → re-arm vpos → openVideo) — เติมใน renderContinueWatching จุดเดียว
+- **เทส:** เคสใหม่ใน tests/continue-watching.cjs แดงก่อน (shelf.hidden true !== false) — pin การ์ดครบทุกรายการ, ชื่อบนการ์ด, ห้ามเปิดเองตอน render (vidCurrentId ต้องไม่ใช่ id รายการ — เขียน assertion ผิดนัยครั้งแรกเพราะ vidCurrentId ถูก write-through เป็น null ตั้งแต่ init ของ center), ซ่อนเมื่อเหลือใบเดียว
+- **ผลตรวจ IAB:** seed 3 รายการ (id เต็มจาก DOM คลัง) → ชั้นโชว์ 3 การ์ดพร้อมปก+แถบ %, hero ยังโชว์คู่กัน, synthetic click การ์ด → video modal เปิดจริง + ladder รัน (status แจ้งสตรีมไม่ได้ตามจริงเพราะ seed เป็น id โฟลเดอร์ — ของจริงเป็นไฟล์ที่เคยดู), light theme การ์ดขาวสวย, console error 0
+- **บทเรียนเครื่องมือ:** cua click หลัง reload ใน IAB ยังส่ง input ไม่เสถียร — ยืนยันด้วย synthetic dispatch + error trap ทุกครั้ง (คลาสเดียวกับที่จดไว้ใน #68/#70)
+- **คงเหลือจาก parity:** คลังหน้าเต็มไม่มีกรอบ (optional) · seek 9.8s/status lag (#65) · ยังไม่ push รอผู้ใช้
