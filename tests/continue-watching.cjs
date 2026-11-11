@@ -248,6 +248,62 @@ function findEl(root, className) {
   console.log('PASS cwHero folder button falls back to the Drive file page when the clip is not in the collection');
 }
 
+// The ดูต่อ shelf (#cwShelf) shows every resume item once there are at least
+// two — a single item is the hero's job — and hides again when the list
+// shrinks back to one. Rendering must not open anything by itself.
+{
+  const shelfData = new Map();
+  const shelfEls = { cwHero: makeDomEl('div'), cwShelf: makeDomEl('div'), myLibraryContent: makeDomEl('div') };
+  const classListStub = () => ({ _s: new Set(), contains(c) { return this._s.has(c); }, add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); } });
+  const shelfBridge = {
+    window: {},
+    document: { getElementById: id => shelfEls[id] || null, createElement: t => makeDomEl(t), body: { style: { overflow: '' } } },
+    lsGet: key => shelfData.get(key),
+    lsSet: (key, value) => shelfData.set(key, String(value)),
+    lsRemove: key => shelfData.delete(key),
+    pruneVpos() {},
+    Date: Date,
+    apiKey: undefined,
+    accessToken: undefined,
+    location: { href: 'http://localhost/index.html' },
+    vidPlayer: { currentTime: 0, duration: 0, style: { display: 'none' }, classList: classListStub(), pause() {}, load() {}, removeAttribute() {}, setAttribute() {} },
+    vidFrame: { src: '', style: {}, removeAttribute() {} },
+    vidTitle: { textContent: '' },
+    vidOpenTab: { href: '' },
+    vidProgressBar: { style: {} },
+    vidLoading: { classList: classListStub() },
+    lightbox: { classList: { contains: () => false } },
+    videoModal: { classList: classListStub(), setAttribute() {}, querySelector: () => null },
+    resetPdfViewer() {},
+    revokeCurrentDoc() {},
+    fetch: () => Promise.resolve({ headers: { get: () => null } }),
+    setTimeout: () => 0,
+    clearTimeout: () => {}
+  };
+  shelfBridge.window.closeMyLibraryDrawer = () => {};
+  const shelfPlayer = installPlayer(shelfBridge);
+  shelfData.set('gdv_continue', JSON.stringify([
+    { id: 'shelf-id-1', name: 'คลิป #1', position: 30, duration: 100, updated: 1 },
+    { id: 'shelf-id-2', name: 'คลิป #2', position: 60, duration: 100, updated: 2 }
+  ]));
+
+  shelfPlayer.renderContinueWatching();
+  const shelf = shelfEls.cwShelf;
+  assert.equal(shelf.hidden, false, 'shelf shows when two or more resume items exist');
+  const row = (shelf.children || []).find(c => String(c.className).includes('cw-shelf-row'));
+  assert.ok(row, 'shelf renders a card row');
+  const cards = (row.children || []).filter(c => String(c.className).includes('cw-shelf-card'));
+  assert.equal(cards.length, 2, 'shelf renders one card per resume item, got ' + cards.length);
+  assert.ok(String(cards[0].innerHTML).includes('คลิป #1'), 'shelf cards carry item names');
+  assert.ok(shelfBridge.vidCurrentId !== 'shelf-id-1' && shelfBridge.vidCurrentId !== 'shelf-id-2', 'rendering the shelf must not open anything by itself, got ' + JSON.stringify(shelfBridge.vidCurrentId));
+
+  shelfData.set('gdv_continue', JSON.stringify([{ id: 'shelf-id-1', name: 'คลิป #1', position: 30, duration: 100, updated: 1 }]));
+  shelfPlayer.renderContinueWatching();
+  assert.equal(shelf.hidden, true, 'shelf hides again when only one item remains (the hero covers it)');
+  assert.equal(shelf.innerHTML, '', 'shelf content is cleared when hidden');
+  console.log('PASS cwShelf renders every resume item from two up, and hides when the hero covers it');
+}
+
 // Fallback: a bridge without openItemById (collection-viewer not loaded or
 // older app) keeps the old behavior — open the Drive file page in a new tab.
 {

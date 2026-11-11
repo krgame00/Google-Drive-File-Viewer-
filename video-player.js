@@ -2325,6 +2325,7 @@ function createVideoCenter(app) {
         section.innerHTML = '<h3>ดูต่อจากครั้งล่าสุด</h3><p>บันทึกในเบราว์เซอร์นี้ สูงสุด 30 รายการ · จำเวลาได้เฉพาะเครื่องเล่นโดยตรง ไม่รวมพรีวิว Google Drive</p>';
         const items = loadContinueWatching();
         renderCwHero(items);
+        renderCwShelf(items);
         if (!items.length) {
           const empty = app.document.createElement("p");
           empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
@@ -2456,6 +2457,49 @@ function createVideoCenter(app) {
         info.append(label, titleEl, meta, actions);
         hero.append(thumbBox, info);
         hero.hidden = false;
+      }
+
+      // ชั้น "ดูต่อของฉัน" (#cwShelf) บนหน้าหลัก — โชว์ทุกรายการเมื่อมีตั้งแต่สองใบ
+      // (ใบเดียว hero ครอบอยู่แล้ว) ปุ่มการ์ดใช้เส้นทางเดียวกับเล่นต่อของ hero
+      function renderCwShelf(items) {
+        const shelf = app.document.getElementById("cwShelf");
+        if (!shelf) return;
+        if (!items || items.length < 2) { shelf.hidden = true; shelf.innerHTML = ""; return; }
+        shelf.innerHTML = "";
+        const shelfLabel = app.document.createElement("span");
+        shelfLabel.className = "cw-shelf-label";
+        shelfLabel.textContent = "ดูต่อของฉัน";
+        shelf.append(shelfLabel);
+        const shelfRow = app.document.createElement("div");
+        shelfRow.className = "cw-shelf-row";
+        items.forEach(function (item) {
+          const minutes = Math.floor(item.position / 60);
+          const seconds = String(item.position % 60).padStart(2, "0");
+          const progressPercent = Math.min(96, Math.max(8, Math.round((item.position / (item.duration || (item.position + 120))) * 100)));
+          const safeName = (item.name || "วิดีโอ").replace(/[<>&"]/g, function (s) { return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[s]; });
+          const cachedThumb = (function () {
+            if (typeof app.mediaThumbs !== "undefined" && app.mediaThumbs && app.mediaThumbs[item.id]) return app.mediaThumbs[item.id];
+            try { return localStorage.getItem("gdv_thumb_" + item.id); } catch (_) { return null; }
+          })();
+          const thumbUrl = (cachedThumb || "https://drive.google.com/thumbnail?id=" + encodeURIComponent(item.id) + "&sz=w480").replace(/"/g, "&quot;");
+          const card = app.document.createElement("button");
+          card.type = "button";
+          card.className = "cw-shelf-card";
+          card.title = safeName;
+          card.innerHTML =
+            '<img class="cw-shelf-img' + (cachedThumb ? " loaded" : "") + '" src="' + thumbUrl + '" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'" onload="this.classList.add(\'loaded\')" />' +
+            '<span class="cw-shelf-progress"><i style="width:' + progressPercent + '%"></i></span>' +
+            '<span class="cw-shelf-name">' + safeName + '</span>' +
+            '<span class="cw-shelf-meta">ดูต่อที่ ' + minutes + ":" + seconds + " · " + progressPercent + "%</span>";
+          card.onclick = function () {
+            if (app.window.closeMyLibraryDrawer) app.window.closeMyLibraryDrawer();
+            app.lsSet("gdv_vpos_" + item.id, item.position);
+            openVideo(item.id, item.name);
+          };
+          shelfRow.append(card);
+        });
+        shelf.append(shelfRow);
+        shelf.hidden = false;
       }
 
       function revokeCurrentVideo() {

@@ -2920,6 +2920,20 @@ html[data-theme="light"] .mega-badge, html[data-theme="light"] .od-badge, html[d
   .coll-card .coll-actions .btn-primary:not([disabled]):hover { transition: none; transform: none; }
 }
 
+
+/* ===== Phase 9 — ชั้นดูต่อของฉัน (#cwShelf) — โชว์เมื่อมี ≥2 รายการ ใบเดียวให้ hero ครอบ ===== */
+.cw-shelf-wrap[hidden] { display: none; }
+.cw-shelf-label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
+.cw-shelf-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; }
+.cw-shelf-card { position: relative; flex: 0 0 auto; width: 200px; border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg-elevated); text-align: left; padding: 0; color: inherit; transition: transform var(--transition), border-color var(--transition); }
+.cw-shelf-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.cw-shelf-img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; opacity: 0; transition: opacity var(--transition); background: var(--bg); }
+.cw-shelf-img.loaded { opacity: 1; }
+.cw-shelf-progress { display: block; height: 4px; background: var(--border); }
+.cw-shelf-progress i { display: block; height: 100%; background: var(--accent); }
+.cw-shelf-name { display: block; padding: 6px 10px 0; font-size: 0.8rem; font-weight: 500; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-shelf-meta { display: block; padding: 0 10px 8px; font-size: 0.7rem; color: var(--muted); }
+
 /* ===== Phase 3 — continue-watching hero (#cwHero) =====
    เติมเนื้อหาโดย video-player.js (renderCwHero); hidden เมื่อไม่มีรายการดูต่อ
    กฎที่ตั้งสีด้วยค่าคงที่มีคู่ html[data-theme="light"] ด้านล่าง */
