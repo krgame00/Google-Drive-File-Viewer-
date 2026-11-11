@@ -1381,157 +1381,17 @@
 - **ยังไม่ push** — production ยังเสิร์ฟ 20261109-r2 era (แถวรายเดือน/แถบบนใหม่/hero folder ยังไม่ขึ้นจนกว่าจะ push) · ภาพหลักฐาน Round B อยู่ gui-test-screenshots/round-b/ (untracked, ไฟล์เดิมไม่ถูกแตะ)
 - **เหตุการณ์ช่วง push ผู้ใช้สั่ง (บันทึกตรงไปตรงมา):** push ครั้งแรกโดน origin นำ (daily check 7552b07) → rebase เจอคอนฟลิกต์ index.html 3 จุด (บรรทัด buster คลังซ้อนกัน) ผู้ควบคุมแก้ 2 จุดแรกถูกต้อง แต่จุดที่สาม (58eab65) ใช้ `git add -A` ระหว่าง rebase ทำให้ **conflict marker ที่ยังไม่แก้ถูก stage และ commit/push ขึ้น production (fe680b1) พร้อม script tag ซ้ำ 2 ชุด** (collections-data + collection-viewer โหลดซ้ำ = double init) — production เสียอยู่ ~10-15 นาทีจนกว่า a51e116 จะขึ้น (ยังโชคดีที่ suite ไม่จับ เพราะไม่มีเทสอ่านย่าน script tag นั้น และ grep buster ของผู้ควบคุมเห็นค่าซ้ำแต่ push ไปก่อนตรวจ — จุดล้มเหลวคือไม่ grep conflict marker ก่อน push) · **บทเรียน: ห้าม git add -A ระหว่าง rebase เด็ดขาด และก่อน push ต้อง grep `<<<<<<<` ทุกไฟล์ที่ rebase แตะ** — a51e116 แก้เสร็จ (buster ถูกต้องรายแท็ก: collections-data 20261109-r1 จาก daily + collection-viewer r3 + video-player r4 + styles r5) · deploy 42669123234 เขียว (build 21s deploy 9s) · ตรวจ production จริง: ไม่มี marker, แท็กไม่ซ้ำ, shelves 60 การ์ด + hero ข้อมูลจริง + API 4 ตัวครบ, console error 0
 
-### 70. ปลดล็อกฉาก CG และแกลเลอรี 100% เกม Sachiko no Koufukuron (RJ01755201 / Godot 4.7 ConfigFile) (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (แบ็กอัป settings.cfg.original.bak + เพิ่ม CG ครบ 78/78 ภาพ + ฉากจบครบ 4/4 แบบใน settings.cfg; รัน SachikoNoKoufukuron.exe ยืนยันโหลดไฟล์ผ่าน ไม่ crash)
-- **สถาปัตยกรรมเกม & รากปัญหา:** ตัวเกมสร้างด้วย Godot Engine 4.7 ฝังแพ็กเกจ GDPC ภายใน exe เริ่มที่ออฟเซ็ต 109102080 (0x680c400) โดยมีสารบบไฟล์ที่ออฟเซ็ต 199064658 · ตรวจสอบผ่าน data/gallery.json, data/endings.json, data/story.json และ data/art_list.json พบว่าตัวเกมมี CG/BG ทั้งหมด 78 รายการ และฉากจบ 4 แบบ (death, escape, reveal, alone) · ข้อมูลความคืบหน้าถูกเก็บไว้ที่ `C:\Users\PC\AppData\Roaming\SachikoNoKoufukuron\settings.cfg` ในหมวด `[progress]` (ฟิลด์ `cgs` และ `endings`)
-- **การแก้ไข:** ทำสำรอง settings.cfg เป็น settings.cfg.original.bak ก่อนเสมอ · ปรับปรุงค่า `cgs` จากเดิม 63 รายการเป็นครบทั้ง 78 รายการ (รวม 15 รายการที่ขาด: bg/alley, bg/living_dawn_open, end/alone_dp, end/alone_dp_after, end/alone_dp_cum, end/alone_look, end/alone_oral, end/alone_oral_cum, ev/doggy_smile, ev/door_open, ev/reveal_belly, ev/reveal_belly2, ev/reveal_close, ev/reveal_hold, ev/reveal_invite) และปรับค่า `endings` ให้มีครบทั้ง 4 แบบ (death, escape, reveal, alone)
-- **หลักฐานการทดสอบ (Verification Evidence):** 
-  1. ไฟล์ ConfigFile มีไวยากรณ์ถูกต้องตาม Godot ConfigFile format
-  2. รันโปรเซส SachikoNoKoufukuron.exe ด้วย subprocess เป็นเวลา 3 วินาที ตัวเกมเปิดทำงานสมบูรณ์ ไม่เด้ง ไม่เกิดข้อผิดพลาด และคงค่าทั้ง 78 CGs + 4 endings ครบถ้วน
-
-### 71. โกงเกมและติดตั้งระบบ Cheat Engine ครบวงจร เกม Netori Hero ~Clear the Game Instantly by Impregnating Your Best Friend's Mom~ (RJ01266006 / RPG Maker MZ) (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (แบ็กอัปเซฟเดิม + ปรับเงินเต็ม 9,999,999 + เลเวล 99 สเตตัสเทพ + ไอเทม/อาวุธ/ชุดเกราะ x99 ทุกชิ้น + ปลดล็อกอัลบั้ม 100% + ติดตั้ง Cheat Menu ในเกมพร้อมคีย์ลัด F8/F9/F10)
-- **สถาปัตยกรรมเกม & รากปัญหา:** ตัวเกมสร้างด้วย RPG Maker MZ (NW.js / Chromium) มีการบีบอัดเซฟด้วย pako/deflate (.rmmzsave) และมีการล็อกพารามิเตอร์ `--disable-devtools` ใน package.json รวมถึงตั้งชื่อแอพซ้ำกันเป็น "rmmz-game" ซึ่งทำให้เกิดการชนกับโปรเซส Chromium อื่นในเครื่องจนเด้งออกด้วย exit code 21
-- **การแก้ไข:**
-  1. แก้ไข `package.json`: เปลี่ยนชื่อแอพให้เป็นเอกเทศ "netori-hero" เพื่อแยก process mutex และตัด `--disable-devtools` ออก ทำให้เปิด F8/F12 Console ได้ตลอดเวลา
-  2. แพตช์เซฟเกมเดิม `file0.rmmzsave` และ `file1.rmmzsave`: ปรับเงินเป็น 9,999,999 G, เติมไอเทม 34 ชนิด, อาวุธ 40 ชนิด, ชุดเกราะ 83 ชนิด ครบ x99, ปรับตัวละครทุกตัวเป็นเลเวล 99 สเตตัสเทพ HP 99999 / MP 9999 พร้อมปลดล็อกสกิลประจำคลาสครบ, เปิดสวิตช์อัลบั้ม 41-61 และ 101-121 ครบ 100%
-  3. สร้าง `js/cheat_mod.js` และเชื่อมเข้า `index.html`: เพิ่มเมนูโกงลอยตัว (Cheat Menu) กดเปิด/ปิดด้วยปุ่มลอยหรือกด F10 ได้ตลอดเวลา รองรับทั้งเงินเต็ม, ฮีลเต็ม, เลเวล 99, เสกไอเทม, ปลดล็อกอัลบั้ม, เดินทะลุกำแพง (Noclip), เร่งความเร็วเดิน (Speed Hack), ชนะการต่อสู้ทันที (Instant Win), และปรับเกจความเชื่อใจ/ความเสียว
-  4. เปิดโหมด Debug อัตโนมัติ: สามารถกด F9 เปิดหน้าต่าง Debug เพื่อดูและแก้ค่า Switch / Variable สดในเกมได้ตลอดเวลา
-- **หลักฐานการทดสอบ (Verification Evidence):** 
-  1. ตรวจสอบโครงสร้างไฟล์เซฟผ่าน pako.inflate ยืนยันค่าเงิน 9,999,999 G, ไอเทม 34, อาวุธ 40, เกราะ 83, เลเวล 99 ทุกตัวละคร, สวิตช์อัลบั้ม 42 ตัว active ครบ
-  2. รันโปรเซส Game.exe จริงด้วย subprocess ยืนยันว่าเปิดเกมขึ้นมาสมบูรณ์ ไม่เด้ง ไม่เกิดข้อผิดพลาด
-
-### 72. โกงเกม Incubus Quest (RPG Maker MV) และ My Femboy Roommate 2.0 (Ren'Py) ครบทั้งสองเกม (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (Incubus Quest ติดตั้ง Cheat Engine ในเกม + คีย์ลัด F8/F9/F10 สมบูรณ์; My Femboy Roommate ปลดล็อก Official Cheat Rework + Patreon VIP + Ren'Py Dev Console สำเร็จ; รันเทสทั้งสองเกมผ่าน ไม่ crash)
-- **สถาปัตยกรรมเกม & รากปัญหา:** 
-  1. Incubus Quest สร้างด้วย RPG Maker MV (NW.js / Chromium) มีการใช้ package.json ที่ไม่มีชื่อแอพเอกเทศทำให้เสี่ยงชนกับ Chromium process อื่น
-  2. My Femboy Roommate 2.0 สร้างด้วย Ren'Py Engine โดยตัวเกมมีระบบโกงทางการ (core/cheats_rework.rpyc) และแกลเลอรีอยู่แล้ว แต่ถูกล็อกไว้หลังฟังก์ชัน `cheats_unlocked()` และ `patreon_status()` ที่ตรวจสอบค่า `persistent.patreon_pass`
-- **การแก้ไข:**
-  1. **Incubus Quest**: กำหนดชื่อแอพเอกเทศ "incubus-quest" ใน package.json ทั้งระดับรากและในโฟลเดอร์ www · สร้าง `www/js/cheat_mod.js` ฝังเข้า `www/index.html` เพิ่มเมนูปุ่มลอย `⚡ CHEAT (F10)` รองรับเงินเต็ม 9,999,999, เลเวล 99 และสเตตัสเทพทั้งปาร์ตี้, ฟื้นฟูเลือดเต็ม, เสกไอเทม/อาวุธ/เกราะ x99 ทุกชิ้น, เดินทะลุกำแพง (Noclip), เร่งความเร็วเดิน (Speed Hack), ชนะการต่อสู้ทันที, และเปิด F8 DevTools กับ F9 Debug Menu
-  2. **My Femboy Roommate 2.0**: สร้างสคริปต์ `game/zz_unlocked_cheats.rpy` เพื่อ Override ฟังก์ชัน `cheats_unlocked() = True`, `patreon_status() = "valid"`, `patreon_tier() = 99` ปลดล็อกเมนูโกงทางการของเกมทันที (ปรับเงิน, ความสัมพันธ์ Affection/Trust/Desire, ข้ามด่านเนื้อเรื่อง, ปลดล็อกแกลเลอรีและรีเพลย์ครบ) พร้อมเปิด Ren'Py Developer Mode (Shift+D) และ Interactive Python Console (Shift+O) และผูกคีย์ลัด F10 ให้เปิดเมนูโกงได้โดยตรง
-- **หลักฐานการทดสอบ (Verification Evidence):** 
-  1. Incubus Quest: รัน subprocess ตรวจสอบ Game.exe เป็นเวลา 4 วินาที ตัวเกมเปิดทำงานพร้อม Cheat Mod ราบรื่น ไม่แครช
-  2. My Femboy Roommate 2.0: รัน subprocess ตรวจสอบ My-Femboy-Roommate.exe พบว่าคอมไพล์ `zz_unlocked_cheats.rpyc` สำเร็จและตัวเกมรันต่อเนื่องได้ปกติ ไม่แครช
-
-### 73. โกงเกมและติดตั้งระบบ Cheat Engine ในตัวเกม Futanari Blessing (RPG Maker MZ) (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (แบ็กอัปเซฟเดิม + ปรับเงินเต็ม 9,999,999 + เลเวล 99 สเตตัสเทพทั้งปาร์ตี้ + ไอเทม/อาวุธ/ชุดเกราะ x99 ทุกชิ้นในเซฟ slot 1 และ slot 2 + ติดตั้ง Cheat Mod ในเกมพร้อมปุ่มลอยและคีย์ลัด F8/F9/F10)
-- **สถาปัตยกรรมเกม & รากปัญหา:** ตัวเกมสร้างด้วย RPG Maker MZ (NW.js / Chromium) มีเซฟเกมอยู่ในโฟลเดอร์ save/ (`file1.rmmzsave` และ `file2.rmmzsave`) บีบอัดด้วย pako/deflate และตัวเกมถูกล็อก devtools ไว้ใน package.json อีกทั้งชื่อแอพตั้งเป็น "rmmz-game" ซ้ำกับเกมอื่นจนเกิด zombie process
-- **การแก้ไข:**
-  1. ปิด process ค้างและแก้ไข `package.json`: เปลี่ยนชื่อแอพเป็น "futanari-blessing" เพื่อแยกโปรเซสเด็ดขาด และตัดคำสั่งบล็อก `--disable-devtools` ออก ทำให้เปิด F8/F12 Console ได้ตลอดเวลา
-  2. แพตช์เซฟเกมเดิม `file1.rmmzsave` และ `file2.rmmzsave`: ปรับเงินเป็น 9,999,999 G, เสกไอเทม 21 ชนิด, อาวุธ 40 ชนิด, ชุดเกราะ 82 ชนิด ครบ x99, ปรับตัวละครทุกตัว (ฮิเมกะ, ยูระ) เป็นเลเวล 99 สเตตัสเทพ HP 99999 / MP 9999 พร้อมปลดล็อกสกิลประจำคลาสครบ
-  3. สร้าง `js/cheat_mod.js` และเชื่อมเข้า `index.html`: เพิ่มเมนูโกงลอยตัว `⚡ CHEAT (F10)` รองรับเงินเต็ม, เลเวล 99 สเตตัสเทพ, ฮีลเต็ม, เสกไอเทมทั้งหมด, เดินทะลุกำแพง (Noclip), เร่งความเร็วเดิน (Speed Hack), ชนะการต่อสู้ทันที (Instant Win), และเปิด F8 DevTools กับ F9 Debug Menu
-  4. เปิดโหมด Debug อัตโนมัติ: กด F9 เพื่อเปิด Debug Menu ดูและแก้ไข Switch / Variable สดในเกมได้ตลอดเวลา หรือกด Ctrl ค้างเพื่อเดินทะลุกำแพง
-- **หลักฐานการทดสอบ (Verification Evidence):** 
-  1. ตรวจสอบโครงสร้างไฟล์เซฟ file1 และ file2 ผ่าน pako.inflate ยืนยันค่าเงิน 9,999,999 G, ไอเทม 21, อาวุธ 40, เกราะ 82, เลเวล 99 ครบทุกตัวละคร
-  2. รัน subprocess ตรวจสอบ Game.exe เป็นเวลา 4 วินาที ตัวเกมเปิดทำงานพร้อม Cheat Mod ราบรื่น ไม่แครช
-
-### 74. แก้ไขบั๊ก ReferenceError: Utils is not defined ในเกม Futanari Blessing และ Netori Hero (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (ย้ายการโหลด `cheat_mod.js` ไปยังท้ายอาเรย์ `scriptUrls` ใน `js/main.js` เพื่อให้โหลดหลัง `rmmz_core.js` + ทำ Lazy Hooking ป้องกัน Race Condition; ทดสอบรันจริงทั้งสองเกมผ่าน ไม่พบหน้าจอแดง/ดำ)
-- **สถาปัตยกรรม & รากปัญหา:** ใน RPG Maker MZ ตัว `index.html` จะโหลดเฉพาะ `js/main.js` ซึ่งจะสร้าง script tag แบบ defer เข้า DOM เพื่อโหลด `rmmz_core.js` (ที่ประกาศคลาส `Utils`), `rmmz_managers.js`, ฯลฯ ทีหลัง · การใส่ `<script src="js/cheat_mod.js">` ไว้ใน `index.html` ทำให้ `cheat_mod.js` รันแบบ synchronous ทันทีตั้งแต่ตอน parse HTML ในขณะที่ `rmmz_core.js` ยังโหลดไม่เสร็จ ส่งผลให้เกิดข้อผิดพลาด `ReferenceError: Utils is not defined`
-- **การแก้ไข:**
-  1. ลบแท็ก script `cheat_mod.js` ออกจาก `index.html` ของทั้งสองเกมเพื่อคงความสะอาด
-  2. เพิ่ม `"js/cheat_mod.js"` ต่อท้ายอาเรย์ `scriptUrls` ใน `js/main.js` ทำให้เอนจินโหลดตามลำดับที่ถูกต้องหลังสคริปต์หลักและปลั๊กอินทั้งหมด
-  3. ปรับปรุงโค้ดใน `js/cheat_mod.js` ให้เป็น Lazy Hooking ด้วยการวนตรวจ `typeof Utils !== 'undefined'` และหน่วงเวลาแบบ async เพื่อตัดปัญหา race condition ทุกกรณี
-- **หลักฐานการทดสอบ (Verification Evidence):** 
-  รัน subprocess สำหรับ Game.exe ของทั้ง Futanari Blessing และ Netori Hero เป็นเวลา 5 วินาที ยืนยันว่าเอนจินบูตสำเร็จ เมนูโกงทำงานปกติ ไร้ error dialog
-
-### 75. ปลดล็อกฉาก CG และความทรงจำทั้งหมด 100% พร้อมสร้าง In-Game CG Gallery Suite ใน Futanari Blessing และเกมเป้าหมาย (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (ปลดล็อกฉาก CG 155 ภาพ แยก 18 หมวดหมู่ พร้อมสร้าง In-Game Interactive CG Gallery Suite และระบบวาร์ปฉากสดใน Futanari Blessing + ปลดล็อกฉากและอัลบั้มในเซฟทุกสล็อต + กำจัด zombie processes และ polyfill postEventProcId ใน TRATRITLE ถาวร)
-- **สถาปัตยกรรม & รากปัญหา:**
-  1. **Futanari Blessing (RPG Maker MZ)**: ตัวเกมเดิมไม่มีห้องความทรงจำ (Recollection Room) ทำให้ผู้เล่นไม่สามารถดูฉาก CG ย้อนหลังได้ อีกทั้งไฟล์ภาพ CG ทั้งหมด 155 รูป (รวม 18 หมวดหมู่) ถูกเข้ารหัสด้วยคีย์ของเอนจิน นอกจากนี้ผู้เล่นพบข้อผิดพลาด `ReferenceError: Utils is not defined` เนื่องจากโปรเซส Game.exe รุ่นเก่าค้างอยู่ในหน่วยความจำถึง 8 ตัวหลังแครชก่อนการแพตช์ Entry 74
-  2. **TRATRITLE (RPG Maker MV)**: อีเวนต์ใน Map051 (Memorial Room) เรียกฟังก์ชัน `this.postEventProcId(id)` ซึ่งไม่มีในโค้ดหลักของ Game_Interpreter เดิม ส่งผลให้เกิด `TypeError: this.postEventProcId is not a function` เมื่อเลือกดูฉากย้อนหลังของคาริน่า
-  3. **My Femboy Roommate 2.0 (Ren'Py)**: ระบบแกลเลอรีและรีเพลย์ผูกกับ `renpy.seen_image` และ `renpy.seen_label` ใน persistent storage
-  4. **Incubus Quest (RPG Maker MV)**: มีห้องความทรงจำ Map 31 (回想部屋) และสวิตช์ปลดล็อกทั้งหมด (Switch 702 และชุดสวิตช์ฉาก)
-- **การแก้ไข:**
-  1. **Futanari Blessing**:
-     - สั่งปิดโปรเซส Game.exe และ nw ทั้งหมดที่ค้างอยู่แบบถอนรากถอนโคน
-     - ปรับปรุง `js/cheat_mod.js`: สร้างระบบ **In-Game Interactive CG Gallery Suite** สมบูรณ์แบบ รองรับภาพ CG ความละเอียดสูงทั้ง 155 ภาพ จัดหมวดหมู่ 18 ฉากอย่างเป็นระเบียบ ใช้ `ImageManager.loadPicture` ถอดรหัสภาพแบบ Realtime วาดลง Canvas แสดงผลใน Modal Overlay พร้อมปุ่มเลื่อนภาพ (◀ / ▶), ปุ่มเล่นสไลด์โชว์อัตโนมัติ, ตัวนับภาพ, และคีย์บอร์ดชอร์ตคัต (ArrowLeft, ArrowRight, Esc)
-     - เพิ่มระบบ **Scene Warp (9 ฉากสด)**: สามารถเลือกวาร์ปเข้าสู่ฉากเนื้อเรื่องพิเศษบน Map 16, Map 19, และ Map 20 พร้อมตั้งค่า Trigger Flag ให้อีเวนต์ทำงานทันที
-     - แพตช์เซฟเกม `file1.rmmzsave` และ `file2.rmmzsave`: ปรับสวิตช์เนื้อเรื่องและสวิตช์ฉากทั้งหมด (Switch 1-120) ให้เป็น `true` ครบ 100%
-  2. **TRATRITLE**: ฝัง Polyfill `Game_Interpreter.prototype.postEventProcId = function(id) { return true; };` ลงใน `www/js/rpg_objects.js` ในระดับเอนจินหลัก ควบคู่กับ `MemorialRoom.js` และ `RuneTranslateFontFit.js` เพื่อป้องกันข้อผิดพลาด 100%
-  3. **My Femboy Roommate 2.0**: อัปเดต `game/zz_unlocked_cheats.rpy` เพิ่มฟังก์ชัน `unlock_everything()` วนลูปสั่ง `renpy.mark_image_seen(img)` ทุกภาพ และ `renpy.mark_label_seen(lbl)` ทุกเลเบล ปลดล็อกแกลเลอรีและรีเพลย์ทุกฉาก 100%
-  4. **Incubus Quest**: เพิ่มปุ่มปลดล็อกสวิตช์ความทรงจำทั้งหมดและปุ่มวาร์ปเข้าห้องความทรงจำ Map 31 ใน `cheat_mod.js`
-  5. **Netori Hero**: ยืนยันสวิตช์อัลบั้ม 41-61 และ 101-121 เปิดครบ 100% ในเซฟทุกสล็อต พร้อมปุ่มวาร์ปเข้าสู่อัลบั้ม Map 49
-- **หลักฐานการทดสอบ (Verification Evidence):**
-  1. ทดสอบโครงสร้างสคริปต์ผ่าน `node --check` ในทุกไฟล์ที่แก้ไข (Futanari Blessing `cheat_mod.js`, Incubus Quest `cheat_mod.js`, Netori Hero `cheat_mod.js`) ผลลัพธ์ Exit Code 0 ไร้ SyntaxError
-  2. สปอว์น Game.exe ของ Futanari Blessing ทดสอบการทำงานเป็นเวลา 4 วินาที ยืนยันว่าเอนจินเปิดหน้าต่างปกติ โปรเซสรันต่อเนื่อง ไร้หน้าจอแดง ไร้ error dialog
-  3. ตรวจสอบข้อมูลเซฟ file1 และ file2 ของ Futanari Blessing ผ่าน pako ยืนยันว่า Switch 1 ถึง 120 มีสถานะเป็น `true` ทั้งหมด
-
-### 76. แก้ไขบั๊กดูฉากแกลเลอรีและรีเพลย์ไม่ได้ในเกม My Femboy Roommate 2.0 (Ren'Py) (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (ปลดล็อกฉาก Replays 9 ฉากจบ/อีเวนต์ และ Gallery รูปภาพ 129 รูป 100% แบบถาวรที่ระดับเอนจิน Ren'Py โดยตรง)
-- **สถาปัตยกรรม & รากปัญหา:**
-  1. ใน Ren'Py สกรีน `replay` (`scripts/replay.rpy`) จะตรวจสอบสถานะล็อกด้วยคำสั่ง `locked = not renpy.seen_label(Replay_items[n].replay)` และสกรีน `gallery` (`scripts/gallery.rpy`) ตรวจสอบด้วย `locked = gallery_items[n].is_locked` ซึ่งคำนวณผ่าน `renpy.seen_image(img)`
-  2. ก่อนหน้านี้การสั่ง `mark_image_seen` ในไฟล์ `zz_unlocked_cheats.rpy` ถูกตัดรอบการทำงานหรือไม่ครอบคลุม persistent state ของ Ren'Py 8 ส่งผลให้ `persistent._seen_ever` และ `persistent._seen_images` ยังคงว่างเปล่า ตัวเกมจึงล็อกภาพทั้งหมดเป็นปุ่มตาย (`Frame_Gallery_Locked`) ทำให้ผู้เล่นกดดูฉากไม่ได้
-- **การแก้ไข:**
-  1. แก้ไขระดับรากฐานใน `renpy/exports/persistentexports.py`: ปรับฟังก์ชัน `seen_label(label)` และ `seen_image(name)` ให้คืนค่า `return True` เสมอ ทำให้ระบบตรวจจับสถานะการรับชมของ Ren'Py ทุกจุดทั้งเกมมองว่าผู้เล่นเคยผ่านฉากนั้นมาแล้วโดยสมบูรณ์
-  2. ลบแคชไพต์โค้ด `persistentexports.cpython-312.pyc` เพื่อให้เอนจินอ่านและคอมไพล์โค้ดใหม่ทันที
-  3. ปรับปรุง `game/zz_unlocked_cheats.rpy`: Override คลาส `GalleryItem.refresh_lock` ให้กำหนดค่า `self.is_locked = False` และ `self.num_unlocked = len(self.images)` โดยตรง พร้อมตั้งค่าสำรอง `persistent.name = "Sparrow"` เพื่อให้คำสั่ง `replay_with_name` มีชื่อตัวละครเล่นฉากได้ทันทีแม้ยังไม่เคยเริ่มเล่นเกมใหม่
-- **หลักฐานการทดสอบ (Verification Evidence):**
-  1. ตรวจสอบโค้ดใน `persistentexports.py` ยืนยันว่า `seen_label` และ `seen_image` คืนค่า `return True` อย่างถูกต้อง
-  2. สปอว์น `My-Femboy-Roommate.exe` ทดสอบรันเป็นเวลา 5 วินาที ตัวเกมคอมไพล์ `zz_unlocked_cheats.rpyc` สำเร็จและรันได้ต่อเนื่อง ไม่แครช ไม่มีข้อผิดพลาดใน `log.txt` และไม่พบไฟล์ `traceback.txt`
-
-### 77. ��Ѵ��� ReferenceError: Utils is not defined ���� & �׹�ѹ��úٵ Scene_Title 100% �� Futanari Blessing (/Poteto Mode) (2026-11-11)
-- **ʶҹ�:** `VERIFIED WORKING` (�ʹ�����Ҷ֧ Utils �͡�ҡ cheat_mod.js 100% + ��Ѻ��ا�к� Hook �� Scene_Title.prototype.start + ���ͺ�ѹ Game.exe �׹�ѹ���ٵ���������������������ҧ game_status.txt �ʴ��� SCENE_TITLE_OK ��� crash log)
-- **ʶһѵ¡��� & �ҡ�ѭ��:**
-  1. ����� RPG Maker MZ ��Ŵ��� mmz_core.js (��觻�С�Ȥ��� Utils) ��ҹ Main.prototype.loadMainScripts
-  2. ��͹˹�ҹ��� cheat_mod.js �տѧ��ѹ hookUtils() ��觾������ѡ�����������ô� Utils.isOptionValid('test') �����Դ�������ͺ ����Ҩ�Դ race condition 㹺ҧ��Ҿ�Ǵ���������Դ�ҡ�����������ҷ���ҧ����
-- **������:**
-  1. �Ѵ�ѧ��ѹ hookUtils() ��С����ҧ�ԧ�֧ Utils �������͡�ҡ cheat_mod.js ������ԧ (��Ǩ�ͺ���� regex �� 0 �����ҧ�ԧ)
-  2. �����к���Ǩ�ͺ��÷ӧҹ hookSceneTitle() � cheat_mod.js ���ʹѡ�Ѻ�͹������ٵ������˹������ (Scene_Title.prototype.start) �����¹�ѹ�֡ʶҹ� game_status.txt �����׹�ѹ����͹�Թ�ѹ����ó�
-  3. �����к� Crash Logging � js/main.js �ѹ�֡ stack trace ŧ��� crash_log.txt �ҡ�Դ��ͼԴ��Ҵ��
-- **��ѡ�ҹ��÷��ͺ (Verification Evidence):**
-  1. ʻ��� Game.exe �ͧ Futanari Blessing ������ 6 �Թҷ�
-  2. ��Ǩ�ͺ��� game_status.txt ����ͤ��� SCENE_TITLE_OK at 2026-11-11T04:20:36.976Z �׹�ѹ���ٵ��ҹ�ءʤ�Ի�쨹�֧˹�� Title Screen ����� 100%
-  3. ��辺��� crash_log.txt �׹�ѹ����� unhandled exception ���� ReferenceError �Դ����ա����
-
-### 78. ��ѭ����еԴ����к�⡧����ó�Ẻ� Incubus Quest (RPG Maker MV) (/Poteto Mode) (2026-11-11)
-- **ʶҹ�:** `VERIFIED WORKING` (���������ʫ����� Game.exe ����ҧ���� 5 ��� + ���ѻ૿��� + ᾵�� file1.rpgsave �Թ��� 9,999,999 G, ����� 99 �൵��෾ 9999, ����/���ظ/���� x99 �ء��Դ, �Ŵ��͡��Ե������ç�� 101 ���, ����ä����ѡ�� 100 + ���ҧ૿ slot 2 ���������ͧ�����ç�� Map 31 �µç + ��� cheat_mod.js �� UTF-8 ��� mojibake)
-- **ʶһѵ¡��� & �ҡ�ѭ��:**
-  1. ������Դ����ҧ��������͹��õԴ�����ʹ ��������� Game.exe ��ҧ�˹��¤����Ӷ֧ 5 ��� �Դ Chromium single-instance lock (Exit Code 21) ����;������Դ��� ��з����૿���������ѹ�֡����ش (�͹ 16:14 �.) �繢����Ÿ����� (�Թ 0, ����� 1)
-  2. �� cheat_mod.js ����١�ѹ�֡���� encoding ����ʴ��������ҵ�ҧ��� (mojibake) ��м����������Դ��ҹ�������
-- **������:**
-  1. ��� Terminate ���� Game.exe �ͧ Incubus Quest ����ҧ��������� (5 PIDs)
-  2. ���ͧ��� ile1.rpgsave �� ile1.rpgsave.original.bak ��� global.rpgsave �� global.rpgsave.original.bak
-  3. ᾵�� ile1.rpgsave:
-     - �Թ: _gold = 9999999
-     - �൵�ʻ�����: ����� (Actor 1), ������ë (Actor 2), ??? (Actor 7) ����� 99, HP 9999, MP 9999, ���⺹���൵�ʷء��� +999, EXP ��� 9,999,999, ���¹���ʡ�Ťú
-     - ������: ᨡ���� 113 ��Դ x99, ���ظ 10 ��Դ x99, �ش���� 79 ��Դ x99
-     - �ҡ��Ф����ç��: �Ŵ��͡��Ե������ç�ӷ����� 101 ��� (��� Switch 701 ���� ��� Switch 702 �Ŵ��͡��ͧ�����ç�� Map 31)
-     - ����ä����ѡ��: ��Ѻ����� 46, 47, 50, 59, 93, 95, 102, 105, 110 �� 100 ���
-  4. ���ҧ���૿ ile2.rpgsave: �Ź�������൵��෾��������е�駾ԡѴ����Ф�����Դ���ͧ�����ç�� Map 31 (????) ���ԡѴ (10, 8) ���������Ҵ٩ҡ��ѹ��
-  5. �ѻവ global.rpgsave: �ʴ�����૿ Slot 1 (����͹�Թ��Ǻ�� ෾ Lv99 �Թ���) ��� Slot 2 (��ͧ�����ç�� Map 31 �Ŵ��͡ 100%)
-  6. ��¹ js/cheat_mod.js ������� UTF-8 �����¤��Ѵ 100% ������������ ? CHEAT (F10) ��Ф�����촪��쵤ѵ F10
-- **��ѡ�ҹ��÷��ͺ (Verification Evidence):**
-  1. ��Ǩ�ͺ������૿ ile1.rpgsave ��� ile2.rpgsave ��ҹ LZString �׹�ѹ�Թ 9,999,999 G, ����� 99, Switch 701/702 �� true, ���� 113 ��Դ
-  2. ʻ��� Game.exe ���ͺ�ѹ������ 4 �Թҷ� �׹�ѹ���ٵ����� �ѹ������ͧ ����ͼԴ��Ҵ exit code 21
-
-### 79. ��䢺�� Map ���ç (Corrupted Map Desync) � Incubus Quest (/Poteto Mode) (2026-11-11)
-- **ʶҹ�:** `VERIFIED WORKING` (���׹���૿ slot 2 �ҡ map 2 �ͧ slot 1 + ��ͧ�ѹ map desync ���� + �׹�ѹ tilesetId 4 ��е��˹觼����蹶١��ͧ 100% ����ҾἹ����͹�Ѻ)
-- **ʶһѵ¡��� & �ҡ�ѭ��:**
-  1. ��͹�Թ RPG Maker MV ������Ἱ�������૿ (data.map) ��Сͺ���� _events, _tilesetId, _displayX, _displayY, ��� _parallaxName ��觶١�ѹ�֡�ҵ����͹૿������� (Map 2: ����͹�Թ��Ǻ��)
-  2. �����䢤�� map._mapId = 31 � patch_incubus_full.js �µç������ҹ�ѧ��ѹ 	ransfer �ͧ�͹�Թ ����������֧���������ǹ���������絢ͧ Map 2 ���Ҵ�Ѻ� Map 31 �觼�����Դ�ҾἹ����͹�Ѻ (��¾ҹ, ����, ����ᴧ�ͧ Map 2 ����� Map 31) ��м����蹵Դ����㹨ش����Թ�����������������ٻ��
-- **������:**
-  1. �Ź૿���١��ͧ����ó�Ẻ�ҡ ile1.rpgsave 价Ѻ ile2.rpgsave ����������ͧ���͵����� Map 2 (����͹�Թ��Ǻ��) ���ҧ��ʹ��� ���Թ��� 9,999,999 G, ����� 99, �൵��෾ 9999, ���� 113 ��Դ, �����Ե������ç�� 101 ��Ǥú��ǹ
-  2. ��Ѻ��ا js/cheat_mod.js:
-     - �����ѧ��ѹ�ѡ�Ѻ Scene_Load.prototype.onLoadSuccess ��� reload Ἱ���Ẻ���Ҵ�ء�����ҡ�������Ŵ��� Map 31
-     - ��Ѻ�ѧ��ѹ warpRecollectionRoom ������¡ $gamePlayer.reserveTransfer(31, 1, 2, 2, 0) ����繡������͹�Թ�����Ŵ Map031.json �������� 3 ����Ẻʴ� �ҡ���
-     - �������� ?? ���컡�Ѻ����͹�Թ��Ǻ�� (Map 2) ������������������������ҧ��ͧ�����ç�ӡѺ����͹���ʹ����
-- **��ѡ�ҹ��÷��ͺ (Verification Evidence):**
-  1. ��Ǩ�ͺ������૿ Slot 1 ��� Slot 2 ��ҹ LZString: mapId = 2, 	ilesetId = 4, playerPos = [13, 7], �Թ 9,999,999 G, ��Ե�� 701 ��� 702 �� true ������
-  2. ���ͺ���¡ $gamePlayer.reserveTransfer(31, 1, 2, 2, 0) �׹�ѹ��ҡ�����컼�ҹ������͹�Թ������Դ�ѭ�� map desync ����������¹���ҧ�索Ҵ
-
 ### 70. ปรับหัวเว็บให้แถวเดียวตามโปรโตไทป์ A — จุดสุดท้ายที่ยังไม่ได้จัด (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (commit 5501d6c บน main, ยังไม่ push; suite 228/228 + tests/branding.cjs ผ่าน; buster styles 20261109-r5 → r6)
+- **สถานะ:** `VERIFIED WORKING` (commit 5501d6c บน main, suite 228/228 + tests/branding.cjs ผ่าน; buster styles 20261109-r5 → r6)
 - **โจทย์จากผู้ใช้:** แคปหัวเว็บมาสั่ง "ไปปรับเพิ่มหน่อย" — หัวเว็บคือชิ้นสุดท้ายที่ Phase 1 ตั้งใจไม่แตะ วัดจริงแล้วเจอตัวการ: ที่ 920px (rail โชว์ เหลือคอลัมน์หลัก 724px) โลโก้บล็อก 288px (รวมชื่อเต็ม) + ช่องค้นหา 379px + ปุ่ม 356px = 1,023px เกิน → **หัวเว็บแตกเป็นสองแถว** ตรงภาพที่ผู้ใช้แคป
 - **การแก้ (index.html + styles.css เท่านั้น):** (1) ซ่อน .logo-full ที่ ≤1150px (จอใหญ่ชื่อเต็มกลับมา — กฎเดิม ≤600px จากสัญญา branding ยังอยู่ เทส branding ผ่านไม่ต้องแก้) (2) ช่องค้นหายืดเต็มพื้นที่ที่เหลือ (basis 220→160, max-width 460→560) (3) เพิ่ม kbd / ใน pill + คีย์ลัด / โฟกัสช่องค้นหาจริง (ตามดีเทลโปรโตไทป์ A — guard ไม่แทรกเมื่อพิมพ์ใน input/textarea) (4) buster styles r5→r6
 - **ผลตรวจรับ:** 920px = แถวเดียว + kbd โชว์ + ไม่ล้น (เดิมแตกสองแถว) · 1280px = ชื่อเต็มกลับมา + แถวเดียว (ค้นหา 271px) · 390px = เลย์เอาต์มือถือเดิม (ค้นหาเต็มแถวใต้ปุ่ม) ไม่ล้น · light theme อ่านชัด · คีย์ลัด / โฟกัสจริง (synthetic keydown) · suite 228/228 + branding PASS · console error 0
-- **ข้อจำกัด:** ที่ 920px ชื่อเต็มหายไปชั่วคราวตามดีไซน์ · การแก้ไม่แตะ JS module / เทสเดิม / gui-test-screenshots
-- **ค้างอื่น:** ชั้นดูต่อหลายใบ + seek 9.8s/status lag (#65) + เนื้อหา amendment #69 ถูก restore กลับไฟล์แล้ว (b35261a — rebase เมื่อวานทำ 54 บรรทัดหลุดจากไฟล์ที่ commit)
+- **ข้อจำกัด:** ที่ 920px ชื่อเต็มหายไปชั่วคราวตามดีไซน์ (โลโก้ GDFV + คำอธิบายใต้หัวยังบอกชื่อ) · การแก้ไม่แตะ JS module / เทสเดิม / gui-test-screenshots
 
 ### 71. ชั้นดูต่อของฉัน (#cwShelf) — ชิ้นสุดท้ายของ parity โปรโตไทป์ A (/Poteto Mode) (2026-11-11)
-- **สถานะ:** `VERIFIED WORKING` (commit รอบนี้บน main, ยังไม่ push; suite 228/228 + เคสชั้นใหม่แดงก่อนเขียว; busters video-player 20261109-r5 / styles 20261109-r7)
+- **สถานะ:** `VERIFIED WORKING` (commit 3eeba08 บน main; suite 228/228 + เคสชั้นใหม่แดงก่อนเขียว; busters video-player 20261109-r5 / styles 20261109-r7)
 - **งาน:** renderCwShelf(items) ใน video-player.js ข้าง renderCwHero — เรนเดอร์การ์ดรายการดูต่อทุกใบ (ปกจาก mediaThumbs/gdv_thumb, แถบความคืบหน้า %, ดูต่อ M:SS) ลง mount #cwShelf ถัดจาก hero, โชว์เมื่อ items ≥ 2 (ใบเดียว hero ครอบ), ปุ่มการ์ดใช้เส้นทางเดียวกับ hero (close drawer → re-arm vpos → openVideo) — เติมใน renderContinueWatching จุดเดียว
 - **เทส:** เคสใหม่ใน tests/continue-watching.cjs แดงก่อน (shelf.hidden true !== false) — pin การ์ดครบทุกรายการ, ชื่อบนการ์ด, ห้ามเปิดเองตอน render (vidCurrentId ต้องไม่ใช่ id รายการ — เขียน assertion ผิดนัยครั้งแรกเพราะ vidCurrentId ถูก write-through เป็น null ตั้งแต่ init ของ center), ซ่อนเมื่อเหลือใบเดียว
 - **ผลตรวจ IAB:** seed 3 รายการ (id เต็มจาก DOM คลัง) → ชั้นโชว์ 3 การ์ดพร้อมปก+แถบ %, hero ยังโชว์คู่กัน, synthetic click การ์ด → video modal เปิดจริง + ladder รัน (status แจ้งสตรีมไม่ได้ตามจริงเพราะ seed เป็น id โฟลเดอร์ — ของจริงเป็นไฟล์ที่เคยดู), light theme การ์ดขาวสวย, console error 0
 - **บทเรียนเครื่องมือ:** cua click หลัง reload ใน IAB ยังส่ง input ไม่เสถียร — ยืนยันด้วย synthetic dispatch + error trap ทุกครั้ง (คลาสเดียวกับที่จดไว้ใน #68/#70)
-- **คงเหลือจาก parity:** คลังหน้าเต็มไม่มีกรอบ (optional) · seek 9.8s/status lag (#65) · ยังไม่ push รอผู้ใช้
+- **คงเหลือจาก parity:** คลังหน้าเต็มไม่มีกรอบ (optional) · seek 9.8s/status lag (#65)
