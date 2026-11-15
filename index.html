@@ -33,7 +33,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261109-r7" />
+  <link rel="stylesheet" href="styles.css?v=20261115-r1" />
 
 </head>
 
@@ -495,6 +495,13 @@
 
       </div>
 
+        <!-- แถบเวลา hover preview (variant B) — JS เปิดใช้เมื่อเล่นวิดีโอจริงเท่านั้น ซ่อนในโหมด iframe/ย่อ -->
+        <div class="vid-seek-strip" id="vidSeekStrip" hidden>
+          <div class="vid-seek-track"><i class="vid-seek-played"></i><i class="vid-seek-marker"></i></div>
+          <div class="vid-seek-pop" id="vidSeekPop"><canvas id="vidSeekCanvas" width="384" height="216"></canvas><div class="vid-seek-time" id="vidSeekTime">0:00</div></div>
+          <div class="vid-seek-pill" id="vidSeekPill" hidden>0:00</div>
+        </div>
+
         <!-- Cinematic chrome — แถวปุ่มใต้วิดีโอ (ไม่ทับภาพ/ปุ่มควบคุม) -->
         <div class="chrome-top" id="vidChrome">
           <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า" title="วิดีโอก่อนหน้า">&#8249;</button>
@@ -665,7 +672,7 @@
   <script src="video-cache.js?v=20261102-r1"></script>
   <script src="stream-protocol.js?v=20261104-r1"></script>
   <script src="app-core.js?v=20261111-r1"></script>
-  <script src="video-player.js?v=20261109-r5"></script>
+  <script src="video-player.js?v=20261115-r1"></script>
   <script src="drive-explorer.js?v=20261111-r1"></script>
   <script src="media-lightbox.js?v=20261104-r5"></script>
   <script src="collections-data.js?v=20261115-r1" defer></script>

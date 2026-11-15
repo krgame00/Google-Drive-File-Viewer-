@@ -1181,6 +1181,116 @@
 
     .chrome-top .media-nav:active { transform: scale(0.94); }
 
+    /* ===== แถบเวลา hover preview ใต้วิดีโอ (variant B — YouTube-style) ===== */
+
+    .vid-seek-strip {
+
+      position: relative;
+
+      display: flex; align-items: center;
+
+      height: 20px; padding: 0 14px;
+
+      background: rgba(255,255,255,0.03);
+
+      border-top: 1px solid rgba(255,255,255,0.07);
+
+      cursor: pointer;
+
+      touch-action: none;
+
+      transition: opacity 0.25s ease;
+
+    }
+
+    .vid-seek-strip[hidden] { display: none; }
+
+    .vid-seek-track {
+
+      position: relative; width: 100%; height: 4px;
+
+      border-radius: 99px; background: rgba(255,255,255,0.17);
+
+      transition: height 0.1s ease;
+
+    }
+
+    .vid-seek-strip:hover .vid-seek-track { height: 7px; }
+
+    .vid-seek-played {
+
+      position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+
+      background: var(--accent); border-radius: 99px;
+
+    }
+
+    .vid-seek-marker {
+
+      position: absolute; top: -3px; bottom: -3px; left: 0; width: 3px;
+
+      border-radius: 2px; background: rgba(255,255,255,0.8);
+
+      transform: translateX(-50%); opacity: 0;
+
+    }
+
+    .vid-seek-strip:hover .vid-seek-marker { opacity: 1; }
+
+    .vid-seek-pop {
+
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+
+      transform: translateX(-50%);
+
+      background: rgba(10,10,12,0.94); border: 1px solid rgba(255,255,255,0.14);
+
+      border-radius: 12px; overflow: hidden;
+
+      box-shadow: 0 14px 40px rgba(0,0,0,0.8);
+
+      opacity: 0; pointer-events: none;
+
+      transition: opacity 0.12s ease;
+
+      z-index: 40;
+
+    }
+
+    .vid-seek-strip:hover .vid-seek-pop { opacity: 1; }
+
+    .vid-seek-pop[hidden] { display: none; }
+
+    .vid-seek-pop canvas { display: block; width: 192px; height: 108px; background: #000; }
+
+    .vid-seek-time {
+
+      padding: 5px 10px 7px; text-align: center; font-size: 12px;
+
+      color: #e8eaf6; font-variant-numeric: tabular-nums;
+
+      border-top: 1px solid rgba(255,255,255,0.08);
+
+    }
+
+    .vid-seek-pill {
+
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+
+      transform: translateX(-50%);
+
+      background: rgba(0,0,0,0.88); border: 1px solid rgba(255,255,255,0.17);
+
+      border-radius: 8px; padding: 4px 10px;
+
+      font-size: 12px; color: #fff; font-variant-numeric: tabular-nums;
+
+      white-space: nowrap; pointer-events: none; z-index: 40;
+
+    }
+
+    .vid-seek-pill[hidden] { display: none; }
+
     .vid-error-overlay {
 
       position: absolute; left: 12px; right: 12px; bottom: 96px; z-index: 34;
@@ -1325,6 +1435,8 @@
     /* เมื่อเล่นอยู่และเมาส์นิ่ง JS จะใส่ .chrome-hidden บน #videoModal */
 
     .video-modal.chrome-hidden .chrome-top,
+
+    .video-modal.chrome-hidden .vid-seek-strip,
 
     .video-modal.chrome-hidden .title-overlay { opacity: 0; pointer-events: none; }
 
@@ -2489,6 +2601,14 @@
       padding-left: max(12px, env(safe-area-inset-left));
       padding-right: max(12px, env(safe-area-inset-right));
     }
+
+    /* แถบ hover preview ลอยทับขอบล่างวิดีโอในโหมดเต็มจอ (คู่กับ .chrome-top ที่ลอยด้านบน) */
+    .video-box:fullscreen .vid-seek-strip,
+    .video-box.pseudo-fullscreen .vid-seek-strip {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 30;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      background: linear-gradient(transparent, rgba(0,0,0,0.62));
+    }
     .video-box:fullscreen .ratio,
     .video-box.pseudo-fullscreen .ratio {
       flex: 0 0 auto;
@@ -2655,6 +2775,7 @@
     .video-modal.minimized #vidTurboBlob {
       display: none !important;
     }
+    .video-modal.minimized .vid-seek-strip { display: none !important; }
     .video-modal.minimized .chrome-top {
       padding: 6px 8px !important;
       background: rgba(18, 18, 24, 0.96) !important;
