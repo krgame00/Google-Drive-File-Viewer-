@@ -1420,7 +1420,7 @@
 
 ### #73 ภาค production (push ตามคำสั่ง) — 2026-11-15
 
-- push 4d8806d..774161f (2 คอมมิต) — rebase ตรวจแล้ว up to date, **บทเรียน grep:** bare  โดนข้อความอ้างอิงใน notes #69 (บรรทัดเดียว เหมือนกันทั้ง local/origin) ครั้งหน้าใช้  ตรงต้นบรรทัด
+- push 4d8806d..774161f (2 คอมมิต) — rebase ตรวจแล้ว up to date, **บทเรียน grep:** bare <<<<<<< โดนข้อความอ้างอิงใน notes #69 (บรรทัดเดียว เหมือนกันทั้ง local/origin) ครั้งหน้าใช้ ^<<<<<<< ตรงต้นบรรทัด
 - deploy pages-build-deployment 43726124722 เขียว; CDN เสิร์ฟ index ใหม่ (styles r1 + video-player 20261115-r1) และไฟล์ที่ buster ใหม่มีโค้ด vidSeekStrip / vid-seek-strip จริง
 - **กลไกล็อกอินบน production (proxy proof):** คลิกจริง (cua) หนึ่งครั้งหลัง reload → marker pointerdown = 1, requestAccessToken ถูกเรียก **หนึ่งครั้งด้วย {prompt:""}** เป๊ะตามดีไซน์ — token ไม่กลับมาในแท็บ automation ของผมเพราะสภาพแวดล้อม IAB automation ไม่ปล่อย popup ของ GIS จบ (ป้ายปุ่มแสดงข้อความ reconnect ตามดีไซน์) ขั้นจบคือคลิกจริงในเบราว์เซอร์ของผู้ใช้เอง
 - **gotcha ใหม่ (จดเพื่อครั้งหน้า):** synthetic pointerdown (dispatchEvent) จุด listener {once:true} ของ hook คลิกแรกให้ทำงานแล้วหมดอายุทันที แม้ popup จะถูกบล็อก — ทดสอบล็อกอินแบบอัตโนมัติต้อง reload ก่อนทุกครั้งและใช้คลิกจริงเป็นครั้งแรก
