@@ -37,6 +37,10 @@
   // see the comment where it is filled in.
   const asyncBridge = {};
 
+  // สตริง scope เดียวที่ทั้ง GIS token client และ silent redirect URL ใช้ร่วมกัน
+  // (สองจุดนี้ห้ามต่างกัน ไม่งั้น Google จะถือเป็น scope ใหม่และโชว์หน้า consent)
+  const AUTH_SCOPE = "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.appdata";
+
   with (appApi) {
       function refreshClientIdStatus() {
 
@@ -100,11 +104,117 @@
 
       }
 
+      function authSessionFlag(key) {
+
+        try { if (typeof sessionStorage !== "undefined" && sessionStorage.getItem) return sessionStorage.getItem(key); } catch (_) {}
+
+        return null;
+
+      }
+
+      function authSessionSetFlag(key, val) {
+
+        try { if (typeof sessionStorage !== "undefined" && sessionStorage.setItem) sessionStorage.setItem(key, val); } catch (_) {}
+
+      }
+
+      function authSessionClearFlag(key) {
+
+        try { if (typeof sessionStorage !== "undefined" && sessionStorage.removeItem) sessionStorage.removeItem(key); } catch (_) {}
+
+      }
+
+      function buildSilentAuthUrl() {
+
+        if (typeof location === "undefined" || !location.origin || !location.pathname) return null;
+
+        let nonce = "";
+
+        if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+
+          const bytes = new Uint8Array(12);
+
+          crypto.getRandomValues(bytes);
+
+          nonce = Array.from(bytes).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+
+        } else {
+
+          while (nonce.length < 24) nonce += (Math.random() + 1).toString(16).slice(2);
+
+          nonce = nonce.slice(0, 24);
+
+        }
+
+        authSessionSetFlag('gdv_silent_state', nonce);
+
+        authSessionSetFlag('gdv_silent_hash', location.hash || '');
+
+        // implicit flow แบบ full-page: เบราว์เซอร์ไม่บล็อกเพราะไม่ใช่ popup จึงทำงานได้โดยไม่ต้องมี gesture
+        return "https://accounts.google.com/o/oauth2/v2/auth?response_type=token&prompt=none" +
+          "&client_id=" + encodeURIComponent(clientId) +
+          "&redirect_uri=" + encodeURIComponent(location.origin + location.pathname) +
+          "&scope=" + encodeURIComponent(AUTH_SCOPE) +
+          "&include_granted_scopes=true" +
+          "&state=" + nonce;
+
+      }
+
+      function consumeAuthFragment() {
+
+        if (typeof location === "undefined" || !location.hash) return false;
+
+        const frag = location.hash;
+
+        // app hash (#/f/...) ไม่มีรูปแบบ OAuth response ต้องไม่ถูกแตะ
+        if (frag.indexOf("access_token=") < 0 && frag.indexOf("error=") < 0) return false;
+
+        const params = new URLSearchParams(frag.replace(/^#/, ""));
+
+        const savedState = authSessionFlag('gdv_silent_state');
+
+        if (!savedState || params.get("state") !== savedState) {
+
+          // fragment เก่าหรือแปลกปลอม (state ไม่ตรง) → ล้างทิ้ง ไม่กิน token เป็นของเรา
+          try { if (typeof history !== "undefined" && history.replaceState) history.replaceState(null, "", location.pathname + (location.search || "")); } catch (_) {}
+
+          return false;
+
+        }
+
+        const savedHash = authSessionFlag('gdv_silent_hash');
+
+        authSessionClearFlag('gdv_silent_state');
+
+        authSessionClearFlag('gdv_silent_hash');
+
+        const token = params.get("access_token");
+
+        finishTokenRequest(token ? { access_token: token, expires_in: Number(params.get("expires_in")) || undefined } : null);
+
+        // replaceState ครั้งเดียว: ล้าง OAuth fragment ออก และคืน deep link (#/...) ที่เปิดค้างไว้
+        // พร้อมกัน เพื่อไม่ให้ fragment รูปแบบ Google ค้างใน URL จนรีโหลดแล้ว parse ซ้ำ
+        if (typeof history !== "undefined" && history.replaceState) {
+
+          const restore = savedHash && savedHash.charAt(0) === "#" && savedHash.charAt(1) === "/";
+
+          try { history.replaceState(null, "", location.pathname + (location.search || "") + (restore ? savedHash : "")); } catch (_) {}
+
+        }
+
+        return !!token;
+
+      }
+
       function finishTokenRequest(resp) {
         if (resp && !resp.error && resp.access_token) {
           accessToken = resp.access_token;
           tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
           lsSet('gdv_auth_remember', clientId);
+          // ได้ token จากช่องทางอื่น (popup/gesture) เมื่อมี state เงียบค้างจากรอบก่อน → ล้างทิ้ง
+          // ไม่งั้นรีโหลดถัดไปโดน loop guard ข้าม redirect เงียบตลอด ทั้งที่เชื่อมต่อสำเร็จแล้ว
+          authSessionClearFlag('gdv_silent_state');
+          authSessionClearFlag('gdv_silent_hash');
           fetchUserProfile();
         } else {
           accessToken = null;
@@ -123,18 +233,35 @@
         waitForGis(function () {
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/drive.appdata",
+            scope: AUTH_SCOPE,
             callback: finishTokenRequest,
             error_callback: function () { finishTokenRequest(null); }
           });
           refreshAuthUI(!!accessToken);
-          if (!authRestoreAttempted && !accessToken && lsGet('gdv_auth_remember') === clientId) {
+
+          // ต้องอ่านธง "พยายามเชื่อมต่อเงียบค้างอยู่" ก่อน consumeAuthFragment
+          // เพราะถ้า Google ตอบ error กลับมา มันจะกิน flag ทิ้ง — เราจำเป็นต้องรู้ว่ารอบนี้
+          // เพิ่งกลับมาจากความพยายามเงียบ เพื่อห้าม redirect ซ้ำจนกลายเป็นลูป
+          const pendingSilent = authSessionFlag('gdv_silent_state');
+
+          const fragOk = consumeAuthFragment();
+
+          if (!authRestoreAttempted && !accessToken && !fragOk && lsGet('gdv_auth_remember') === clientId) {
+
             authRestoreAttempted = true;
-            // Best effort only: browsers can block this popup without a user gesture.
-            // Never loop; leave a reconnect button when interaction is required.
-            // prompt:'' = silent-if-granted (สิทธิ์เดิมของ client เดิมจะคืน token โดยไม่ขึ้นจอ)
-            try { tokenClient.requestAccessToken({prompt: ''}); }
-            catch (_) { finishTokenRequest(null); }
+
+            // รอบก่อนยังไม่ได้คำตอบ (state ค้างใน sessionStorage) → ห้ามยิง redirect ซ้ำ
+            // ให้ปุ่ม reconnect หรือคลิกแรกด้านล่างรับงานต่อ
+            if (!pendingSilent) {
+
+              const url = buildSilentAuthUrl();
+
+              // full-page redirect ไม่ต้องอาศัย user gesture เหมือน popup ที่ Chromium บล็อกตอนโหลดหน้า
+              try { if (url) location.replace(url); }
+              catch (_) { finishTokenRequest(null); }
+
+            }
+
           }
           // คลิกแรกของหน้า = user gesture → popup อนุญาต → เชื่อมต่อเงียบ ๆ กลับมาเอง
           // จำกัดหนึ่งครั้งต่อหน้า (authGestureHooked) และเฉพาะผู้ใช้ที่เคยจำการเชื่อมต่อไว้
