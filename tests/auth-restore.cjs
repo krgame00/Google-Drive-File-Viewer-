@@ -135,6 +135,23 @@ delete ctx.crypto;
 const fallbackUrl=ctx.buildSilentAuthUrl();
 assert.ok(/state=[0-9a-f]{24}/.test(fallbackUrl),'Math.random fallback still mints a 24-hex nonce');
 
+// GIS-delayed/blocked: fragment intake and silent redirect must NOT wait for external GIS script load.
+freshLoad();
+sessionStore.delete('gdv_silent_state');
+sessionStore.delete('gdv_silent_hash');
+let gisBlockedCalled = false;
+ctx.waitForGis = () => { gisBlockedCalled = true; /* never executes cb synchronously */ };
+store.set('gdv_auth_remember','client');
+ctx.initTokenClient();
+assert.equal(typeof ctx.__redirect,'string','silent redirect initiates immediately without waiting for GIS script');
+const blockedNonce = sessionStore.get('gdv_silent_state');
+freshLoad();
+ctx.location.hash = '#access_token=instant_tok&expires_in=3600&state=' + blockedNonce;
+ctx.initTokenClient();
+assert.equal(ctx.accessToken,'instant_tok','fragment token applied instantly without waiting for GIS script');
+assert.equal(ctx.__replaceState[2],'/app/','fragment cleaned instantly even if GIS script is delayed or blocked');
+ctx.waitForGis = cb => cb(); // restore original helper
+
 // Bug 6a: เมื่อกดออกจากระบบ (Sign out) ต้องปิด Lightbox (ถ้าเปิดรูป/PDF ส่วนตัวค้างอยู่) และล้าง MEDIA_CACHE (gdv-media-v1) ด้วย
 const signOutStart = html.indexOf('      authBtn.addEventListener("click"');
 const signOutEnd = html.indexOf('      // ===== Extract ID =====', signOutStart);

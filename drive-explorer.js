@@ -230,6 +230,26 @@
 
       function initTokenClient() {
         if (!clientId) return;
+
+        // ต้องอ่านธง "พยายามเชื่อมต่อเงียบค้างอยู่" ก่อน consumeAuthFragment
+        // เพราะถ้า Google ตอบ error กลับมา มันจะกิน flag ทิ้ง — เราจำเป็นต้องรู้ว่ารอบนี้
+        // เพิ่งกลับมาจากความพยายามเงียบ เพื่อห้าม redirect ซ้ำจนกลายเป็นลูป
+        const pendingSilent = authSessionFlag('gdv_silent_state');
+
+        const fragOk = consumeAuthFragment();
+
+        if (!authRestoreAttempted && !accessToken && !fragOk && lsGet('gdv_auth_remember') === clientId) {
+          authRestoreAttempted = true;
+          // รอบก่อนยังไม่ได้คำตอบ (state ค้างใน sessionStorage) → ห้ามยิง redirect ซ้ำ
+          // ให้ปุ่ม reconnect หรือคลิกแรกด้านล่างรับงานต่อ
+          if (!pendingSilent) {
+            const url = buildSilentAuthUrl();
+            // full-page redirect ไม่ต้องอาศัย user gesture เหมือน popup ที่ Chromium บล็อกตอนโหลดหน้า
+            try { if (url) location.replace(url); }
+            catch (_) { finishTokenRequest(null); }
+          }
+        }
+
         waitForGis(function () {
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
@@ -239,30 +259,6 @@
           });
           refreshAuthUI(!!accessToken);
 
-          // ต้องอ่านธง "พยายามเชื่อมต่อเงียบค้างอยู่" ก่อน consumeAuthFragment
-          // เพราะถ้า Google ตอบ error กลับมา มันจะกิน flag ทิ้ง — เราจำเป็นต้องรู้ว่ารอบนี้
-          // เพิ่งกลับมาจากความพยายามเงียบ เพื่อห้าม redirect ซ้ำจนกลายเป็นลูป
-          const pendingSilent = authSessionFlag('gdv_silent_state');
-
-          const fragOk = consumeAuthFragment();
-
-          if (!authRestoreAttempted && !accessToken && !fragOk && lsGet('gdv_auth_remember') === clientId) {
-
-            authRestoreAttempted = true;
-
-            // รอบก่อนยังไม่ได้คำตอบ (state ค้างใน sessionStorage) → ห้ามยิง redirect ซ้ำ
-            // ให้ปุ่ม reconnect หรือคลิกแรกด้านล่างรับงานต่อ
-            if (!pendingSilent) {
-
-              const url = buildSilentAuthUrl();
-
-              // full-page redirect ไม่ต้องอาศัย user gesture เหมือน popup ที่ Chromium บล็อกตอนโหลดหน้า
-              try { if (url) location.replace(url); }
-              catch (_) { finishTokenRequest(null); }
-
-            }
-
-          }
           // คลิกแรกของหน้า = user gesture → popup อนุญาต → เชื่อมต่อเงียบ ๆ กลับมาเอง
           // จำกัดหนึ่งครั้งต่อหน้า (authGestureHooked) และเฉพาะผู้ใช้ที่เคยจำการเชื่อมต่อไว้
           if (!authGestureHooked && typeof document !== "undefined" && document.addEventListener) {
