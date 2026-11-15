@@ -7,7 +7,7 @@
 // owns the state and must expose it as live accessors:
 //
 //   accessors (get/set)   accessToken, apiKey, clientId, tokenExpiry, tokenClient,
-//                         tokenResolver, userProfile, authRestoreAttempted,
+//                         tokenResolver, userProfile, authRestoreAttempted, authGestureHooked,
 //                         navStack, driveLink, displayedFolderId, folderPositions,
 //                         folderRequest, folderAbort, currentFolderId, allFiles,
 //                         mediaThumbs, folderCoverQueue, folderCoverActive,
@@ -132,8 +132,20 @@
             authRestoreAttempted = true;
             // Best effort only: browsers can block this popup without a user gesture.
             // Never loop; leave a reconnect button when interaction is required.
-            try { tokenClient.requestAccessToken({prompt: 'none'}); }
+            // prompt:'' = silent-if-granted (สิทธิ์เดิมของ client เดิมจะคืน token โดยไม่ขึ้นจอ)
+            try { tokenClient.requestAccessToken({prompt: ''}); }
             catch (_) { finishTokenRequest(null); }
+          }
+          // คลิกแรกของหน้า = user gesture → popup อนุญาต → เชื่อมต่อเงียบ ๆ กลับมาเอง
+          // จำกัดหนึ่งครั้งต่อหน้า (authGestureHooked) และเฉพาะผู้ใช้ที่เคยจำการเชื่อมต่อไว้
+          if (!authGestureHooked && typeof document !== "undefined" && document.addEventListener) {
+            authGestureHooked = true;
+            document.addEventListener("pointerdown", function () {
+              if (accessToken || !tokenClient) return;
+              if (lsGet('gdv_auth_remember') !== clientId) return;
+              try { tokenClient.requestAccessToken({prompt: ''}); }
+              catch (_) { finishTokenRequest(null); }
+            }, { once: true });
           }
         });
       }

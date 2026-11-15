@@ -545,6 +545,7 @@
 
 
       let authRestoreAttempted = false;
+      let authGestureHooked = false;
       function finishTokenRequest(...args) {
         const api = window.GDVExplorerApi && window.GDVExplorerApi.explorer;
         if (!api || typeof api.finishTokenRequest !== "function") return undefined;
@@ -2333,6 +2334,8 @@
         set userProfile(value) { userProfile = value; },
         get authRestoreAttempted() { return authRestoreAttempted; },
         set authRestoreAttempted(value) { authRestoreAttempted = value; },
+        get authGestureHooked() { return authGestureHooked; },
+        set authGestureHooked(value) { authGestureHooked = value; },
         get navStack() { return navStack; },
         set navStack(value) { navStack = value; },
         get driveLink() { return driveLink; },

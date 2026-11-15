@@ -4,15 +4,20 @@ const driveSource=fs.readFileSync(path.join(__dirname,'..','drive-explorer.js'),
 const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
 function fn(name){const start=driveSource.indexOf('      function '+name+'(');assert(start>=0,name);return driveSource.slice(start,driveSource.indexOf('\n      }',start)+8)}
 const store=new Map(),requests=[];let config;
-const ctx={clientId:'client',accessToken:null,tokenExpiry:0,userProfile:null,tokenClient:null,tokenResolver:null,authRestoreAttempted:false,Date,
+const ctx={clientId:'client',accessToken:null,tokenExpiry:0,userProfile:null,tokenClient:null,tokenResolver:null,authRestoreAttempted:false,authGestureHooked:false,Date,
+document:{addEventListener(t,f){ctx.__gesture=f;}},
 lsGet:k=>store.get(k),lsSet:(k,v)=>store.set(k,v),lsRemove:k=>store.delete(k),waitForGis:cb=>cb(),fetchUserProfile(){},refreshAuthUI(){},
 google:{accounts:{oauth2:{initTokenClient(c){config=c;return {requestAccessToken:o=>requests.push(o)}}}}}};
 vm.createContext(ctx);for(const name of ['finishTokenRequest','initTokenClient','ensureToken'])vm.runInContext(fn(name),ctx);
 (async()=>{
 ctx.initTokenClient();assert.equal(requests.length,0,'first visit does not prompt');
-store.set('gdv_auth_remember','client');ctx.initTokenClient();assert.equal(requests.length,1);assert.equal(requests[0].prompt,'none');
+store.set('gdv_auth_remember','client');ctx.initTokenClient();assert.equal(requests.length,1);assert.equal(requests[0].prompt,'','boot restore uses the silent-if-granted prompt inside GIS');
 config.error_callback({type:'popup_failed_to_open'});assert.equal(ctx.accessToken,null);
-ctx.initTokenClient();assert.equal(requests.length,1,'no automatic retry loop');
+// Popup at page load is gesture-blocked in every browser — the reconnect must
+// retry from the FIRST user interaction (one-time gesture hook, never a loop).
+assert.equal(typeof ctx.__gesture,'function','a one-time gesture reconnect hook is registered');
+ctx.__gesture();assert.equal(requests.length,2);assert.equal(requests[1].prompt,'','gesture reconnect is silent-if-granted');
+ctx.initTokenClient();assert.equal(requests.length,2,'re-init must not register a second gesture hook');
 const pending=ctx.ensureToken();assert.equal(requests.at(-1).prompt,'');config.callback({access_token:'temporary',expires_in:3600});assert.equal(await pending,'temporary');assert.equal(store.get('gdv_auth_remember'),'client');assert(![...store.values()].includes('temporary'));
 const before= requests.length;
 const renewed=ctx.ensureToken(true);
