@@ -1395,3 +1395,11 @@
 - **ผลตรวจ IAB:** seed 3 รายการ (id เต็มจาก DOM คลัง) → ชั้นโชว์ 3 การ์ดพร้อมปก+แถบ %, hero ยังโชว์คู่กัน, synthetic click การ์ด → video modal เปิดจริง + ladder รัน (status แจ้งสตรีมไม่ได้ตามจริงเพราะ seed เป็น id โฟลเดอร์ — ของจริงเป็นไฟล์ที่เคยดู), light theme การ์ดขาวสวย, console error 0
 - **บทเรียนเครื่องมือ:** cua click หลัง reload ใน IAB ยังส่ง input ไม่เสถียร — ยืนยันด้วย synthetic dispatch + error trap ทุกครั้ง (คลาสเดียวกับที่จดไว้ใน #68/#70)
 - **คงเหลือจาก parity:** คลังหน้าเต็มไม่มีกรอบ (optional) · seek 9.8s/status lag (#65)
+
+### 72. แก้ล็อกอินหลุดทุกรอบ — เชื่อมต่อ Google เงียบ ๆ จากคลิกแรกของหน้า (/Poteto Mode) (2026-11-15)
+- **สถานะ:** `VERIFIED WORKING` (commit 5501d6c..รอบนี้บน main, ยังไม่ push; tests/auth-restore.cjs เขียวหลังแก้ pin + suite 228/228; busters drive-explorer 20261111-r1 / app-core 20261111-r1)
+- **อาการผู้ใช้:** "ล็อกอินหลุดทุกรอบ" — รีเฟรชทีไรต้องกดล็อกอินใหม่ทุกครั้ง
+- **Root cause:** token เก็บใน memory อย่างเดียวตามดีไซน์ (ไม่เขียน localStorage) + restore ตอนบูตยิง requestAccessToken({prompt:'none'}) ตอนโหลดหน้า **ไม่มี user gesture** → เบราว์เซอร์บล็อก popup ทุกครั้ง (error_callback popup_failed_to_open) → จำการเชื่อมต่อไว้แต่เชื่อมไม่เคยสำเร็จ
+- **การแก้:** (1) boot restore เปลี่ยนเป็น prompt เปล่า (silent-if-granted: สิทธิ์เดิม client เดิมคืน token ไม่ขึ้นจอ) (2) เพิ่ม one-time pointerdown hook — คลิกแรกของหน้าคือ user gesture → popup อนุญาต → เชื่อมต่อเงียบ ๆ กลับมาเอง (guard authGestureHooked บน bridge เดิม + เฉพาะผู้ใช้ที่จำการเชื่อมต่อ + ไม่วนลูป) — token ยัง memory-only ตามสัญญาเดิม
+- **เทส:** tests/auth-restore.cjs ปรับ pin prompt เปล่า + เพิ่ม pin gesture hook หนึ่งครั้ง (แดงก่อน: prompt none + hook หาย) · เอกสารวิธีของ GIS: prompt none ใน popup mode ต้องเจอ popup-blocked เหมือนเดิมจึงเลิกใช้
+- **ผลตรวจ IAB (local):** คลิกจริงหนึ่งครั้ง → คำขอเงียบ {prompt:""} ยิงครั้งเดียว (once จริง คลิกซ้ำไม่เพิ่ม), ไม่มี error · ความสำเร็จปลายทางจริงขึ้นกับ Google session ของเบราว์เซอร์ผู้ใช้ (ผู้ใช้พิสูจน์เองหลัง push)
