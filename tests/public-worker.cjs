@@ -176,7 +176,7 @@ test('open-ended media requests stream past the first 8 MiB in one continuous 20
 
 test('worker responses expose revision header via CORS without credentials',async()=>{
  const {createDriveWorker,WORKER_REVISION}=await worker;
- assert.match(WORKER_REVISION,/^2026-11-08/);
+ assert.match(WORKER_REVISION,/^2026-11/);
  const optRes=await createDriveWorker().fetch(new Request('https://worker.test/?id=w17',{method:'OPTIONS'}));
  assert.equal(optRes.status,204);
  assert.equal(optRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);
@@ -184,6 +184,49 @@ test('worker responses expose revision header via CORS without credentials',asyn
  const getRes=await createDriveWorker(async()=>new Response('data',{status:206,headers:{'Content-Type':'video/mp4','Content-Range':'bytes 0-3/100'}})).fetch(request('w17'));
  assert.equal(getRes.status,206);
  assert.equal(getRes.headers.get('X-GDV-Worker-Rev'),WORKER_REVISION);
+});
+
+test('telemetry endpoint accepts POST error summary, logs, and GET serves recent reports in JSON and HTML',async()=>{
+ const {createDriveWorker}=await worker;
+ const app=createDriveWorker();
+ const opt=await app.fetch(new Request('https://worker.test/telemetry',{method:'OPTIONS'}));
+ assert.equal(opt.status,204);
+ assert.equal(opt.headers.get('Access-Control-Allow-Origin'),'*');
+
+ const payload={
+  fileId:'testFile123',
+  title:'Clip A',
+  error:'downloadQuotaExceeded',
+  detail:'M4/N3/R0',
+  routes:[{route:'worker',outcome:'fail'}],
+  env:'Chrome 157 Windows'
+ };
+ const postRes=await app.fetch(new Request('https://worker.test/telemetry',{
+  method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify(payload)
+ }));
+ assert.equal(postRes.status,200);
+ const postJson=await postRes.json();
+ assert.equal(postJson.ok,true);
+ assert.equal(typeof postJson.stored,'number');
+
+ const getRes=await app.fetch(new Request('https://worker.test/telemetry'));
+ assert.equal(getRes.status,200);
+ const getJson=await getRes.json();
+ assert.equal(getJson.ok,true);
+ assert.ok(getJson.reports.length>0);
+ const last=getJson.reports[0];
+ assert.equal(last.fileId,'testFile123');
+ assert.equal(last.error,'downloadQuotaExceeded');
+ assert.equal(last.detail,'M4/N3/R0');
+
+ const htmlRes=await app.fetch(new Request('https://worker.test/telemetry?format=html'));
+ assert.equal(htmlRes.status,200);
+ assert.match(htmlRes.headers.get('Content-Type'),/text\/html/);
+ const html=await htmlRes.text();
+ assert.ok(html.includes('testFile123'));
+ assert.ok(html.includes('downloadQuotaExceeded'));
 });
 test('tail open-ended request reaching known EOF aborts stale prefetch immediately and avoids parallel split past EOF',async()=>{
  const {createDriveWorker}=await worker;const ranges=[],signals=[];

@@ -1,8 +1,8 @@
 // Public files only. Never forward an account token or Google cookies.
-export const WORKER_REVISION = '2026-11-08-r3';
+export const WORKER_REVISION = '2026-11-17-r1';
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS, POST',
   'Access-Control-Allow-Headers': 'Range, Content-Type',
   'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, X-GDV-Worker-Rev',
   'Cross-Origin-Resource-Policy': 'cross-origin',
@@ -252,11 +252,77 @@ async function createContinuousMediaResponse(id, firstResult, fileSize, signal, 
   headers.set('Accept-Ranges', 'bytes');
   return new Response(stream, {status: 206, headers});
 }
+// Recent telemetry error reports stored in isolate memory (up to 50 reports)
+const recentTelemetry = [];
+const MAX_TELEMETRY = 50;
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, function (c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+async function handleTelemetry(request) {
+  if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
+  const url = new URL(request.url);
+  if (request.method === 'POST') {
+    let body = null;
+    try { body = await request.json(); } catch (_) { return jsonError(400, 'malformedJson'); }
+    if (!body || typeof body !== 'object') return jsonError(400, 'invalidTelemetryPayload');
+    const entry = {
+      receivedAt: new Date().toISOString(),
+      fileId: String(body.fileId || '').slice(0, 100),
+      title: String(body.title || '').slice(0, 200),
+      error: String(body.error || '').slice(0, 200),
+      detail: String(body.detail || '').slice(0, 200),
+      routes: Array.isArray(body.routes) ? body.routes.slice(0, 12) : [],
+      env: String(body.env || '').slice(0, 300),
+      timestamp: String(body.timestamp || '').slice(0, 40)
+    };
+    recentTelemetry.unshift(entry);
+    if (recentTelemetry.length > MAX_TELEMETRY) recentTelemetry.pop();
+    try {
+      console.log('[GDV-TELEMETRY]', JSON.stringify({
+        fileId: entry.fileId,
+        error: entry.error,
+        detail: entry.detail,
+        time: entry.receivedAt
+      }));
+    } catch (_) {}
+    return new Response(JSON.stringify({ok: true, stored: recentTelemetry.length}), {
+      status: 200,
+      headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'}
+    });
+  }
+  if (request.method === 'GET') {
+    const accept = request.headers.get('Accept') || '';
+    if (url.searchParams.get('format') === 'html' || (accept.includes('text/html') && !url.searchParams.has('format'))) {
+      const rows = recentTelemetry.map(function (r, i) {
+        return '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(r.receivedAt) + '</td><td><code>' + escapeHtml(r.fileId) + '</code></td><td>' + escapeHtml(r.title) + '</td><td><strong style="color:#f7768e">' + escapeHtml(r.error) + '</strong> ' + (r.detail ? '(' + escapeHtml(r.detail) + ')' : '') + '</td><td>' + escapeHtml(r.env) + '</td></tr>';
+      }).join('');
+      const html = '<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><title>GDV Video Telemetry</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:24px;background:#1a1b26;color:#c0caf5}h1{font-size:18px;color:#7aa2f7}table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px}th,td{padding:8px 12px;border:1px solid #414868;text-align:left}th{background:#24283b;color:#bb9af7}tr:hover{background:#24283b}code{background:#24283b;padding:2px 6px;border-radius:4px;color:#7dcfff}</style></head><body><h1>GDV Video Telemetry — รายงานข้อผิดพลาด (' + recentTelemetry.length + '/' + MAX_TELEMETRY + ')</h1>' + (recentTelemetry.length ? '<table><thead><tr><th>#</th><th>เวลาบันทึก</th><th>File ID</th><th>ชื่อไฟล์</th><th>ข้อผิดพลาด</th><th>สภาพแวดล้อม</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p style="color:#565f89;margin-top:16px">ยังไม่มีรายงานข้อผิดพลาด</p>') + '</body></html>';
+      return new Response(html, {
+        status: 200,
+        headers: {...cors, 'Content-Type': 'text/html; charset=utf-8'}
+      });
+    }
+    return new Response(JSON.stringify({ok: true, total: recentTelemetry.length, reports: recentTelemetry}), {
+      status: 200,
+      headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'}
+    });
+  }
+  return jsonError(405, 'methodNotAllowed');
+}
+
 export function createDriveWorker(fetchImpl = fetch) {
   return {async fetch(request) {
     if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
+    const url = new URL(request.url);
+    if (url.pathname === '/telemetry' || url.pathname.endsWith('/telemetry') || url.searchParams.has('telemetry')) {
+      return handleTelemetry(request);
+    }
     if (!['GET', 'HEAD'].includes(request.method)) return jsonError(405, 'methodNotAllowed');
-    const id = new URL(request.url).searchParams.get('id');
+    const id = url.searchParams.get('id');
     if (!id || !/^[\w-]{1,200}$/.test(id)) return jsonError(400, 'invalidFileId');
     const range = request.headers.get('Range');
     const abort = new AbortController();

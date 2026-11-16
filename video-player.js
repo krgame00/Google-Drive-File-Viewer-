@@ -712,6 +712,7 @@ function createVideoCenter(app) {
     updateTurboUI: updateTurboUI,
     setDownloadTurboEnabled: setDownloadTurboEnabled,
     toggleDownloadTurbo: toggleDownloadTurbo,
+    sendVideoTelemetry: sendVideoTelemetry,
     prepareStreamWorker: prepareStreamWorker,
     showStreamFailure: showStreamFailure,
     tryStreamDirect: tryStreamDirect,
@@ -868,9 +869,12 @@ function createVideoCenter(app) {
         return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw + (origin ? ' · ' + origin : '') + ua;
       }
 
+      let telemetrySentId = null;
+
       function resetVideoTrace() {
         videoTrace.length = 0;
         videoTraceT0 = null;
+        telemetrySentId = null;
         traceVideoEvent('env', videoTraceEnvLine());
       }
 
@@ -878,6 +882,39 @@ function createVideoCenter(app) {
         const lines = ['รายงานวินิจฉัยวิดีโอ ' + new (typeof app.Date !== 'undefined' ? app.Date : Date)().toISOString(), videoTraceEnvLine(), vidCurrentId ? 'ไฟล์ ' + vidCurrentId : 'ไม่ทราบไฟล์'];
         videoTrace.forEach(function (ev, i) { lines.push((i + 1) + '. ' + ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d); });
         return lines.join('\n');
+      }
+
+      function sendVideoTelemetry(errorReason, detail) {
+        if (!vidCurrentId || telemetrySentId === vidCurrentId) return;
+        telemetrySentId = vidCurrentId;
+        const payload = {
+          fileId: vidCurrentId,
+          title: (app.vidTitle && app.vidTitle.textContent) || '',
+          error: String(errorReason || 'playback_failed'),
+          detail: String(detail || ''),
+          routes: (typeof videoTrace !== 'undefined' ? videoTrace : []).filter(function (ev) {
+            return ev.e === 'route' || ev.e === 'fail' || ev.e === 'swtok' || ev.e === 'swerr';
+          }).slice(-12),
+          env: typeof videoTraceEnvLine === 'function' ? videoTraceEnvLine() : '',
+          timestamp: new (typeof app.Date !== 'undefined' ? app.Date : Date)().toISOString()
+        };
+        const telemetryUrl = (WORKER_URL || '').replace(/\/+$/, '') + '/telemetry';
+        try {
+          const body = JSON.stringify(payload);
+          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && typeof Blob !== 'undefined') {
+            const blob = new Blob([body], { type: 'application/json' });
+            if (navigator.sendBeacon(telemetryUrl, blob)) return;
+          }
+          if (typeof app.fetch === 'function') {
+            app.fetch(telemetryUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: body,
+              mode: 'cors',
+              keepalive: true
+            }).catch(function () {});
+          }
+        } catch (_) {}
       }
 
       function copyVideoTrace() {
@@ -997,7 +1034,10 @@ function createVideoCenter(app) {
         const messages = {session:'เซสชันหมดอายุ กดเชื่อมต่อ Google ใหม่',signedout:'กรุณาเชื่อมต่อ Google เพื่อเล่นไฟล์นี้',permission:'บัญชีนี้อาจไม่มีสิทธิ์ดาวน์โหลดไฟล์ เปิดใน Drive เพื่อตรวจสอบ',quota:'Google จำกัดการใช้งานชั่วคราว กรุณาลองภายหลัง',server:'Google Drive ขัดข้องชั่วคราว',notfound:'ไม่พบไฟล์หรือบัญชีนี้เข้าถึงไม่ได้'};
         setVideoStatus('error', messages[category] || 'เชื่อมต่อวิดีโอไม่สำเร็จ กรุณาลองใหม่');
         // The response already confirms this route cannot play; do not wait for the media timeout.
-        if (['session', 'signedout', 'permission', 'quota', 'notfound'].includes(category) && app.vidPlayer.onerror) app.vidPlayer.onerror();
+        if (['session', 'signedout', 'permission', 'quota', 'notfound'].includes(category)) {
+          if (typeof sendVideoTelemetry === 'function') sendVideoTelemetry(data.reason || category, 'HTTP ' + data.status);
+          if (app.vidPlayer.onerror) app.vidPlayer.onerror();
+        }
         return true;
       }
 
@@ -1806,6 +1846,7 @@ function createVideoCenter(app) {
         // Preserve a more specific permission/quota error reported by the worker.
         const detail = typeof diagnostic === 'string' && /^M[0-4]\/N[0-3]\/R[0-4]$/.test(diagnostic) ? ' [' + diagnostic + ']' : '';
         setVideoStatus('error', (status && !status.hidden && status.textContent ? status.textContent : message) + detail);
+        if (typeof sendVideoTelemetry === 'function') sendVideoTelemetry(message, detail);
       }
 
       function tryStreamDirect(id, usePreferred = true, skipPublic = false) {
@@ -1900,6 +1941,7 @@ function createVideoCenter(app) {
                           : verdict === 'unknown'
                             ? 'ยังตรวจสอบข้อมูลวิดีโอไม่สำเร็จ ไม่สามารถยืนยันรูปแบบไฟล์ได้ — ลองใหม่หรือเปิดใน Drive'
                             : 'เชื่อมต่อสตรีมทดสอบไม่สำเร็จ อาจเป็นเครือข่ายหรือระบบสตรีม — ลองใหม่หรือเปิดใน Drive');
+                    if (typeof sendVideoTelemetry === 'function') sendVideoTelemetry(verdict === 'auth' ? 'downloadQuotaExceeded' : (verdict || 'stream_probe_failed'), '');
                   });
               };
               if (skipPublic) finishFailure();
@@ -3342,6 +3384,8 @@ function createVideoCenter(app) {
     renderContinueWatching,
     revokeCurrentVideo,
     closeVideo,
+    sendVideoTelemetry,
+    videoTraceReport,
   };
   Object.defineProperties(video, stateProps);
   return video;

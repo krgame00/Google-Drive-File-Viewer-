@@ -1443,3 +1443,28 @@
 - **ปัญหา:** เดิม `consumeAuthFragment()` และการยิง redirect เงียบถูกครอบอยู่ภายใน `waitForGis()` ทำให้ต้องรอสคริปต์ภายนอก `accounts.google.com/gsi/client` โหลดเสร็จก่อน (เสี่ยงต่อ adblocker หรือเน็ตช้า ทำให้ fragment `#access_token=...` ค้างบน address bar นานขึ้น)
 - **การแก้:** ย้าย `consumeAuthFragment()` และเงื่อนไขยิง redirect ออกมาทำงาน synchronous ทันทีที่ `initTokenClient()` ถูกเรียกตอนบูต — ล้าง hash และเก็บ token ลง memory ภายใน <1ms โดย `waitForGis()` รับผิดชอบเฉพาะการประกอบ `tokenClient` สำหรับ interactive popup และ fallback gesture เท่านั้น
 - **หลักฐานการทดสอบ:** `node tests/auth-restore.cjs` ผ่านครบ เพิ่มเคสจำลอง `waitForGis` ไม่รัน callback (GIS โดนบล็อก) ยืนยันว่า `ctx.accessToken` รับค่าสำเร็จและล้าง fragment ออกจาก URL ได้ทันที; `node --test tests/*.cjs` ผ่านครบ 229/229 เคส
+
+
+## #75 Cloud Telemetry: ส่ง Log สรุปข้อผิดพลาดสตรีมวิดีโอขึ้น Cloudflare Worker อัตโนมัติ (poteto-mode, playbook Feature) — 2026-11-17
+
+### Status: `VERIFIED WORKING` (suite 231/231 tests PASS; worker rev `2026-11-17-r1`, video-player `20261117-r1`)
+
+- **คำขอ:** ผู้ใช้สอบถามแนวทางเก็บ log สรุปและเลือกแนวทาง "2. ส่ง Log สรุปขึ้นระบบหลังบ้านอัตโนมัติ (Cloud Telemetry)" เพื่อวิเคราะห์ปัญหาการเล่นสตรีมล้มเหลว (เช่น เคสไฟล์ `1WomJKkeNpGMSJyQN3GV_czNBjwkHYMUt` ที่ติด M4/N3/R0 จาก downloadQuotaExceeded)
+- **สถาปัตยกรรม & การทำงาน:**
+  1. **Cloudflare Worker (`cloudflare-drive-worker.mjs` rev `2026-11-17-r1`):**
+     - เพิ่ม CORS method `POST`
+     - เพิ่ม endpoint `POST /telemetry`: รับ JSON payload `{ fileId, title, error, detail, routes, env, timestamp }` ทำการ parse และพิมพ์ `console.log('[GDV-TELEMETRY]', ...)` ลง Cloudflare Dashboard Tail/Log stream ทันที พร้อมเก็บลง array หน่วยความจำของ isolate (`recentTelemetry`) สูงสุด 50 รายการล่าสุด (FIFO ring buffer)
+     - เพิ่ม endpoint `GET /telemetry`: คืน JSON สรุปรายงานข้อผิดพลาดทั้งหมด หรือหากเรียกผ่านเบราว์เซอร์ (`Accept: text/html` หรือ `?format=html`) จะเรนเดอร์หน้า Dark-mode HTML Dashboard ตารางสรุป 50 เหตุการณ์ล่าสุดให้อัตโนมัติ
+  2. **Client-side Video Player (`video-player.js` rev `20261117-r1`):**
+     - สร้างฟังก์ชัน `sendVideoTelemetry(errorReason, detail)` ยิงแบบ fire-and-forget โดยใช้ `navigator.sendBeacon` พร้อม fallback เป็น `fetch` พร้อมแฟล็ก `keepalive: true` ไปยัง `${WORKER_URL}telemetry`
+     - มีระบบ Deduplication ต่อรอบการเปิดคลิป (`telemetrySentId = vidCurrentId`) เพื่อไม่ให้ยิงรายงานซ้ำซ้อน และรีเซ็ตอัตโนมัติเมื่อผู้ใช้เปิดคลิปใหม่ (`openVideo`)
+     - ผูกเข้ากับจุดเกิดข้อผิดพลาดรุนแรงที่เล่นต่อไม่ได้: `handleDriveStreamError` (โควตา/สิทธิ์หมด), `finishFailure` (หมดทุกเส้นทางสำรอง), และ `probePublicStreamError` fallback
+  3. **ความเป็นส่วนตัว (Zero-PII Privacy):**
+     - ไม่มีการส่ง OAuth token, Cookie, หรืออีเมลผู้ใช้เด็ดขาด
+     - ส่งเฉพาะ ID ไฟล์ Google Drive, ชื่อไฟล์, รหัสข้อผิดพลาด (เช่น `downloadQuotaExceeded`, `M4/N3/R0`), ลำดับ route ที่ล้มเหลว, และ User-Agent เบราว์เซอร์
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/public-worker.cjs` ผ่านครบ 23/23 เคส (รวมเคสเทส POST /telemetry, memory ring buffer, JSON & HTML dashboard)
+  - `node --test tests/video-telemetry.cjs` ผ่าน (เทส payload, deduplication, reset เมื่อ openVideo ใหม่, และ endpoint URL)
+  - `node --test tests/media-lifecycle.cjs` ผ่าน (regression test ทั้ง 50+ assertion ผ่านครบหลังครอบ safe type check)
+  - `node --test tests/*.cjs` ผ่านครบทั้งชุด 231/231 เคส (0 failures, 23.5s)
+  - Cache buster ใน `index.html`: `video-player.js?v=20261117-r1`
