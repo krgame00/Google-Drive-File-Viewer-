@@ -1468,3 +1468,4 @@
   - `node --test tests/media-lifecycle.cjs` ผ่าน (regression test ทั้ง 50+ assertion ผ่านครบหลังครอบ safe type check)
   - `node --test tests/*.cjs` ผ่านครบทั้งชุด 231/231 เคส (0 failures, 23.5s)
   - Cache buster ใน `index.html`: `video-player.js?v=20261117-r1`
+  - **Live Worker Proof:** ยิงทดสอบจริงบน `https://google-drive-file-viewer.missnlpp9.workers.dev/telemetry` ยืนยัน Header `X-GDV-Worker-Rev: 2026-11-17-r1` อัปเดตตรงเป๊ะ, ยิง POST สำเร็จตอบ `{"ok":true,"stored":1}`, และ GET คืนหน้า Dark-mode HTML Dashboard สมบูรณ์ 100%
