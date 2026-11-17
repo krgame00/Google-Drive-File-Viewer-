@@ -1469,3 +1469,11 @@
   - `node --test tests/*.cjs` ผ่านครบทั้งชุด 231/231 เคส (0 failures, 23.5s)
   - Cache buster ใน `index.html`: `video-player.js?v=20261117-r1`
   - **Live Worker Proof:** ยิงทดสอบจริงบน `https://google-drive-file-viewer.missnlpp9.workers.dev/telemetry` ยืนยัน Header `X-GDV-Worker-Rev: 2026-11-17-r1` อัปเดตตรงเป๊ะ, ยิง POST สำเร็จตอบ `{"ok":true,"stored":1}`, และ GET คืนหน้า Dark-mode HTML Dashboard สมบูรณ์ 100%
+
+## #76 โน้ตย้ายไฟล์ — บันทึกงานใหม่ทั้งหมดไปที่ docs/ZCODE-WORKING-NOTES.md (2026-11-17)
+
+### Status: ไฟล์นี้เป็น archive ตั้งแต่ entry นี้ — ไม่รับ entry ใหม่แล้ว (#1-#75 คือประวัติทั้งหมด)
+
+- **ที่มา:** ผู้ใช้สั่งให้ workflow ใช้งานง่ายไม่สับสนทุกระบบ — hook ฉีดโน้ตผิดโปรเจกต์ (working-notes.mjs ฉีด SuperK ทุกแชต) และ Stop hook เขียนดัชนีที่ไฟล์ SuperK เท่านั้น
+- **มาตรฐานใหม่:** ทุกโปรเจกต์ใช้ docs/ZCODE-WORKING-NOTES.md (เพิ่มบนสุด + ดัชนีอัตโนมัติจาก Stop hook) — hook ทั้งสองตัวอ่าน ZCODE_PROJECT_DIR แล้วชี้ไฟล์ของโปรเจกต์ตัวเอง
+- **ต่อจากนี้:** บันทึกงาน GDFV อ่าน/เขียนที่ docs/ZCODE-WORKING-NOTES.md (entry แรกพกสรุปสถานะโปรเจกต์ล่าสุดมาให้แล้ว)
