@@ -15,6 +15,20 @@
 - 7 พ.ย. 00:16 · `56eb1c14` · "สอบถามวิธี git push" · ⚠️ · ↳ "เล่นไม่ได้เลย มันหมุนนานมาก"
 <!-- session-index:auto:end -->
 
+## ตรวจระบบทั้งหมดบน production (audit หลัง telemetry + auth decouple + seek preview) — 2026-11-17
+
+### Status: ผ่านทุกระบบที่ตรวจได้ใน automation ไม่มี console error — เหลือ 2 จุดที่ต้องยืนยันในเบราว์เซอร์ผู้ใช้ (ของที่พ่วง Google session ของตัวเอง)
+
+- **Deploy/CDN:** buster ล่าสุดครบ (styles 20261115-r1, video-player 20261117-r1, drive-explorer 20261115-r2, collections-data 20261117-r1) — origin tip 812d4a4
+- **ล็อกอิน zero-click:** redirect ยิงทุก boot จริง (navigation entry กลับมา #error=interaction_required เหมือนเดิม — โปรไฟล์ automation ไม่มี Google session) + loop guard ถูกต้องไม่มีลูป + ป้าย reconnect แสดงถูก · **ตัวชี้ขาดยังเป็น reload ในเบราว์เซอร์ผู้ใช้**
+- **คลิกเปิดคลิปแบบไม่ล็อกอิน:** ensureToken พยายาม popup เงียบก่อน (คลิกจริง = gesture ผ่าน) แล้วเปิดหน้า sign-in เมื่อไม่มี session — พฤติกรรมถูกดีไซน์ ในเบราว์เซอร์ผู้ใช้ popup เงียบจะปิดตัวเองแล้วเล่นต่อ
+- **หน้าแรก/คอลเลกชัน:** rail (.page-rail), หัวแถวเดียว, ชั้นเดือน ก.ย./ต.ค./พ.ย. การ์ด 60 ใบพร้อมจุด alive/dead, ดูต่อซ่อนถูกต้องเมื่อไม่มีประวัติ, search สองทางเดินถูก (topSearch→collSearch), deep link #/f/... อัปเดต, breadcrumbs + toolbar ZIP + ชิปกรอง (ทั้งหมด 10/โฟลเดอร์ 5/วิดี 5) ครบ
+- **มือถือ 390:** แถบแท็บสองชั้น 5 ปุ่ม, rail ซ่อน, search คงค่าข้าม viewport, กลับเดสก์ท็อปคืนทุกอย่างถูก
+- **telemetry:** GET /telemetry 200, POST คืน {ok:true,stored:1}, sender อยู่ใน video-player ที่เสิร์ฟ (7 จุด) — หมายเหตุ: ผมยิง probe "audit-probe" 1 รายการจะปรากฏใน dashboard ของคุณ
+- **console:** 0 error / 0 unhandledrejection ระหว่าง sweep ทั้งหมด
+- **ค้าง (ของผู้ใช้):** (1) reload เบราว์เซอร์ตัวเองยืนยัน zero-click สำเร็จ (2) เปิดคลิปจริงแล้วชี้แถบเวลาดูเฟรมพรีวิวกับไฟล์ Drive จริง
+
+
 บันทึกประวัติการทำงานของ ZCode ทุก session เรียงจาก **ใหม่ไปเก่า** (ไฟล์นี้เป็นโน้ตหลักของโปรเจกต์ GDFV ตั้งแต่ 2026-11-17 — ประวัติเก่า #1-#75 อยู่ที่ docs/AI-WORKING-NOTES.md ซึ่งเป็น archive ไม่รับ entry ใหม่แล้ว)
 
 กติกา: จบ session ไหนให้เพิ่ม entry ใหม่ **ด้านบนสุด** ของรายการ โดยระบุสิ่งที่ทำ หลักฐาน/ผลตรวจ สถานะ commit และลิงก์เอกสารละเดียดถ้ามี
