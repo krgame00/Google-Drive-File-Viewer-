@@ -192,4 +192,20 @@ assert(viewerJs.includes('gdv_coll_random_seen'),'random seen state is persisted
     assert.notEqual(pick, current, `click ${i + 1}: must never re-open the item currently on screen`);
   }
 }
+// 7. Non-openable files (archives / no usable mime) never enter the random pool —
+//    they can only open as a Drive download tab, which the user reads as "สุ่มไม่เปลี่ยนหน้า"
+{
+  const s = createRandomEnv({}, [
+    { id: 'f1', date: '1.8.69', dead: false, kind: 'folder', url: 'https://drive.google.com/drive/folders/f1', title: 'F1' },
+    { id: 'r1', date: '2.8.69', dead: false, kind: 'file', url: 'https://drive.google.com/file/d/r1', title: 'R1.rar' },
+    { id: 'r2', date: '3.8.69', dead: false, kind: 'file', url: 'https://drive.google.com/file/d/r2', title: 'R2.zip', drive_mime: 'application/x-rar-compressed' },
+    { id: 'v1', date: '4.8.69', dead: false, kind: 'file', url: 'https://drive.google.com/file/d/v1', title: 'V1.mp4', drive_mime: 'video/mp4' }
+  ]);
+  for (let i = 0; i < 12; i++) s.clickRandom();
+  const picked = new Set(s.opened);
+  assert(!picked.has('r1'), 'archive file without mime must never be picked');
+  assert(!picked.has('r2'), 'file with non-media mime must never be picked');
+  assert(picked.has('f1') || picked.has('v1'), 'openable items still get picked');
+  assert(picked.has('v1') || s.opened.length >= 4, 'file with video mime stays in the pool');
+}
 console.log('PASS collection random pick');

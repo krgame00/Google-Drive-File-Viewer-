@@ -558,6 +558,13 @@
       if(alt) window.open(alt,'_blank','noopener');
     } else openCollectionItem(pick);
   }
+  // สุ่มได้เฉพาะไฟล์ที่เปิดในแอปได้จริง — ไฟล์อื่นจะโดนเด้งไปหน้าดาวน์โหลดของ Drive (แท็บใหม่) แล้วผู้ใช้อ่านเป็น "สุ่มไม่เปลี่ยนหน้า"
+  function randomOpenable(c){
+    if(c.kind!=="file") return true;
+    var mime=String(c.drive_mime||"");
+    if(/^(video|image)\//.test(mime)||mime==="application/pdf") return true;
+    return /\.(mp4|mkv|webm|mov|m4v|avi|jpe?g|png|webp|gif|bmp|pdf)(\?|#|$)/i.test(String(c.drive_name||c.title||""));
+  }
   if(randomBack) randomBack.addEventListener('click', function(){
     if(randomHistory.length<2) return;
     var popped=randomHistory.pop();
@@ -573,7 +580,7 @@
     if(curOpenId) randomSeen.add(curOpenId);
     function buildCandidates(){
       var pool = XBEP_COLLECTION.filter(collMatches);
-      var openable = pool.filter(function(c){ return !c.dead; });
+      var openable = pool.filter(function(c){ return !c.dead && randomOpenable(c); });
       var fallback = pool.filter(function(c){ return c.dead && ((c.mega_url&&!c.mega_dead)||!!c.od_url||!!c.mf_url); });
       return openable.length ? openable : fallback;
     }
