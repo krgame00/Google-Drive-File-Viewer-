@@ -1477,3 +1477,23 @@
 - **ที่มา:** ผู้ใช้สั่งให้ workflow ใช้งานง่ายไม่สับสนทุกระบบ — hook ฉีดโน้ตผิดโปรเจกต์ (working-notes.mjs ฉีด SuperK ทุกแชต) และ Stop hook เขียนดัชนีที่ไฟล์ SuperK เท่านั้น
 - **มาตรฐานใหม่:** ทุกโปรเจกต์ใช้ docs/ZCODE-WORKING-NOTES.md (เพิ่มบนสุด + ดัชนีอัตโนมัติจาก Stop hook) — hook ทั้งสองตัวอ่าน ZCODE_PROJECT_DIR แล้วชี้ไฟล์ของโปรเจกต์ตัวเอง
 - **ต่อจากนี้:** บันทึกงาน GDFV อ่าน/เขียนที่ docs/ZCODE-WORKING-NOTES.md (entry แรกพกสรุปสถานะโปรเจกต์ล่าสุดมาให้แล้ว)
+
+
+## #76 กู้คืนสถานะลิงก์เดือน 7 (ก.ค. 69) จากโฟลเดอร์ Drive ของผู้ใช้ (poteto-mode, playbook Bugfix) — 2026-11-19
+
+### Status: `VERIFIED WORKING` (Drive alive พุ่งขึ้นจาก 34 เป็น 96 รายการ; เดือน 7 กลับมาพร้อมใช้งาน 64/65 รายการ = 98.5%; suite 231/231 tests PASS)
+
+- **ปัญหา:** ผู้ใช้สอบถามว่าทำไมลิงก์ XBep เดือน 7 บนหน้าเว็บหายไป ตรวจพบว่าโฟลเดอร์กู้คืนเดิมบน Drive ถูกลบ ทำให้การตรวจเช็กรายวันของ GitHub Actions เมื่อ 8 พ.ย. ปรับสถานะเป็น `dead: true` (404) ส่งผลให้หน้าเว็บซ่อนเดือน 7 ทั้งหมดเพราะค่าเริ่มต้นซ่อนลิงก์เสีย (`showDead = false`)
+- **การแก้ไข & คืนชีพข้อมูล:**
+  1. ผู้ใช้ส่งโฟลเดอร์ `7.69` ใน Google Drive ของตนเอง (`1oRZaMIPfDCMKdlEeGSlKgnxuMjBZQq8Z`) พร้อมตั้งค่าแชร์สาธารณะ (Anyone with the link can view)
+  2. โฟลเดอร์ดังกล่าวบรรจุ 33 โฟลเดอร์หลักประจำวัน และมีโฟลเดอร์ย่อยข้างใน (รวมถึงโฟลเดอร์รอบค่ำ "มืด") ทั้งหมด 132 โฟลเดอร์ย่อย ซึ่งโฟลเดอร์ย่อยทั้งหมดได้รับสิทธิ์อ่านสาธารณะตามโฟลเดอร์แม่โดยอัตโนมัติ
+  3. รัน `scripts/checks/check_drive_alive.py` ตรวจสอบผ่าน Google Drive API ครบทั้ง 335 รายการ:
+     - ลิงก์ที่พร้อมใช้งาน (Alive) พุ่งขึ้นจาก **34 เป็น 96 รายการ**
+     - เดือน 7 (ก.ค. 69) ฟื้นคืนชีพกลับมาพร้อมใช้งาน **64 จาก 65 รายการ (98.5%)** เหลือเพียง 1 รายการ (`1UIHIfjGJnABMTSFl4jJn2eTVu5vTLAgh` — อีเวนต์ #32 วันที่ 1.7.69) ที่อยู่นอกโฟลเดอร์
+  4. รัน `scripts/data/patch_alive_from_report.py` อัปเดต `dead: false`, `dead_status: null`, ดึง `drive_name` จริงกลับมา และอัปเดตป้ายเวลาตรวจเป็น `"19 พ.ย. 69 (18:01 น.)"`
+  5. รัน `tools/tag_categories.py` อัปเดตหมวดหมู่แท็ก และรัน `node tools/collection_data.js extract` ซิงก์ข้อมูลระหว่าง `collections-data.js` กับ `collections_merged.json` ตรงกันสมบูรณ์ 100%
+  6. ปรับ Cache buster ใน `index.html`: `collections-data.js?v=20261119-r1`
+- **หลักฐานการตรวจสอบ (Verification Evidence):**
+  - ผลรัน API จริงบนทุกโฟลเดอร์ของเดือน 7 ตอบกลับ HTTP 200 `trashed: false` ครบ 64 รายการ
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `node --test tests/*.cjs` ผ่านครบถ้วน **231/231 PASS (0 fail, 23.2s)**
