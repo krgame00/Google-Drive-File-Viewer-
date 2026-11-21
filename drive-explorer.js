@@ -288,6 +288,23 @@
             resolve({ fallback: true });
             return;
           }
+          // Detect Brave or environments where accounts.google.com/gsi/transform is blocked
+          const isBrave = typeof navigator !== 'undefined' && Boolean(navigator.brave);
+          const hasBraveUa = typeof navigator !== 'undefined' && Boolean(navigator.userAgent && /Brave/i.test(navigator.userAgent));
+          if (isBrave || hasBraveUa) {
+            resolve({ fallback: true });
+            return;
+          }
+          let settled = false;
+          function done(res) {
+            if (settled) return;
+            settled = true;
+            if (watchdog) clearTimeout(watchdog);
+            resolve(res);
+          }
+          const watchdog = setTimeout(function () {
+            done({ fallback: true });
+          }, 6000);
           try {
             const codeClient = google.accounts.oauth2.initCodeClient({
               client_id: clientId,
@@ -296,7 +313,7 @@
               access_type: 'offline',
               prompt: 'consent',
               callback: async function (resp) {
-                if (!resp || resp.error || !resp.code) { resolve({ token: null }); return; }
+                if (!resp || resp.error || !resp.code) { done({ token: null }); return; }
                 try {
                   const ex = await fetch(WORKER_AUTH_BASE + '/auth/exchange', {
                     method: 'POST',
@@ -304,24 +321,24 @@
                     body: JSON.stringify({ code: resp.code, redirectUri: 'postmessage' }),
                     cache: 'no-store'
                   });
-                  if (ex.status === 503) { resolve({ fallback: true }); return; }
-                  if (!ex.ok) { resolve({ token: null }); return; }
+                  if (ex.status === 503) { done({ fallback: true }); return; }
+                  if (!ex.ok) { done({ token: null }); return; }
                   const data = await ex.json();
                   if (data && data.sessionToken) lsSet(WORKER_SESSION_KEY, data.sessionToken);
                   if (data && data.access_token) {
                     finishTokenRequest({ access_token: data.access_token, expires_in: data.expires_in || 3600 });
                     scheduleWorkerAutoRefresh(data.expires_in || 3600);
-                    resolve({ token: data.access_token });
+                    done({ token: data.access_token });
                     return;
                   }
                 } catch (_) {}
-                resolve({ token: null });
+                done({ token: null });
               },
-              error_callback: function () { resolve({ token: null }); }
+              error_callback: function () { done({ fallback: true }); }
             });
             codeClient.requestCode();
           } catch (_) {
-            resolve({ fallback: true });
+            done({ fallback: true });
           }
         });
       }
@@ -397,7 +414,7 @@
           if (typeof fetch === 'function' && !forceRefresh && google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initCodeClient === 'function') {
             signInWithWorkerCode().then(function (out) {
               if (out && out.token) { resolve(out.token); return; }
-              if (out && out.fallback && tokenClient && !tokenResolver) {
+              if (out && out.fallback && tokenClient) {
                 tokenResolver = resolve;
                 const remembered = lsGet('gdv_auth_remember') === clientId;
                 try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }

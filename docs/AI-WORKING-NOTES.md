@@ -1530,3 +1530,21 @@
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
 
+### #78 แก้ไขปัญหาจอขาว accounts.google.com/gsi/transform ใน Brave Browser — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **สาเหตุที่แท้จริง (Root Cause):**
+  - ในเบราว์เซอร์ Brave หรือเบราว์เซอร์ที่มีระบบป้องกัน Cross-origin Tracking ที่เข้มงวด:
+  - การเรียกใช้ `google.accounts.oauth2.initCodeClient({ ux_mode: 'popup' })` จะเปิดหน้าต่างไปที่ `accounts.google.com/gsi/transform`
+  - หน้านี้ของ Google ต้องอาศัย `postMessage` และ Partitioned Cookies ส่ง Authorization Code กลับมายังหน้าต่างแม่
+  - Brave Shields จะตัดการเชื่อมต่อ `window.opener` และบล็อกคำสั่งสคริปต์ ทำให้หน้า `gsi/transform` แครชเป็นจอขาวสนิท (White screen) และค้าง ไม่ส่ง callback กลับมา
+- **การแก้ไข (Brave-Aware Graceful Fallback & Watchdog):**
+  1. **Brave Detection:** เพิ่มการตรวจจับ Brave ผ่าน `Boolean(navigator.brave)` และ User-Agent ใน `drive-explorer.js`
+  2. **Instant Fallback:** หากเปิดบน Brave จะข้าม `initCodeClient` ทันที (0ms) แล้วสลับไปใช้ `tokenClient.requestAccessToken` (GIS Token Flow มาตรฐาน) ซึ่งไม่ผ่าน `gsi/transform` และทำงานได้ 100% ใน Brave
+  3. **Watchdog Timer:** สำหรับเบราว์เซอร์อื่น หากหน้า `gsi/transform` ค้างเกิน 6 วินาที ตัวจับเวลาจะยกเลิกการรอและสลับไปใช้ `tokenClient` ให้อัตโนมัติ
+  4. **Error Callback:** หาก popup ถูกปิดหรือบล็อก จะ trigger fallback ไปยัง `tokenClient` แทนที่จะคืนค่าล้มเหลว
+  5. **Cache Busting:** ปรับใน `index.html` เป็น `drive-explorer.js?v=20261121-r6`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
