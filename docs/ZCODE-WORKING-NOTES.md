@@ -15,6 +15,18 @@
 - 7 พ.ย. 00:16 · `56eb1c14` · "สอบถามวิธี git push" · ⚠️ · ↳ "เล่นไม่ได้เลย มันหมุนนานมาก"
 <!-- session-index:auto:end -->
 
+## ชุดแพตช์ใหญ่: ล็อกอินถาวร Worker + UI v4 + quick-tag + security/perf (จาก session คู่ขนาน) — 2026-11-21
+
+### Status: commit 669c7a6 push+deploy แล้ว (session คู่ขนาน commit เอง) — production เสิร์ฟ buster 20261121-r5 และบูตสะอาดยืนยันแล้ว — เหลือให้ผู้ใช้ตั้ง env บน Worker
+
+- **ที่มา:** ผู้ใช้ส่ง zip (apply_project_fixes_single.zip) มาให้ใช้ แต่ก่อนที่ผมจะ dry-run จบ session คู่ขนานได้ใช้แพตช์เองครบใน working tree แล้ว commit 669c7a6 + push + deploy เอง (11 ไฟล์ +1119)
+- **ของในชุด:** ล็อกอินถาวร Worker OAuth code flow (/auth/exchange|refresh|revoke + AES-GCM sealed session + auto-refresh), CORS allowlist + edge cache chunk 206 (4 ชม. X-GDV-Cache) + &size= cold-start parallel + BigInt byte range, UI v4 (การ์ดคอลเลกชัน ⋯ popover, cinema player header, ตัวนับคลิป, speed pill S/J/L, quick-tag T/Shift+T, view switcher home/collections/browser, SVG mask icons), recoEsc กัน XSS ทุก interpolation ของการ์ด, โฟลเดอร์ cover cache 30 นาที
+- **ช่องโหวงที่ผมเก็บตก:** SW_SCRIPT_REV ยังเป็น 20261107-r2 ทั้งที่ drive-stream-sw.js ถูกแก้ (BigInt) — ถ้าไม่ bump SW ตัวใหม่จะไม่ถูกโหลดเลย แก้เป็น 20261121-r1 แล้ว (ถูกกลืนใน 669c7a6)
+- **verify:** suite 247/247 ×2 (แดง 3 ครั้งแรกเป็น flake รันทับเวลา), boot production 20261121-r5 สะอาด ทุก bridge รวม GDVCollectionTag ใหม่ ของ UI ใหม่ครบ ชั้นเดือน 60 การ์ด
+- **ช่องว่างที่จดไว้:** (1) pushState เปิดโฟลเดอร์ไม่ยิง hashchange → ไฮไลต์ View Switcher ไม่ขยับตาม (เนื้อหายังแสดงครบใน view home) — เป็นของ session คู่ขนาน ไม่แก้แทน (2) ไฟล์ archive มี entry #76 ซ้ำสองอัน (ของผมกับของเขา) ไม่แก้
+- **สิ่งที่ผู้ใช้ต้องทำเพื่อเปิดล็อกอินถาวร:** deploy worker ตัวใหม่ (WORKER_REVISION 2026-11-21-r3) + ตั้ง env GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (+SESSION_SECRET ถ้าต้องการ) ใน Cloudflare dashboard — ก่อนตั้ง /auth/* จะ 503 และระบบ fallback ไป flow เดิมแบบ graceful (ยืนยันจากโค้ด fallback)
+
+
 ## แก้ปุ่มสุ่ม: สุ่มได้แต่อันเดิม (poteto-mode, playbook Bug fix) — 2026-11-18
 
 ### Status: commit d38ecd1 (ยังไม่ push) — red-first + verify บนหน้าจริงแล้ว (กดสุ่ม 8 ครั้งเปลี่ยนหน้าในแอปทุกครั้ง)
