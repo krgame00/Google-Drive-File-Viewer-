@@ -2034,9 +2034,12 @@
         if (closeBtn) closeBtn.addEventListener("click", closeMyLibraryDrawer);
         const backdrop = document.getElementById("myLibraryBackdrop");
         if (backdrop) backdrop.addEventListener("click", closeMyLibraryDrawer);
-        window.addEventListener("keydown", function (event) {
-          if (event.key === "Escape") closeMyLibraryDrawer();
-        });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape") {
+            const dr = document.getElementById("myLibraryDrawer");
+            if (dr && dr.classList.contains("show")) closeMyLibraryDrawer();
+          }
+        }, true);
         updateMyLibraryBadge();
       }
 

@@ -46,7 +46,7 @@ test('styles.css renders vector SVG mask icons for #vidMinimize and #vidFullscre
 test('index.html loads Google Fonts non-blocking, defers all 8 app scripts, bumps ?v=, and wires player controls', () => {
   const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
   assert.match(html, /rel="preload"\s+as="style"\s+href="https:\/\/fonts\.googleapis\.com\/css2/);
-  assert.match(html, /href="styles\.css\?v=20261121-r5"/);
+  assert.match(html, /href="styles\.css\?v=20261121-r7"/);
   assert.match(html, /id="vidCount"/);
   assert.match(html, /id="vidSpeed"/);
   assert.match(html, /id="vidTagToggle"/);
@@ -100,6 +100,8 @@ test('styles.css implements View Switcher, cinema player header, speed/tag style
   assert.match(css, /#pageShell\[data-active-view="browser"\]/);
   assert.match(css, /\.video-modal:not\(\.minimized\)\s+\.video-box\s+\.title-overlay\s*\{[^}]*order:\s*-1;/s);
   assert.match(css, /\.vid-speed-btn\[data-fast="true"\]/);
+  assert.match(css, /\.title-overlay\s+\.menu-panel\s*\{[^}]*top:\s*calc\(100% \+ 8px\);\s*bottom:\s*auto;/s);
+  assert.match(css, /\.video-modal\s+\.video-title\s*\{[^}]*color:\s*#f7f8f8;/s);
   assert.match(css, /#vidTagToggle\[aria-pressed="true"\]/);
   assert.match(css, /#mobileBar #mbHome,\s*#mobileBar #mbLibrary,\s*#mobileBar #mbSearch\s*\{\s*display:\s*none;/s);
 });

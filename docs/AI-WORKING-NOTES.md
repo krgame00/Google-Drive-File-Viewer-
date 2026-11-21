@@ -1528,6 +1528,22 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/public-worker.cjs` -> 29/29 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+### #80 รวมแพตช์ UI/UX v4 Polish & Cinema Layout Refinements — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **การเปลี่ยนแปลงหลัก (จากแพตช์ `apply_project_fixes_single_(2).zip`):**
+  1. **Universal Arrow Glyph:** เปลี่ยนสัญลักษณ์ปุ่มสุ่มแนะนำ `#recoReroll` จาก `⟳` เป็น `↻` สากล ป้องกันปัญหาฟอนต์ไม่แสดงผลบนอุปกรณ์รุ่นเก่า
+  2. **Cache-Busting Version Bump:** อัปเกรดเวอร์ชันไฟล์เป็น `r7` สำหรับ `styles.css?v=20261121-r7`, `app-core.js?v=20261121-r7`, `video-player.js?v=20261121-r7`, `drive-explorer.js?v=20261121-r7`, และ `collection-viewer.js?v=20261121-r7`
+  3. **Cinema Header & Downward Menu Panel:** ปรับแต่งเมนูตัวเลือกเพิ่มเติมในเครื่องเล่นวิดีโอให้กางลงด้านล่าง (`top: calc(100% + 8px); bottom: auto; z-index: 60;`) พร้อมล็อกสีชื่อเรื่อง `.video-title` ให้เป็นสีขาวสว่าง (`#f7f8f8`) ชัดเจนในทุกธีม
+  4. **Responsive Drawer & Reliable Escape Key:** ปรับความกว้าง My Library Drawer เป็น `width: min(440px, 100vw)` พร้อมดักจับปุ่ม `Escape` ในโหมด Capture Phase เฉพาะเมื่อ Drawer เปิดอยู่ ป้องกันปัญหาปิดผิดจังหวะ
+  5. **Auto-Dismiss Popovers:** ปิดเมนูลิงก์เพิ่มเติม `details.coll-more[open]` อัตโนมัติเมื่อกดเปิดโฟลเดอร์จากคลัง
+  6. **Thai Font Fallback:** เพิ่ม `Noto Sans Thai` ให้กับ `.vid-trace` ป้ายสถานะวิเคราะห์สตรีมมิ่ง
+  7. **Brave Browser Protection Preserved:** ตรวจสอบและคงระบบป้องกันจอขาว Brave (`navigator.brave` และ Watchdog Timer) ไว้ครบถ้วน 100%
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
 
 ### #78 แก้ไขปัญหาจอขาว accounts.google.com/gsi/transform ใน Brave Browser — 2026-11-21
@@ -1562,5 +1578,21 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/public-worker.cjs` -> 29/29 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+### #80 รวมแพตช์ UI/UX v4 Polish & Cinema Layout Refinements — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **การเปลี่ยนแปลงหลัก (จากแพตช์ `apply_project_fixes_single_(2).zip`):**
+  1. **Universal Arrow Glyph:** เปลี่ยนสัญลักษณ์ปุ่มสุ่มแนะนำ `#recoReroll` จาก `⟳` เป็น `↻` สากล ป้องกันปัญหาฟอนต์ไม่แสดงผลบนอุปกรณ์รุ่นเก่า
+  2. **Cache-Busting Version Bump:** อัปเกรดเวอร์ชันไฟล์เป็น `r7` สำหรับ `styles.css?v=20261121-r7`, `app-core.js?v=20261121-r7`, `video-player.js?v=20261121-r7`, `drive-explorer.js?v=20261121-r7`, และ `collection-viewer.js?v=20261121-r7`
+  3. **Cinema Header & Downward Menu Panel:** ปรับแต่งเมนูตัวเลือกเพิ่มเติมในเครื่องเล่นวิดีโอให้กางลงด้านล่าง (`top: calc(100% + 8px); bottom: auto; z-index: 60;`) พร้อมล็อกสีชื่อเรื่อง `.video-title` ให้เป็นสีขาวสว่าง (`#f7f8f8`) ชัดเจนในทุกธีม
+  4. **Responsive Drawer & Reliable Escape Key:** ปรับความกว้าง My Library Drawer เป็น `width: min(440px, 100vw)` พร้อมดักจับปุ่ม `Escape` ในโหมด Capture Phase เฉพาะเมื่อ Drawer เปิดอยู่ ป้องกันปัญหาปิดผิดจังหวะ
+  5. **Auto-Dismiss Popovers:** ปิดเมนูลิงก์เพิ่มเติม `details.coll-more[open]` อัตโนมัติเมื่อกดเปิดโฟลเดอร์จากคลัง
+  6. **Thai Font Fallback:** เพิ่ม `Noto Sans Thai` ให้กับ `.vid-trace` ป้ายสถานะวิเคราะห์สตรีมมิ่ง
+  7. **Brave Browser Protection Preserved:** ตรวจสอบและคงระบบป้องกันจอขาว Brave (`navigator.brave` และ Watchdog Timer) ไว้ครบถ้วน 100%
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
 
 

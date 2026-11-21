@@ -373,6 +373,9 @@
     if(extId){
       // รีเซ็ต navStack เป็นระดับบนสุด (ไม่ซ้อนทับเหมือนโฟลเดอร์ย่อยเมื่อกดเปิดจากคลังหรือปุ่มสุ่ม)
       appApi.navStack = [{id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()}];
+      if (typeof document !== "undefined" && document.querySelectorAll) {
+        document.querySelectorAll('details.coll-more[open]').forEach(function(d){ d.open = false; });
+      }
       appApi.pushHash(extId);
       if (typeof window.GDVSetActiveView === "function") window.GDVSetActiveView("browser", true);
       appApi.openFolderAndReveal(extId);
