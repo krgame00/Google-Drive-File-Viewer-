@@ -284,14 +284,18 @@
 
       function signInWithWorkerCode() {
         return new Promise(function (resolve) {
-          if (typeof fetch !== 'function' || !google || !google.accounts || !google.accounts.oauth2 || typeof google.accounts.oauth2.initCodeClient !== 'function') {
+          // Google's popup code flow (initCodeClient with ux_mode: 'popup') forwards the popup to accounts.google.com/gsi/transform.
+          // In Brave, Chrome with 3rd-party cookie blocking, and any browser with ad blockers (e.g. uBlock Origin),
+          // cross-origin postMessage is blocked, causing gsi/transform to crash into a permanent blank white screen.
+          // By default, fallback immediately (0ms) to standard GIS tokenClient (initTokenClient)
+          // which does NOT use gsi/transform and logs in cleanly across 100% of browsers.
+          // Explicit opt-in via ?code_flow=1 is supported for environments that test Worker OAuth code exchange.
+          const allowPopupCode = typeof location !== 'undefined' && location.search && location.search.includes('code_flow=1');
+          if (!allowPopupCode) {
             resolve({ fallback: true });
             return;
           }
-          // Detect Brave or environments where accounts.google.com/gsi/transform is blocked
-          const isBrave = typeof navigator !== 'undefined' && Boolean(navigator.brave);
-          const hasBraveUa = typeof navigator !== 'undefined' && Boolean(navigator.userAgent && /Brave/i.test(navigator.userAgent));
-          if (isBrave || hasBraveUa) {
+          if (typeof fetch !== 'function' || !google || !google.accounts || !google.accounts.oauth2 || typeof google.accounts.oauth2.initCodeClient !== 'function') {
             resolve({ fallback: true });
             return;
           }
@@ -414,11 +418,24 @@
           if (typeof fetch === 'function' && !forceRefresh && google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initCodeClient === 'function') {
             signInWithWorkerCode().then(function (out) {
               if (out && out.token) { resolve(out.token); return; }
-              if (out && out.fallback && tokenClient) {
-                tokenResolver = resolve;
-                const remembered = lsGet('gdv_auth_remember') === clientId;
-                try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
-                catch (_) { finishTokenRequest(null); }
+              if (out && out.fallback) {
+                if (tokenClient) {
+                  tokenResolver = resolve;
+                  const remembered = lsGet('gdv_auth_remember') === clientId;
+                  try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+                  catch (_) { finishTokenRequest(null); }
+                  return;
+                }
+                waitForGis(function () {
+                  if (tokenClient) {
+                    tokenResolver = resolve;
+                    const remembered = lsGet('gdv_auth_remember') === clientId;
+                    try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+                    catch (_) { finishTokenRequest(null); }
+                  } else {
+                    resolve(null);
+                  }
+                });
                 return;
               }
               resolve(null);

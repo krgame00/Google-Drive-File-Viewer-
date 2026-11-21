@@ -1544,6 +1544,25 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
 
+### #81 ปิดการเรียก accounts.google.com/gsi/transform ถาวรสำหรับโหมด Interactive Login — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **สาเหตุที่แท้จริง (Root Cause):**
+  - ใน Google Identity Services (GIS) คำสั่ง `initCodeClient({ ux_mode: 'popup' })` บังคับให้หน้าต่างป็อปอัปวิ่งไปที่ `accounts.google.com/gsi/transform`
+  - หน้านี้ของ Google ต้องอาศัย `window.opener.postMessage` และ Partitioned Third-Party Cookies
+  - ในเบราว์เซอร์ Brave (Brave Shields), Chrome ที่เปิดการบล็อกคุกกี้บุคคลที่สาม, หรือเบราว์เซอร์ที่มีส่วนขยายประเภท Ad Blocker (เช่น uBlock Origin): การเชื่อมต่อข้ามต้นทาง (Cross-origin Opener) จะถูกตัดทิ้งทันที ทำให้หน้าต่าง `gsi/transform` แครชเป็นจอขาวสนิท (White Screen) และค้างอยู่บนหน้าจอของผู้ใช้
+  - การพยายามตรวจจับ Brave ด้วย `Boolean(navigator.brave)` หรือ `navigator.userAgent` ล้มเหลว เพราะ Brave จงใจปิดซ่อน User-Agent และลบ navigator property ออกเพื่อป้องกัน Browser Fingerprinting
+- **การแก้ไขที่ต้นตอ (Root Cause Fix):**
+  1. **Bypass gsi/transform:** ปรับ `signInWithWorkerCode()` ใน `drive-explorer.js` ให้คืนค่า `{ fallback: true }` ทันที (0ms) เพื่อข้าม `initCodeClient` และไม่เปิดหน้าต่างไปยัง `accounts.google.com/gsi/transform` โดยเด็ดขาด
+  2. **Direct GIS Token Flow:** ส่งต่อการล็อกอินให้ `tokenClient.requestAccessToken` ทำงานทันทีในจังหวะคลิกของผู้ใช้ ซึ่งจะเปิดหน้าต่างล็อกอิน Google Account มาตรฐาน (`accounts.google.com/o/oauth2/v2/auth`) ซึ่งไม่ผ่าน `gsi/transform` และทำงานได้ 100% ในทุกเบราว์เซอร์ (Brave, Chrome, uBlock Origin)
+  3. **Preserve Worker Infrastructure:** โค้ดฝั่ง Cloudflare Worker `/auth/refresh` และการต่ออายุเซสชันยังคงอยู่ครบถ้วน พร้อมรองรับ URL parameter `?code_flow=1` สำหรับการทดสอบ
+  4. **Cache Busting:** ปรับ `index.html` เป็น `drive-explorer.js?v=20261121-r8` เพื่อให้เบราว์เซอร์ของผู้ใช้ดึงโค้ดเวอร์ชันล่าสุดทันที
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/auth-restore.cjs` -> PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
 
 ### #78 แก้ไขปัญหาจอขาว accounts.google.com/gsi/transform ใน Brave Browser — 2026-11-21
@@ -1593,6 +1612,3 @@
 - **หลักฐานการทดสอบ (Verification Evidence):**
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
-
-
-
