@@ -82,7 +82,12 @@ function createPublicStreamRunner(deps, fallbacks) {
           });
         };
         const sources = [];
-        if (!googleOnly) sources.push({route:'worker', label:'worker', url: WORKER_URL + '?id=' + encodeURIComponent(id) + '&continuous=1'});
+        if (!googleOnly) {
+          const metaObj = typeof fileMetaOf === 'function' ? fileMetaOf(id) : null;
+          const metaSize = Number(metaObj && metaObj.size) || 0;
+          const sizeHint = metaSize > 8388608 ? '&size=' + metaSize : '';
+          sources.push({route:'worker', label:'worker', url: WORKER_URL + '?id=' + encodeURIComponent(id) + '&continuous=1' + sizeHint});
+        }
         sources.push({route:'usercontent', label:'ลิงก์ตรง', url:'https://drive.usercontent.google.com/download?id=' + encodeURIComponent(id) + '&export=download&confirm=t'});
         if (apiKey) sources.push({route:'key', label:'API key', url:'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&key=' + apiKey});
         else notes.push('API key: ไม่ได้ตั้งค่า');
@@ -623,7 +628,7 @@ function createVideoCenter(app) {
   // SW_SCRIPT_REV must be bumped whenever drive-stream-sw.js changes: the
   // registration URL carries it so a fresh release never races a poisoned
   // CDN edge cache of the un-versioned script URL.
-  const SW_SCRIPT_REV = '20261107-r2';
+  const SW_SCRIPT_REV = '20261121-r1';
   if (nav && 'serviceWorker' in nav && loc && URLCtor) {
     const streamSwScript = new URLCtor('drive-stream-sw.js?v=' + SW_SCRIPT_REV, loc.href).href;
     nav.serviceWorker.addEventListener('message', function (event) {
@@ -984,6 +989,13 @@ function createVideoCenter(app) {
         const title = app.document.getElementById('vidTitle');
         const fullTitle = app.document.getElementById('vidFullTitle');
         const note = app.document.getElementById('vidPreviewNote');
+        const countEl = app.document.getElementById ? app.document.getElementById('vidCount') : null;
+        if (countEl) {
+          const list = typeof app.playlist === 'function' ? app.playlist('video') : [];
+          const idx = Array.isArray(list) && vidCurrentId ? list.findIndex(function (f) { return f && f.id === vidCurrentId; }) : -1;
+          if (idx >= 0 && list.length > 1) { countEl.textContent = (idx + 1) + ' / ' + list.length; countEl.hidden = false; }
+          else { countEl.textContent = ''; countEl.hidden = true; }
+        }
         const info = app.document.getElementById('vidInfo');
         if (fullTitle && title) fullTitle.textContent = title.textContent;
         if (note) { note.hidden = state !== 'preview'; if (state === 'preview') note.textContent = message || ''; }
@@ -3206,6 +3218,56 @@ function createVideoCenter(app) {
     safeOn(vidPrevBtn, 'click', function () { onNav(-1); });
     const vidNextBtn = getEl('vidNext');
     safeOn(vidNextBtn, 'click', function () { onNav(1); });
+
+    // Playback speed toggle (1× / 1.5× / 2×) + J/L (±10s) & S (speed) keyboard shortcuts (EN & TH layouts)
+    const SPEED_STEPS = [1, 1.5, 2];
+    let currentSpeed = 1;
+    try {
+      const savedSpeed = Number(typeof app.lsGet === 'function' ? app.lsGet('gdv_vid_speed') : 1);
+      if (SPEED_STEPS.indexOf(savedSpeed) !== -1) currentSpeed = savedSpeed;
+    } catch (_) {}
+    function applyPlaybackSpeed(rate, notify) {
+      currentSpeed = SPEED_STEPS.indexOf(rate) !== -1 ? rate : 1;
+      if (app.vidPlayer) {
+        try { app.vidPlayer.playbackRate = currentSpeed; } catch (_) {}
+      }
+      const speedBtn = getEl('vidSpeed');
+      if (speedBtn) {
+        speedBtn.textContent = currentSpeed + '×';
+        if (typeof speedBtn.setAttribute === 'function') speedBtn.setAttribute('data-fast', currentSpeed > 1 ? 'true' : 'false');
+      }
+      if (notify) {
+        try { if (typeof app.lsSet === 'function') app.lsSet('gdv_vid_speed', String(currentSpeed)); } catch (_) {}
+        if (typeof app.showToast === 'function') app.showToast('ความเร็วการเล่น ' + currentSpeed + '×');
+      }
+    }
+    function cyclePlaybackSpeed() {
+      const next = SPEED_STEPS[(SPEED_STEPS.indexOf(currentSpeed) + 1) % SPEED_STEPS.length];
+      applyPlaybackSpeed(next, true);
+    }
+    safeOn(getEl('vidSpeed'), 'click', cyclePlaybackSpeed);
+    safeOn(app.vidPlayer, 'loadedmetadata', function () { applyPlaybackSpeed(currentSpeed, false); });
+    applyPlaybackSpeed(currentSpeed, false);
+    if (app.document && typeof app.document.addEventListener === 'function') {
+      app.document.addEventListener('keydown', function (ev) {
+        if (!vModal || !vModal.classList.contains('show')) return;
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+        const t = ev.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+        if (ev.code === 'KeyS') {
+          ev.preventDefault();
+          cyclePlaybackSpeed();
+          return;
+        }
+        if ((ev.code === 'KeyJ' || ev.code === 'KeyL') && app.vidPlayer && app.vidPlayer.style && app.vidPlayer.style.display !== 'none') {
+          const delta = ev.code === 'KeyJ' ? -10 : 10;
+          const dur = Number.isFinite(app.vidPlayer.duration) ? app.vidPlayer.duration : Infinity;
+          const nextTime = Math.max(0, Math.min(dur, (Number(app.vidPlayer.currentTime) || 0) + delta));
+          try { app.vidPlayer.currentTime = nextTime; } catch (_) {}
+          ev.preventDefault();
+        }
+      });
+    }
 
     // Consolidated menu (details/summary toggles natively) — close on outside
     // click and on picking an action item. Without the action-item close the

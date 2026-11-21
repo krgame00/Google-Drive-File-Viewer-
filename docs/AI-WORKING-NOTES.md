@@ -1497,3 +1497,36 @@
   - ผลรัน API จริงบนทุกโฟลเดอร์ของเดือน 7 ตอบกลับ HTTP 200 `trashed: false` ครบ 64 รายการ
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
   - `node --test tests/*.cjs` ผ่านครบถ้วน **231/231 PASS (0 fail, 23.2s)**
+
+### #77 อัปเกรด pstack: Permanent Login, View Switcher, Quick-Tag, Video Player และ Worker Edge Cache — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **สถาปัตยกรรมและการปรับปรุง (pstack upgrades):**
+  1. **Permanent Login (Worker OAuth Code Flow + AES-GCM):**
+     - Cloudflare Worker เพิ่ม endpoints `/auth/exchange`, `/auth/refresh`, `/auth/revoke`
+     - ซีล Google refresh token ด้วย AES-GCM (crypto.subtle) ส่งคืน client ในรูป `gdv1.<iv>.<ciphertext>`
+     - Client เก็บ encrypted session token ใน `localStorage["gdv_auth_session"]` และ auto-refresh ทุก ~55 นาที ไม่ต้องกดล็อกอินซ้ำ
+     - รองรับ Sign-Out ด้วย `/auth/revoke` และ graceful fallback หาก Worker ยังไม่ได้ตั้ง client secret
+  2. **Dedicated UI View Switcher (home / collections / browser):**
+     - สลับมุมมองผ่าน `data-active-view` บน `#pageShell` ซ่อนการ์ดส่วนเกินที่ไม่เกี่ยวข้อง
+     - ดีไซน์การ์ดคลังเท่ากันทุกใบ รองรับปุ่มเมนูทางเลือก `⋯` แบบ floating popover (ลดพื้นที่รกรุงรัง)
+     - เพิ่ม Thai font fallback (`Noto Sans Thai`) ใน monospace CSS selectors (`.coll-head`, `.coll-id`, `.coll-pagi-info`, `.guide-step code`)
+     - แก้ไขสีพื้นหลัง Drawer panel ให้ทึบ (`var(--bg-elevated)`) ป้องกันเนื้อหาด้านหลังทะลุ
+  3. **Video Player Controls & Quick-Tagging:**
+     - เพิ่มตัวนับคลิป `#vidCount` (เช่น `3 / 12`)
+     - เพิ่มปุ่มและคีย์ลัดสลับความเร็ว `#vidSpeed` (กด `S` วน 1× / 1.5× / 2×) และปุ่ม `J` / `L` ข้าม ±10 วินาที
+     - เพิ่มปุ่มด่วนและคีย์ลัดติดแท็กน้ำพุ่ง `#vidTagToggle` (กด `T` ติด/ถอดแท็ก, `Shift+T` ติดแท็กแล้วเลื่อนไปคลิปถัดไป)
+     - ไอคอนปุ่ม minimize และ fullscreen เปลี่ยนมาใช้ vector SVG mask ชัดเจนทุกความละเอียด
+  4. **Performance & Security:**
+     - Cloudflare Worker รองรับ Edge Cache (`caches.default`) สำหรับ 206 partial chunk requests ลดโหลด upstream Google Drive
+     - กำหนด CORS Allowlist ป้องกัน unauthorized origins
+     - Non-blocking Google Fonts preload และใส่ `defer` ให้กับ core scripts ทั้งหมดใน `index.html`
+     - ปรับ `drive-stream-sw.js` ให้ใช้ BigInt จัดการ byte-range ขนาดใหญ่เกิน 9 PB ได้แม่นยำ
+  5. **Bugfix ใน drive-explorer.js:**
+     - ผูก `asyncBridge.refreshWorkerSession = refreshWorkerSession` ภายใต้ `with (appApi)` block เพื่อป้องกัน Annex B ReferenceError เมื่อ export API
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/public-worker.cjs` -> 29/29 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+

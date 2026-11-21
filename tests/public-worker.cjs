@@ -282,3 +282,173 @@ test('confirmUrlCache reuses confirmed uuid URL on subsequent range requests wit
  assert.equal(urls.length,1,'second chunk took only 1 request using cached uuid URL directly');
  assert.match(urls[0],/uuid=confirmation-id/);
 });
+
+
+// pstack-cors-allowlist-tests
+test('CORS allowlist accepts GitHub Pages and localhost origins and echoes Vary: Origin', async () => {
+  const {createDriveWorker} = await worker;
+  const app = createDriveWorker(async () => new Response('ok', {
+    status: 206,
+    headers: {'Content-Type': 'video/mp4', 'Content-Range': 'bytes 0-1/10'},
+  }));
+  for (const origin of ['https://krgame00.github.io', 'http://localhost:8080', 'http://127.0.0.1:5173']) {
+    const opt = await app.fetch(new Request('https://worker.test/?id=corsOk1', {method: 'OPTIONS', headers: {Origin: origin}}));
+    assert.equal(opt.status, 204);
+    assert.equal(opt.headers.get('Access-Control-Allow-Origin'), origin);
+    assert.match(opt.headers.get('Vary') || '', /Origin/i);
+  }
+});
+
+test('CORS allowlist blocks unauthorized browser origins with 403 and no ACAO header', async () => {
+  const {createDriveWorker} = await worker;
+  let fetched = 0;
+  const app = createDriveWorker(async () => { fetched++; return new Response('nope', {status: 200}); });
+  const res = await app.fetch(new Request('https://worker.test/?id=corsBad1', {
+    headers: {Origin: 'https://evil.example', Range: 'bytes=0-'},
+  }));
+  assert.equal(res.status, 403);
+  assert.equal(res.headers.get('Access-Control-Allow-Origin'), null);
+  assert.equal((await res.json()).error, 'forbiddenOrigin');
+  assert.equal(fetched, 0, 'blocked origin must never trigger an upstream fetch');
+});
+
+test('CORS allowlist respects custom env.ALLOWED_ORIGINS override', async () => {
+  const {createDriveWorker} = await worker;
+  const app = createDriveWorker(async () => new Response('ok', {
+    status: 206,
+    headers: {'Content-Type': 'video/mp4', 'Content-Range': 'bytes 0-1/10'},
+  }));
+  const res = await app.fetch(
+    new Request('https://worker.test/?id=corsEnv1', {method: 'OPTIONS', headers: {Origin: 'https://custom.example'}}),
+    {ALLOWED_ORIGINS: 'https://custom.example, https://krgame00.github.io'}
+  );
+  assert.equal(res.status, 204);
+  assert.equal(res.headers.get('Access-Control-Allow-Origin'), 'https://custom.example');
+});
+
+test('Edge Cache serves repeated bounded 206 chunks with X-GDV-Cache: HIT and zero upstream fetches', async () => {
+  const {createDriveWorker} = await worker;
+  const store = new Map();
+  const pending = [];
+  const mockCache = {
+    async match(req) {
+      const entry = store.get(req.url);
+      if (!entry) return undefined;
+      return new Response(entry.body, {status: entry.status, headers: entry.headers});
+    },
+    async put(req, res) {
+      const body = await res.arrayBuffer();
+      store.set(req.url, {status: res.status, headers: new Headers(res.headers), body});
+    },
+  };
+  let upstreamCalls = 0;
+  const app = createDriveWorker(async (url, opts) => {
+    upstreamCalls++;
+    const range = opts.headers.get('Range');
+    const m = /^bytes=(\d+)-(\d+)$/.exec(range);
+    return new Response('chunk-' + range, {
+      status: 206,
+      headers: {'Content-Type': 'video/mp4', 'Content-Range': 'bytes ' + m[1] + '-' + m[2] + '/99999999'},
+    });
+  }, {cache: mockCache});
+  const ctx = {waitUntil(p) { pending.push(p); }};
+  const r1 = await app.fetch(new Request('https://worker.test/?id=edgeCache1', {headers: {Range: 'bytes=0-'}}), {}, ctx);
+  assert.equal(r1.status, 206);
+  assert.equal(r1.headers.get('X-GDV-Cache'), 'MISS');
+  assert.equal(await r1.text(), 'chunk-bytes=0-8388607');
+  await Promise.all(pending);
+  const callsAfterFirst = upstreamCalls;
+  const r2 = await app.fetch(new Request('https://worker.test/?id=edgeCache1', {headers: {Range: 'bytes=0-'}}), {}, ctx);
+  assert.equal(r2.status, 206);
+  assert.equal(r2.headers.get('X-GDV-Cache'), 'HIT');
+  assert.equal(await r2.text(), 'chunk-bytes=0-8388607');
+  assert.equal(upstreamCalls, callsAfterFirst, 'Edge Cache HIT must not trigger another upstream fetch');
+});
+
+test('size query hint activates 8-way parallel streaming immediately on cold-start Chunk 0', async () => {
+  const {createDriveWorker} = await worker;
+  const ranges = [];
+  const app = createDriveWorker(async (url, opts) => {
+    const range = opts.headers.get('Range');
+    ranges.push(range);
+    const m = /^bytes=(\d+)-(\d+)$/.exec(range);
+    const len = Number(BigInt(m[2]) - BigInt(m[1]) + 1n);
+    return new Response('x'.repeat(Math.min(len, 16)), {
+      status: 206,
+      headers: {'Content-Type': 'video/mp4', 'Content-Range': 'bytes ' + m[1] + '-' + m[2] + '/50000000', 'Content-Length': String(Math.min(len, 16))},
+    });
+  });
+  const res = await app.fetch(new Request('https://worker.test/?id=coldParallel1&size=50000000', {headers: {Range: 'bytes=0-'}}));
+  assert.equal(res.status, 206);
+  await res.text();
+  const chunk0Subranges = ranges.filter(r => /^bytes=(0|1048576|2097152|3145728|4194304|5242880|6291456|7340032)-/.test(r));
+  assert.equal(chunk0Subranges.length, 8, 'cold-start Chunk 0 with size hint should split into 8 parallel sub-intervals');
+});
+
+test('OAuth /auth/exchange seals refresh_token with AES-GCM, /auth/refresh decrypts it, and /auth/revoke revokes it', async () => {
+  const {createDriveWorker} = await worker;
+  const calls = [];
+  const app = createDriveWorker(async (url, opts) => {
+    calls.push({url, body: opts && opts.body});
+    if (String(url).includes('/token')) {
+      const params = new URLSearchParams(opts.body);
+      if (params.get('grant_type') === 'authorization_code') {
+        return new Response(JSON.stringify({access_token: 'acc_initial', expires_in: 3600, refresh_token: 'rt_secret_123'}), {
+          status: 200, headers: {'Content-Type': 'application/json'},
+        });
+      }
+      if (params.get('grant_type') === 'refresh_token' && params.get('refresh_token') === 'rt_secret_123') {
+        return new Response(JSON.stringify({access_token: 'acc_refreshed', expires_in: 3600}), {
+          status: 200, headers: {'Content-Type': 'application/json'},
+        });
+      }
+    }
+    if (String(url).includes('/revoke')) return new Response('', {status: 200});
+    return new Response('bad', {status: 400});
+  });
+  const env = {GOOGLE_CLIENT_ID: 'cid-1', GOOGLE_CLIENT_SECRET: 'sec-1'};
+
+  // 1. Exchange code -> sealed sessionToken (never leaks raw refresh_token)
+  const exRes = await app.fetch(new Request('https://worker.test/auth/exchange', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({code: 'auth-code-1', redirectUri: 'postmessage'}),
+  }), env);
+  assert.equal(exRes.status, 200);
+  const exData = await exRes.json();
+  assert.equal(exData.access_token, 'acc_initial');
+  assert.match(exData.sessionToken, /^gdv1\./);
+  assert.equal(JSON.stringify(exData).includes('rt_secret_123'), false, 'raw refresh_token must never leak to client');
+
+  // 2. Refresh using sealed sessionToken
+  const refRes = await app.fetch(new Request('https://worker.test/auth/refresh', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sessionToken: exData.sessionToken}),
+  }), env);
+  assert.equal(refRes.status, 200);
+  assert.equal((await refRes.json()).access_token, 'acc_refreshed');
+
+  // 3. Tampered sessionToken rejected with 401 and zero upstream calls
+  const countBeforeTamper = calls.length;
+  const badRes = await app.fetch(new Request('https://worker.test/auth/refresh', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sessionToken: exData.sessionToken + 'tamper'}),
+  }), env);
+  assert.equal(badRes.status, 401);
+  assert.equal(calls.length, countBeforeTamper);
+
+  // 4. Revoke decrypts & revokes with Google
+  const revRes = await app.fetch(new Request('https://worker.test/auth/revoke', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sessionToken: exData.sessionToken}),
+  }), env);
+  assert.equal(revRes.status, 200);
+  assert.ok(calls.some(c => String(c.url).includes('/revoke?token=rt_secret_123')));
+
+  // 5. Unconfigured Worker returns 503 authNotConfigured
+  const unconfRes = await app.fetch(new Request('https://worker.test/auth/refresh', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({sessionToken: exData.sessionToken}),
+  }), {});
+  assert.equal(unconfRes.status, 503);
+  assert.equal((await unconfRes.json()).error, 'authNotConfigured');
+});

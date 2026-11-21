@@ -111,14 +111,95 @@
     clearTimeout(tagPushTimer);
     tagPushTimer=setTimeout(function(){ tagStatus("กำลังบันทึก…"); tagPushMerged(appApi.accessToken).then(function(ok){ tagStatus(ok?"บันทึกแล้ว ✓":"บันทึกไม่สำเร็จ"); }); },1500);
   }
+  var lastOpenedCollectionId = null;
+  function findActiveCollectionItem(){
+    var driveIds = [];
+    if (window.GDVVideo && typeof window.GDVVideo.currentId === "function") {
+      var vidId = window.GDVVideo.currentId();
+      if (vidId) driveIds.push(vidId);
+    }
+    if (Array.isArray(appApi.navStack)) {
+      for (var i = 0; i < appApi.navStack.length; i++) {
+        if (appApi.navStack[i] && appApi.navStack[i].id) driveIds.push(appApi.navStack[i].id);
+      }
+    }
+    if (driveIds.length) {
+      for (var j = 0; j < XBEP_COLLECTION.length; j++) {
+        var c = XBEP_COLLECTION[j];
+        var cid = appApi.extractId(c.url);
+        if (cid && driveIds.indexOf(cid) !== -1) return c;
+      }
+    }
+    if (lastOpenedCollectionId) {
+      return XBEP_COLLECTION.find(function(x){ return x.id === lastOpenedCollectionId; }) || null;
+    }
+    return null;
+  }
+  function syncVideoTagButton(){
+    var btn = document.getElementById("vidTagToggle");
+    if (!btn) return;
+    var item = findActiveCollectionItem();
+    if (!item) {
+      btn.hidden = true;
+      btn.setAttribute("aria-pressed", "false");
+      return;
+    }
+    var on = effSq(item);
+    btn.hidden = false;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    btn.title = (on ? "ถอดแท็ก 💦: " : "ติดแท็ก 💦: ") + (item.title || item.id) + " (T = สลับแท็ก · Shift+T = สลับแท็กแล้วไปคลิปถัดไป)";
+  }
   function toggleTag(id){
     var item=XBEP_COLLECTION.find(function(x){return x.id===id});
-    if(!item) return;
+    if(!item) return false;
     var nv=!effSq(item);
     tagOverrides[id]={s:nv?1:0,t:Date.now()};
-    tagSave(); render(); tagSchedulePush();
-    appApi.showToast(nv?"ติดแท็ก 💦 น้ำพุ่งแล้ว":"ถอดแท็ก 💦 แล้ว");
+    tagSave(); render(); tagSchedulePush(); syncVideoTagButton();
+    appApi.showToast(nv?"ติดแท็ก 💦 น้ำพุ่งแล้ว ("+(item.title||item.id)+")":"ถอดแท็ก 💦 แล้ว ("+(item.title||item.id)+")");
+    return nv;
   }
+  window.GDVCollectionTag = {
+    resolveActive: function(){
+      var item = findActiveCollectionItem();
+      return item ? { id: item.id, title: item.title || item.id, tagged: effSq(item) } : null;
+    },
+    toggleActive: function(){
+      var item = findActiveCollectionItem();
+      if (!item) return null;
+      return { id: item.id, tagged: toggleTag(item.id) };
+    },
+    syncVideoButton: syncVideoTagButton
+  };
+  (function initVideoQuickTag(){
+    var btn = document.getElementById("vidTagToggle");
+    if (btn && !btn.dataset.wired) {
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        var item = findActiveCollectionItem();
+        if (item) toggleTag(item.id);
+      });
+    }
+    var modal = document.getElementById("videoModal");
+    if (modal && typeof MutationObserver === "function") {
+      new MutationObserver(function(){ syncVideoTagButton(); }).observe(modal, { attributes: true, attributeFilter: ["class", "aria-hidden"] });
+    }
+    document.addEventListener("keydown", function(ev){
+      if (!modal || !modal.classList.contains("show")) return;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      var t = ev.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (ev.code === "KeyT" || ev.key === "t" || ev.key === "T") {
+        var item = findActiveCollectionItem();
+        if (!item) return;
+        ev.preventDefault();
+        toggleTag(item.id);
+        if (ev.shiftKey && window.GDVVideo && typeof window.GDVVideo.onNav === "function") {
+          window.GDVVideo.onNav(1);
+        }
+      }
+    });
+  })();
   function attachTagButtons(){
     grid.querySelectorAll("[data-tag]").forEach(function(btn){
       btn.addEventListener("click",function(ev){ ev.stopPropagation(); toggleTag(btn.getAttribute("data-tag")); });
@@ -275,6 +356,7 @@
     return hay.indexOf(q)!==-1;
   }
   function openCollectionItem(item){
+    if(item && item.id) lastOpenedCollectionId = item.id;
     if(typeof recordRandomVisit==="function" && item && item.id) recordRandomVisit(item.id);
     // ใช้ flow เดิมของ viewer
     appApi.driveLink.value = item.url;
@@ -391,25 +473,21 @@
       var mfBadge = hasMF ? ' <span class="mf-badge">MF</span>' : '';
       var driveAliveLocal = !c.dead;
       var megaAliveLocal = !!c.mega_url && !c.mega_dead;
-      var driveBtn = driveAliveLocal ? '<a class="btn-ghost" href="'+c.url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">Drive ↗</a>' : '';
-      var megaBtn = megaAliveLocal ? '<a class="btn-ghost btn-mega" href="'+c.mega_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MEGA ↗</a>' : '';
-      var odBtn = hasOD ? '<a class="btn-ghost btn-od" href="'+c.od_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">OneDrive ↗</a>' : '';
+      var driveBtn = driveAliveLocal ? '<a class="btn-ghost" href="'+recoEsc(c.url)+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">Drive ↗</a>' : '';
+      var megaBtn = megaAliveLocal ? '<a class="btn-ghost btn-mega" href="'+recoEsc(c.mega_url)+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MEGA ↗</a>' : '';
+      var odBtn = hasOD ? '<a class="btn-ghost btn-od" href="'+recoEsc(c.od_url)+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">OneDrive ↗</a>' : '';
       var tagOn = effSq(c);
-      var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+c.id+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:var(--badge-squirt-border);color:var(--badge-squirt-text);background:var(--badge-squirt-bg);":"opacity:.55;")+'">💦</button>';
-      var mfBtn = hasMF ? '<a class="btn-ghost btn-mf" href="'+c.mf_url+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MediaFire ↗</a>' : '';
+      var tagBtn = '<button type="button" class="btn-ghost btn-sm" data-tag="'+recoEsc(c.id)+'" title="ติด/ถอดแท็กน้ำพุ่ง" style="'+(tagOn?"border-color:var(--badge-squirt-border);color:var(--badge-squirt-text);background:var(--badge-squirt-bg);":"opacity:.55;")+'">💦</button>';
+      var mfBtn = hasMF ? '<a class="btn-ghost btn-mf" href="'+recoEsc(c.mf_url)+'" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;flex:1">MediaFire ↗</a>' : '';
       card.innerHTML =
-        '<div class="coll-head"><span class="'+dateCls+'">'+(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
-        '<div class="coll-title" title="'+String(c.desc).replace(/"/g,'&quot;')+'">'+c.title+'</div>'+
-        (driveNameTxt && driveNameTxt!=="มืด" ? '<div class="coll-id">'+String(driveNameTxt).replace(/</g,"&lt;")+'</div>' : '')+
-        '<div class="coll-status">' + statusBadge('Drive', c.dead) + (c.mega_url ? statusBadge('MEGA', c.mega_dead) : '') + '<span class="coll-check-time" title="ตรวจสถานะเมื่อ '+COLL_CHECKED_AT+'">🕒 '+COLL_CHECKED_AT+'</span></div>' +
+        '<div class="coll-head"><span class="'+dateCls+'">'+recoEsc(c.date||"-")+'</span><span class="coll-kind '+kindCls+'">'+kindTxt+'</span><span class="coll-dot '+dotCls+'"></span>'+deadBadge+noDateBadge+approxBadge+soloBadge+megaBadge+odBadge+mfBadge+'<span style="margin-left:auto;color:var(--muted-soft);font-size:10px">#'+(XBEP_COLLECTION.indexOf(c)+1)+'</span></div>'+
+        '<div class="coll-title" title="'+recoEsc(c.desc)+'">'+recoEsc(c.title)+'</div>'+
+        (driveNameTxt && driveNameTxt!=="มืด" ? '<div class="coll-id">'+recoEsc(driveNameTxt)+'</div>' : '')+
+        '<div class="coll-status">' + statusBadge('Drive', c.dead) + (c.mega_url ? statusBadge('MEGA', c.mega_dead) : '') + '</div>' +
         '<div class="coll-actions">'+
-          '<button type="button" class="btn-primary" data-open="'+c.id+'"'+(isDead?' disabled title="ไม่มีลิงก์ที่ใช้งานได้"':(!driveAliveLocal?' disabled title="Drive ใช้ไม่ได้ — เลือกลิงก์สำรอง"':''))+' style="flex:1">เปิด</button>'+
+          '<button type="button" class="btn-primary" data-open="'+recoEsc(c.id)+'"'+(isDead?' disabled title="ไม่มีลิงก์ที่ใช้งานได้"':(!driveAliveLocal?' disabled title="Drive ใช้ไม่ได้ — เลือกลิงก์สำรอง"':''))+' style="flex:1">เปิด</button>'+
           tagBtn+
-          driveBtn+
-          megaBtn+
-          odBtn+
-          mfBtn+
-          ((driveBtn || megaBtn || odBtn || mfBtn) ? '<details class="coll-more"><summary>ลิงก์อื่น</summary><div class="coll-more-links">'+driveBtn+megaBtn+odBtn+mfBtn+'</div></details>' : '')+
+          '<details class="coll-more"><summary title="ลิงก์สำรองและตรวจสอบลิงก์" aria-label="ตัวเลือกเพิ่มเติม">⋯</summary><div class="coll-more-links">'+driveBtn+megaBtn+odBtn+mfBtn+'</div></details>'+
         '</div>';
       if (driveAliveLocal && c.kind !== "file") {
         const folderId = appApi.extractId(c.url);
@@ -435,7 +513,9 @@
         } catch(_){checkResult.textContent='ยังไม่ทราบ · เชื่อมต่อไม่สำเร็จ';}
         finally {clearTimeout(timer);checkLink.disabled=false;}
       });
-      card.appendChild(checkLink);card.appendChild(checkResult);
+      const moreLinks = card.querySelector('.coll-more-links');
+      if (moreLinks) { moreLinks.appendChild(checkLink); moreLinks.appendChild(checkResult); }
+      else { card.appendChild(checkLink); card.appendChild(checkResult); }
       grid.appendChild(card);
     });
 

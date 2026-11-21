@@ -1,14 +1,160 @@
 // Public files only. Never forward an account token or Google cookies.
-export const WORKER_REVISION = '2026-11-17-r1';
-const cors = {
-  'Access-Control-Allow-Origin': '*',
+export const WORKER_REVISION = '2026-11-21-r3';
+export const DEFAULT_ALLOWED_ORIGINS = [
+  'https://krgame00.github.io',
+  'http://localhost',
+  'http://127.0.0.1',
+];
+const EDGE_CACHE_TTL_SECONDS = 14400; // 4 hours for immutable public Drive chunks
+const BASE_CORS = {
   'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS, POST',
   'Access-Control-Allow-Headers': 'Range, Content-Type',
-  'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, X-GDV-Worker-Rev',
+  'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, X-GDV-Worker-Rev, X-GDV-Cache',
   'Cross-Origin-Resource-Policy': 'cross-origin',
   'Cache-Control': 'no-store',
   'X-GDV-Worker-Rev': WORKER_REVISION,
 };
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  ...BASE_CORS,
+};
+export function parseAllowedOrigins(raw) {
+  if (Array.isArray(raw)) return raw.map(s => String(s || '').trim()).filter(Boolean);
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return DEFAULT_ALLOWED_ORIGINS;
+}
+export function isOriginAllowed(origin, allowedOrigins = DEFAULT_ALLOWED_ORIGINS) {
+  if (!origin) return true;
+  for (const entry of allowedOrigins) {
+    if (entry === '*' || origin === entry) return true;
+    if ((entry === 'http://localhost' || entry === 'http://127.0.0.1') && origin.startsWith(entry + ':')) return true;
+  }
+  return false;
+}
+function applyOriginCors(response, origin) {
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  headers.set('Access-Control-Allow-Origin', origin);
+  headers.append('Vary', 'Origin');
+  return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
+}
+function edgeCacheKey(id, boundedRange) {
+  return new Request('https://gdv-edge-cache.internal/chunk/' + encodeURIComponent(id) + '/' + encodeURIComponent(boundedRange));
+}
+function toBase64Url(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function fromBase64Url(str) {
+  const padded = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
+  const bin = atob(padded);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function deriveSessionKey(secret) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('gdv-session-v1:' + secret));
+  return crypto.subtle.importKey('raw', digest, {name: 'AES-GCM'}, false, ['encrypt', 'decrypt']);
+}
+async function sealSessionToken(refreshToken, secret) {
+  const key = await deriveSessionKey(secret);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plain = new TextEncoder().encode(JSON.stringify({rt: refreshToken, iat: Date.now()}));
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, plain));
+  return 'gdv1.' + toBase64Url(iv) + '.' + toBase64Url(cipher);
+}
+async function unsealSessionToken(token, secret) {
+  if (typeof token !== 'string' || !token.startsWith('gdv1.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const key = await deriveSessionKey(secret);
+    const iv = fromBase64Url(parts[1]);
+    const cipher = fromBase64Url(parts[2]);
+    const plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, cipher);
+    const parsed = JSON.parse(new TextDecoder().decode(plain));
+    return parsed && typeof parsed.rt === 'string' && parsed.rt.length ? parsed.rt : null;
+  } catch (_) {
+    return null;
+  }
+}
+async function handleAuth(request, env, fetchImpl) {
+  if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
+  if (request.method !== 'POST') return jsonError(405, 'methodNotAllowed');
+  const clientId = env && env.GOOGLE_CLIENT_ID;
+  const clientSecret = env && env.GOOGLE_CLIENT_SECRET;
+  const sealSecret = (env && env.SESSION_SECRET) || clientSecret;
+  if (!clientId || !clientSecret) return jsonError(503, 'authNotConfigured');
+  let body = null;
+  try { body = await request.json(); } catch (_) { return jsonError(400, 'malformedJson'); }
+  const pathname = new URL(request.url).pathname;
+
+  if (pathname.endsWith('/auth/exchange')) {
+    const code = body && typeof body.code === 'string' ? body.code.trim() : '';
+    const redirectUri = body && typeof body.redirectUri === 'string' && body.redirectUri.trim() ? body.redirectUri.trim() : 'postmessage';
+    if (!code) return jsonError(400, 'missingAuthCode');
+    const params = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    });
+    const tokenRes = await fetchImpl('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: params.toString(),
+    });
+    const data = await tokenRes.json().catch(() => ({}));
+    if (!tokenRes.ok || !data.access_token) {
+      return jsonError(tokenRes.status === 400 ? 401 : 502, data.error || 'tokenExchangeFailed');
+    }
+    const sessionToken = data.refresh_token ? await sealSessionToken(data.refresh_token, sealSecret) : null;
+    return new Response(JSON.stringify({
+      ok: true,
+      access_token: data.access_token,
+      expires_in: Number(data.expires_in) || 3600,
+      sessionToken,
+    }), {status: 200, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'}});
+  }
+
+  if (pathname.endsWith('/auth/refresh')) {
+    const refreshToken = await unsealSessionToken(body && body.sessionToken, sealSecret);
+    if (!refreshToken) return jsonError(401, 'invalidSession');
+    const params = new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'refresh_token',
+    });
+    const tokenRes = await fetchImpl('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: params.toString(),
+    });
+    const data = await tokenRes.json().catch(() => ({}));
+    if (!tokenRes.ok || !data.access_token) {
+      return jsonError(tokenRes.status === 400 || tokenRes.status === 401 ? 401 : 502, data.error || 'tokenRefreshFailed');
+    }
+    const nextSession = data.refresh_token ? await sealSessionToken(data.refresh_token, sealSecret) : undefined;
+    const out = {ok: true, access_token: data.access_token, expires_in: Number(data.expires_in) || 3600};
+    if (nextSession) out.sessionToken = nextSession;
+    return new Response(JSON.stringify(out), {status: 200, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'}});
+  }
+
+  if (pathname.endsWith('/auth/revoke')) {
+    const refreshToken = await unsealSessionToken(body && body.sessionToken, sealSecret);
+    if (refreshToken) {
+      await fetchImpl('https://oauth2.googleapis.com/revoke?token=' + encodeURIComponent(refreshToken), {method: 'POST'}).catch(() => {});
+    }
+    return new Response(JSON.stringify({ok: true}), {status: 200, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'}});
+  }
+
+  return jsonError(404, 'unknownAuthEndpoint');
+}
 const jsonError = (status, reason) => new Response(JSON.stringify({error: reason}), {
   status, headers: {...cors, 'Content-Type': 'application/json; charset=utf-8'},
 });
@@ -314,10 +460,17 @@ async function handleTelemetry(request) {
   return jsonError(405, 'methodNotAllowed');
 }
 
-export function createDriveWorker(fetchImpl = fetch) {
-  return {async fetch(request) {
+export function createDriveWorker(fetchImpl = fetch, options = {}) {
+  const resolveEdgeCache = () => {
+    if (options && 'cache' in options) return options.cache;
+    return (typeof caches !== 'undefined' && caches && caches.default) ? caches.default : null;
+  };
+  async function handleRequest(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: cors});
     const url = new URL(request.url);
+    if (url.pathname.includes('/auth/')) {
+      return handleAuth(request, env, fetchImpl);
+    }
     if (url.pathname === '/telemetry' || url.pathname.endsWith('/telemetry') || url.searchParams.has('telemetry')) {
       return handleTelemetry(request);
     }
@@ -332,10 +485,31 @@ export function createDriveWorker(fetchImpl = fetch) {
     // 60s ต่อคำขอ: ช่วง 8 MiB ต้องการเพียง ~1.1 Mbps ต่อการเชื่อมต่อจึงจะทันบนเน็ตมือถือช้า ๆ
     const timeout = setTimeout(cancel, 60000);
     try {
-      // A chunk prefetched for the previous request may already cover this one.
+      // Pre-seed parallel capability on cold start when caller supplies known file size > 1 chunk.
+      const sizeParam = url.searchParams.get('size');
+      if (sizeParam && /^\d{1,20}$/.test(sizeParam)) {
+        const hintedTotal = BigInt(sizeParam);
+        if (hintedTotal > BigInt(MEDIA_CHUNK_BYTES) && !parallelFiles.has(id)) {
+          rememberParallelFile(id, hintedTotal);
+        }
+      }
+      // Check Cloudflare Edge Cache (caches.default) for bounded public chunks before hitting Google Drive.
+      const edgeCache = resolveEdgeCache();
+      let cacheStatus = null;
       let result = null;
-      const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedMediaRange(range) || '');
-      if (request.method === 'GET' && ahead) {
+      const boundedStr = boundedMediaRange(range) || '';
+      const requestedBound = /^bytes=(\d+)-(\d+)$/.exec(boundedStr);
+      if (request.method === 'GET' && edgeCache && requestedBound) {
+        try {
+          const edgeHit = await edgeCache.match(edgeCacheKey(id, boundedStr));
+          if (edgeHit && edgeHit.status === 206 && edgeHit.body) {
+            result = {res: edgeHit, servedRange: boundedStr};
+            cacheStatus = 'HIT';
+          }
+        } catch (_) {}
+      }
+      // A chunk prefetched for the previous request may already cover this one.
+      if (!result && request.method === 'GET' && ahead) {
         if (ahead.id === id && requestedBound && ahead.start === BigInt(requestedBound[1])) {
           const hit = ahead;
           ahead = null;
@@ -430,15 +604,44 @@ export function createDriveWorker(fetchImpl = fetch) {
         const interval = (output.get('Content-Range') || '').match(/^bytes (\d+)-(\d+)\/(\d+|\*)$/i);
         if (interval) output.set('Content-Length', (BigInt(interval[2]) - BigInt(interval[1]) + 1n).toString());
       }
+      let responseBody = request.method === 'HEAD' ? null : res.body;
+      if (request.method === 'GET' && edgeCache && servedBound && res.status === 206) {
+        if (cacheStatus === 'HIT') {
+          output.set('X-GDV-Cache', 'HIT');
+        } else if (responseBody && typeof responseBody.tee === 'function') {
+          output.set('X-GDV-Cache', 'MISS');
+          const [clientBranch, cacheBranch] = responseBody.tee();
+          responseBody = clientBranch;
+          const cacheHeaders = new Headers(output);
+          cacheHeaders.set('Cache-Control', 'public, max-age=' + EDGE_CACHE_TTL_SECONDS);
+          const putPromise = edgeCache.put(
+            edgeCacheKey(id, servedRange),
+            new Response(cacheBranch, {status: 206, headers: cacheHeaders})
+          ).catch(() => {});
+          if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(putPromise);
+        }
+      }
       // Keep real type and range status; do not relabel HTML or fake range support.
       if (request.method === 'HEAD' && res.body) await res.body.cancel();
-      return new Response(request.method === 'HEAD' ? null : res.body, {status: res.status, headers: output});
+      return new Response(responseBody, {status: res.status, headers: output});
     } catch (_) { return jsonError(502, 'streamFetchFailed'); }
     finally {
       clearTimeout(timeout);
       // Leave the cancellation listener on while the successful body is streaming.
       if (abort.signal.aborted) request.signal.removeEventListener('abort', cancel);
     }
+  }
+  return {async fetch(request, env, ctx) {
+    const origin = request.headers.get('Origin');
+    const allowedOrigins = parseAllowedOrigins((env && env.ALLOWED_ORIGINS) || options.allowedOrigins);
+    if (origin && !isOriginAllowed(origin, allowedOrigins)) {
+      return new Response(JSON.stringify({error: 'forbiddenOrigin'}), {
+        status: 403,
+        headers: {...BASE_CORS, 'Vary': 'Origin', 'Content-Type': 'application/json; charset=utf-8'},
+      });
+    }
+    const response = await handleRequest(request, env, ctx);
+    return applyOriginCors(response, origin);
   }};
 }
 export default createDriveWorker();

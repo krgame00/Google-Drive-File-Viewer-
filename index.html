@@ -29,11 +29,12 @@
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" /></noscript>
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261115-r1" />
+  <link rel="stylesheet" href="styles.css?v=20261121-r5" />
 
 </head>
 
@@ -242,7 +243,7 @@
     </details>
     <!-- ===== Link Input Card ===== -->
 
-    <div class="card">
+    <div class="card" id="linkInputCard">
 
       <form id="viewerForm" novalidate>
 
@@ -474,7 +475,7 @@
             <button type="button" class="btn-ghost btn-sm" id="vidSlowPreview">🎬 ใช้พรีวิว Google</button>
             <button type="button" class="btn-ghost btn-sm" id="vidSlowBlob">📥 โหลดทั้งไฟล์แทน</button>
           </div>
-          <button type="button" class="btn-ghost btn-sm" id="vidMinimizeBlob" hidden>🗗 ย่อไว้มุมจอระหว่างโหลด</button>
+          <button type="button" class="btn-ghost btn-sm" id="vidMinimizeBlob" hidden>↘ ย่อไว้มุมจอระหว่างโหลด</button>
           <button type="button" class="btn-ghost btn-sm" id="vidTurboBlob" hidden title="คลิกเพื่อสลับโหมดความเร็ว (6 ท่อขนาน / 4 ท่อ)">⚡ สปีดสูงสุด (6 ท่อ)</button>
           <button type="button" class="btn-ghost btn-sm" id="vidCancelBlob" hidden>ยกเลิกการโหลด</button>
 
@@ -505,8 +506,11 @@
         <!-- Cinematic chrome — แถวปุ่มใต้วิดีโอ (ไม่ทับภาพ/ปุ่มควบคุม) -->
         <div class="chrome-top" id="vidChrome">
           <button type="button" class="media-nav prev" id="vidPrev" aria-label="วิดีโอก่อนหน้า" title="วิดีโอก่อนหน้า">&#8249;</button>
+          <span class="vid-count" id="vidCount" aria-live="polite" hidden></span>
           <button type="button" class="media-nav next" id="vidNext" aria-label="วิดีโอถัดไป" title="วิดีโอถัดไป">&#8250;</button>
           <span class="chrome-spacer"></span>
+          <button type="button" class="chrome-btn vid-speed-btn" id="vidSpeed" aria-label="ปรับความเร็วการเล่น (คีย์ลัด S)" title="ความเร็วการเล่น (คลิกหรือกด S วน 1×/1.5×/2× · J/L ข้าม ±10 วิ)" data-fast="false">1×</button>
+          <button type="button" class="chrome-btn" id="vidTagToggle" aria-label="สลับแท็กน้ำพุ่ง (คีย์ลัด T)" title="สลับแท็ก (T = สลับแท็ก · Shift+T = สลับแท็กแล้วไปคลิปถัดไป)" aria-pressed="false" hidden>💦</button>
           <button type="button" class="chrome-btn" id="vidMinimize" aria-label="ย่อเครื่องเล่นไว้มุมจอ" title="ย่อไว้มุมจอเพื่อเปิดดูหน้าเว็บต่อระหว่างดาวน์โหลดหรือเล่นวิดีโอ">🗗</button>
           <button type="button" class="chrome-btn" id="vidFullscreen" aria-label="สลับเต็มจอเครื่องเล่น" title="เต็มจอ" aria-pressed="false">⛶</button>
           <button type="button" class="chrome-btn" id="vidAspectToggle" aria-label="สลับสัดส่วนแนวตั้งและแนวนอน" title="สลับสัดส่วนแนวตั้งและแนวนอน">⇅</button>
@@ -669,14 +673,14 @@
     </div>
   </aside>
 
-  <script src="video-cache.js?v=20261102-r1"></script>
-  <script src="stream-protocol.js?v=20261104-r1"></script>
-  <script src="app-core.js?v=20261111-r1"></script>
-  <script src="video-player.js?v=20261117-r1"></script>
-  <script src="drive-explorer.js?v=20261115-r2"></script>
-  <script src="media-lightbox.js?v=20261104-r5"></script>
+  <script src="video-cache.js?v=20261102-r1" defer></script>
+  <script src="stream-protocol.js?v=20261104-r1" defer></script>
+  <script src="app-core.js?v=20261121-r5" defer></script>
+  <script src="video-player.js?v=20261121-r5" defer></script>
+  <script src="drive-explorer.js?v=20261121-r5" defer></script>
+  <script src="media-lightbox.js?v=20261104-r5" defer></script>
   <script src="collections-data.js?v=20261121-r1" defer></script>
-  <script src="collection-viewer.js?v=20261118-r1" defer></script>
+  <script src="collection-viewer.js?v=20261121-r5" defer></script>
 
   <!-- ===== Rail navigation — scroll-spy + เลื่อนไปยังหมวด (guard ทุก ID ให้หน้าขาด card ได้) ===== -->
   <script>
@@ -742,39 +746,40 @@
         if (card) card.scrollIntoView({ block: "start" });
       });
     }
-    function goToSection(name) {
-      // Instant scroll only: smooth scrollIntoView silently failed on the
-      // in-app browser (reproduced on desktop and mobile with a clean
-      // document), leaving rail and mobile tabs not navigating at all.
-      if (name === "home") { window.scrollTo(0, 0); return; }
-      var target = document.getElementById(name === "collections" ? "collectionsCard" : "browserCard");
-      if (target) target.scrollIntoView({ block: "start" });
-    }
-
-    function currentSection() {
-      var probe = window.scrollY + Math.max(120, window.innerHeight * 0.25);
-      var name = "home", lastName = "home";
-      sections.forEach(function (s) {
-        if (!s.el) return;
-        lastName = s.name;
-        if (s.el.getBoundingClientRect().top + window.scrollY <= probe) name = s.name;
-      });
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) name = lastName;
-      return name;
-    }
-
-    var lastName = "home";
-    function updateSpy() {
-      var name = currentSection();
-      if (name === lastName) return;
-      lastName = name;
+    var shell = document.getElementById("pageShell");
+    var activeView = "home";
+    function setActiveView(name, shouldScroll) {
+      if (name !== "home" && name !== "collections" && name !== "browser") name = "home";
+      activeView = name;
+      if (shell) shell.setAttribute("data-active-view", name);
       sections.forEach(function (s) {
         s.btns.forEach(function (b) { b.classList.toggle("on", s.name === name); });
       });
+      if (shouldScroll) window.scrollTo(0, 0);
     }
-    window.addEventListener("scroll", updateSpy, { passive: true });
-    window.addEventListener("resize", updateSpy, { passive: true });
-    updateSpy();
+
+    function goToSection(name) {
+      setActiveView(name, true);
+    }
+
+    function syncViewFromHash() {
+      if (location.hash && location.hash.indexOf("#/f/") === 0) {
+        setActiveView("browser", true);
+      }
+    }
+    window.addEventListener("hashchange", syncViewFromHash);
+    if (location.hash && location.hash.indexOf("#/f/") === 0) {
+      setActiveView("browser", false);
+    } else {
+      setActiveView("home", false);
+    }
+    var mbHomeBtn = document.getElementById("mbHome");
+    if (mbHomeBtn) mbHomeBtn.addEventListener("click", function () { setActiveView("collections", true); });
+    if (topSearch) {
+      topSearch.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") setActiveView("collections", true);
+      });
+    }
 
     rail.addEventListener("click", function (ev) {
       var btn = ev.target && ev.target.closest ? ev.target.closest(".rail-btn") : null;

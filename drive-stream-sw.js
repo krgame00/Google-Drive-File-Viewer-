@@ -24,8 +24,8 @@ const MEDIA_CHUNK_BYTES = 16777216;
 function boundedMediaRange(range, chunkBytes = MEDIA_CHUNK_BYTES) {
   const open = range && range.match(/^bytes=(\d{1,20})-$/i);
   if (!open) return range;
-  const start = Number(open[1]);
-  return 'bytes=' + start + '-' + (start + chunkBytes - 1);
+  const start = BigInt(open[1]);
+  return 'bytes=' + start + '-' + (start + BigInt(chunkBytes) - 1n);
 }
 // One prefetched chunk for the next media request; lost if the worker restarts.
 let ahead = null;

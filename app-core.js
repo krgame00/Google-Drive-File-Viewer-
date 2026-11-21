@@ -601,6 +601,9 @@
           accessToken = null; tokenExpiry = 0; userProfile = null;
           if (videoCache) videoCache.clear().then(refreshVideoCacheUI);
           lsRemove('gdv_auth_remember');
+          if (window.GDVExplorerApi && window.GDVExplorerApi.explorer && typeof window.GDVExplorerApi.explorer.revokeWorkerSession === "function") {
+            window.GDVExplorerApi.explorer.revokeWorkerSession();
+          }
           if (typeof caches !== "undefined" && caches && caches.delete) Promise.resolve(caches.delete(MEDIA_CACHE)).catch(function () {});
           if (videoModal.classList.contains("show")) closeVideo();
           if (lightbox.classList.contains("show")) closeLightbox();

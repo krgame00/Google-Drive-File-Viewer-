@@ -228,6 +228,104 @@
         if (resolve) resolve(accessToken);
       }
 
+      const WORKER_AUTH_BASE = 'https://google-drive-file-viewer.missnlpp9.workers.dev';
+      const WORKER_SESSION_KEY = 'gdv_auth_session';
+      let workerRefreshTimer = null;
+
+      function scheduleWorkerAutoRefresh(expiresInSec) {
+        if (workerRefreshTimer) { clearTimeout(workerRefreshTimer); workerRefreshTimer = null; }
+        if (!lsGet(WORKER_SESSION_KEY) || typeof fetch !== 'function') return;
+        const waitMs = Math.max(60000, ((Number(expiresInSec) || 3600) - 300) * 1000);
+        workerRefreshTimer = setTimeout(function () {
+          workerRefreshTimer = null;
+          refreshWorkerSession();
+        }, waitMs);
+      }
+
+      async function refreshWorkerSession() {
+        const sessionToken = lsGet(WORKER_SESSION_KEY);
+        if (!sessionToken || typeof fetch !== 'function') return null;
+        try {
+          const res = await fetch(WORKER_AUTH_BASE + '/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionToken: sessionToken }),
+            cache: 'no-store'
+          });
+          if (res.status === 401) {
+            lsRemove(WORKER_SESSION_KEY);
+            return null;
+          }
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data && data.sessionToken) lsSet(WORKER_SESSION_KEY, data.sessionToken);
+          if (data && data.access_token) {
+            finishTokenRequest({ access_token: data.access_token, expires_in: data.expires_in || 3600 });
+            scheduleWorkerAutoRefresh(data.expires_in || 3600);
+            return data.access_token;
+          }
+        } catch (_) {}
+        return null;
+      }
+
+      function revokeWorkerSession() {
+        if (workerRefreshTimer) { clearTimeout(workerRefreshTimer); workerRefreshTimer = null; }
+        const sessionToken = lsGet(WORKER_SESSION_KEY);
+        lsRemove(WORKER_SESSION_KEY);
+        if (sessionToken && typeof fetch === 'function') {
+          fetch(WORKER_AUTH_BASE + '/auth/revoke', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionToken: sessionToken }),
+            cache: 'no-store'
+          }).catch(function () {});
+        }
+      }
+
+      function signInWithWorkerCode() {
+        return new Promise(function (resolve) {
+          if (typeof fetch !== 'function' || !google || !google.accounts || !google.accounts.oauth2 || typeof google.accounts.oauth2.initCodeClient !== 'function') {
+            resolve({ fallback: true });
+            return;
+          }
+          try {
+            const codeClient = google.accounts.oauth2.initCodeClient({
+              client_id: clientId,
+              scope: AUTH_SCOPE,
+              ux_mode: 'popup',
+              access_type: 'offline',
+              prompt: 'consent',
+              callback: async function (resp) {
+                if (!resp || resp.error || !resp.code) { resolve({ token: null }); return; }
+                try {
+                  const ex = await fetch(WORKER_AUTH_BASE + '/auth/exchange', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: resp.code, redirectUri: 'postmessage' }),
+                    cache: 'no-store'
+                  });
+                  if (ex.status === 503) { resolve({ fallback: true }); return; }
+                  if (!ex.ok) { resolve({ token: null }); return; }
+                  const data = await ex.json();
+                  if (data && data.sessionToken) lsSet(WORKER_SESSION_KEY, data.sessionToken);
+                  if (data && data.access_token) {
+                    finishTokenRequest({ access_token: data.access_token, expires_in: data.expires_in || 3600 });
+                    scheduleWorkerAutoRefresh(data.expires_in || 3600);
+                    resolve({ token: data.access_token });
+                    return;
+                  }
+                } catch (_) {}
+                resolve({ token: null });
+              },
+              error_callback: function () { resolve({ token: null }); }
+            });
+            codeClient.requestCode();
+          } catch (_) {
+            resolve({ fallback: true });
+          }
+        });
+      }
+
       function initTokenClient() {
         if (!clientId) return;
 
@@ -238,7 +336,10 @@
 
         const fragOk = consumeAuthFragment();
 
-        if (!authRestoreAttempted && !accessToken && !fragOk && lsGet('gdv_auth_remember') === clientId) {
+        if (!authRestoreAttempted && !accessToken && !fragOk && typeof fetch === 'function' && lsGet('gdv_auth_session')) {
+          authRestoreAttempted = true;
+          refreshWorkerSession();
+        } else if (!authRestoreAttempted && !accessToken && !fragOk && lsGet('gdv_auth_remember') === clientId) {
           authRestoreAttempted = true;
           // รอบก่อนยังไม่ได้คำตอบ (state ค้างใน sessionStorage) → ห้ามยิง redirect ซ้ำ
           // ให้ปุ่ม reconnect หรือคลิกแรกด้านล่างรับงานต่อ
@@ -282,6 +383,31 @@
             refreshAuthUI(false);
           }
           if (accessToken && Date.now() < tokenExpiry - 60000) { resolve(accessToken); return; }
+          if (typeof fetch === 'function' && lsGet('gdv_auth_session')) {
+            refreshWorkerSession().then(function (tok) {
+              if (tok) { resolve(tok); return; }
+              if (!tokenClient || tokenResolver) { resolve(null); return; }
+              tokenResolver = resolve;
+              const remembered = lsGet('gdv_auth_remember') === clientId;
+              try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+              catch (_) { finishTokenRequest(null); }
+            });
+            return;
+          }
+          if (typeof fetch === 'function' && !forceRefresh && google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initCodeClient === 'function') {
+            signInWithWorkerCode().then(function (out) {
+              if (out && out.token) { resolve(out.token); return; }
+              if (out && out.fallback && tokenClient && !tokenResolver) {
+                tokenResolver = resolve;
+                const remembered = lsGet('gdv_auth_remember') === clientId;
+                try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+                catch (_) { finishTokenRequest(null); }
+                return;
+              }
+              resolve(null);
+            });
+            return;
+          }
           if (!tokenClient || tokenResolver) { resolve(null); return; }
           tokenResolver = resolve;
           const remembered = lsGet('gdv_auth_remember') === clientId;
@@ -560,9 +686,9 @@
           const key = (accessToken || apiKey) + ":" + id;
           let cached = folderCoverCache.get(key);
           if (!cached || cached.expires < Date.now()) {
-            cached = { expires: Date.now() + 300000, value: findFolderCover(id) };
+            cached = { expires: Date.now() + 1800000, value: findFolderCover(id) };
             folderCoverCache.set(key, cached);
-            if (folderCoverCache.size > 300) folderCoverCache.delete(folderCoverCache.keys().next().value);
+            if (folderCoverCache.size > 600) folderCoverCache.delete(folderCoverCache.keys().next().value);
           }
           cached.value.then(cover => {
             if (!target.isConnected || target.dataset.coverVersion !== coverVersion || readPersonalData().hideCovers) return;
@@ -1579,6 +1705,7 @@
       asyncBridge.openFolderAndReveal = openFolderAndReveal;
       asyncBridge.findFolderCover = findFolderCover;
       asyncBridge.listFolder = listFolder;
+      asyncBridge.refreshWorkerSession = refreshWorkerSession;
     }
   }
 
@@ -1588,6 +1715,7 @@
     openFolderAndReveal,
     findFolderCover,
     listFolder,
+    refreshWorkerSession,
   } = asyncBridge;
   appApi.explorer = {
     refreshClientIdStatus,
@@ -1598,6 +1726,8 @@
     initTokenClient,
     ensureToken,
     switchGoogleAccount,
+    refreshWorkerSession,
+    revokeWorkerSession,
     fetchUserProfile,
     refreshAuthUI,
     extractId,
