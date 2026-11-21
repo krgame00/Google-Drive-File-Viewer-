@@ -604,6 +604,14 @@
           if (window.GDVExplorerApi && window.GDVExplorerApi.explorer && typeof window.GDVExplorerApi.explorer.revokeWorkerSession === "function") {
             window.GDVExplorerApi.explorer.revokeWorkerSession();
           }
+          if (window.GDVExplorerApi && window.GDVExplorerApi.explorer && typeof window.GDVExplorerApi.explorer.finishTokenRequest === "function") {
+            window.GDVExplorerApi.explorer.finishTokenRequest(null);
+          }
+          if (clientId) {
+            try { sessionStorage.removeItem('gdv_token_' + clientId); } catch (_) {}
+            try { sessionStorage.removeItem('gdv_token_exp_' + clientId); } catch (_) {}
+            try { sessionStorage.removeItem('gdv_profile_' + clientId); } catch (_) {}
+          }
           if (typeof caches !== "undefined" && caches && caches.delete) Promise.resolve(caches.delete(MEDIA_CACHE)).catch(function () {});
           if (videoModal.classList.contains("show")) closeVideo();
           if (lightbox.classList.contains("show")) closeLightbox();

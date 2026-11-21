@@ -15,7 +15,7 @@ google:{accounts:{oauth2:{initTokenClient(c){config=c;return {requestAccessToken
 vm.createContext(ctx);for(const name of ['authSessionFlag','authSessionSetFlag','authSessionClearFlag','buildSilentAuthUrl','consumeAuthFragment','finishTokenRequest','initTokenClient','ensureToken'])vm.runInContext(fn(name),ctx);
 // One vm initTokenClient() call simulates one page load: memory-only auth state resets,
 // while the URL and the sessionStorage attempt flags survive like they do in a browser.
-function freshLoad(){ctx.accessToken=null;ctx.tokenExpiry=0;ctx.userProfile=null;ctx.tokenResolver=null;ctx.authRestoreAttempted=false;ctx.authGestureHooked=false;ctx.__redirect=undefined;ctx.__replaceState=undefined;ctx.__gesture=undefined;}
+function freshLoad(){ctx.accessToken=null;ctx.tokenExpiry=0;ctx.userProfile=null;ctx.tokenResolver=null;ctx.authRestoreAttempted=false;ctx.authGestureHooked=false;ctx.__redirect=undefined;ctx.__replaceState=undefined;ctx.__gesture=undefined;sessionStore.delete('gdv_token_'+ctx.clientId);sessionStore.delete('gdv_token_exp_'+ctx.clientId);sessionStore.delete('gdv_profile_'+ctx.clientId);}
 (async()=>{
 ctx.initTokenClient();assert.equal(requests.length,0,'first visit does not prompt');assert.equal(ctx.__redirect,undefined,'first visit does not redirect');
 // Remembered boot must reconnect with ZERO clicks: a full-page prompt=none redirect that no
@@ -152,13 +152,40 @@ assert.equal(ctx.accessToken,'instant_tok','fragment token applied instantly wit
 assert.equal(ctx.__replaceState[2],'/app/','fragment cleaned instantly even if GIS script is delayed or blocked');
 ctx.waitForGis = cb => cb(); // restore original helper
 
+// Session restore on page refresh (F5):
+// When a valid token exists in sessionStorage, initTokenClient() restores accessToken and profile
+// immediately without triggering a full-page redirect or opening a popup.
+freshLoad();
+sessionStore.set('gdv_token_' + ctx.clientId, 'session_valid_token');
+sessionStore.set('gdv_token_exp_' + ctx.clientId, String(Date.now() + 3600000));
+sessionStore.set('gdv_profile_' + ctx.clientId, JSON.stringify({ name: 'Tester', email: 'test@example.com' }));
+ctx.initTokenClient();
+assert.equal(ctx.accessToken, 'session_valid_token', 'page refresh restores valid token from sessionStorage');
+assert.equal(ctx.userProfile && ctx.userProfile.email, 'test@example.com', 'page refresh restores cached userProfile');
+assert.equal(ctx.__redirect, undefined, 'no redirect when session token is active');
+assert.equal(ctx.authRestoreAttempted, true, 'auth marked as restored');
+
+// When session token in sessionStorage is expired:
+freshLoad();
+sessionStore.set('gdv_token_' + ctx.clientId, 'expired_token');
+sessionStore.set('gdv_token_exp_' + ctx.clientId, String(Date.now() - 5000));
+ctx.initTokenClient();
+assert.equal(ctx.accessToken, null, 'expired session token is discarded');
+assert.equal(typeof ctx.__redirect, 'string', 'expired token triggers silent redirect re-arm');
+
 // Bug 6a: เมื่อกดออกจากระบบ (Sign out) ต้องปิด Lightbox (ถ้าเปิดรูป/PDF ส่วนตัวค้างอยู่) และล้าง MEDIA_CACHE (gdv-media-v1) ด้วย
 const signOutStart = html.indexOf('      authBtn.addEventListener("click"');
 const signOutEnd = html.indexOf('      // ===== Extract ID =====', signOutStart);
 assert(signOutStart >= 0 && signOutEnd > signOutStart, 'authBtn click listener exists');
 let authClickHandler = null, lightboxClosed = 0, videoClosed = 0;
 const deletedCaches = [];
+const sessionStoreSignOut = new Map([
+  ['gdv_token_client', 'private-token'],
+  ['gdv_token_exp_client', '9999999999999'],
+  ['gdv_profile_client', '{"name":"Tester"}']
+]);
 const signOutCtx = {
+  clientId: 'client',
   MEDIA_CACHE: 'gdv-media-v1',
   authBtn: { addEventListener(ev, fn) { if (ev === 'click') authClickHandler = fn; } },
   accessToken: 'private-token',
@@ -169,6 +196,7 @@ const signOutCtx = {
   videoCache: { clear() { return Promise.resolve(); } },
   refreshVideoCacheUI() {},
   caches: { delete(name) { deletedCaches.push(name); return Promise.resolve(true); } },
+  sessionStorage: { removeItem: k => sessionStoreSignOut.delete(k) },
   lsRemove(k) { store.delete(k); },
   videoModal: { classList: { contains: c => c === 'show' } },
   lightbox: { classList: { contains: c => c === 'show' } },
@@ -184,6 +212,7 @@ assert.equal(signOutCtx.accessToken, null, 'accessToken cleared on sign out');
 assert.equal(videoClosed, 1, 'videoModal closed on sign out');
 assert.equal(lightboxClosed, 1, 'lightbox closed on sign out so private image/PDF is not left on screen');
 assert.deepEqual(deletedCaches, ['gdv-media-v1'], 'MEDIA_CACHE deleted on sign out so private cached blobs do not persist');
+assert.equal(sessionStoreSignOut.size, 0, 'sessionStorage token and profile wiped on sign out');
 
 console.log('PASS silent redirect boot, fragment intake, loop guard, popup fallback, reuse consent, memory-only token and error cleanup');
 })().catch(e=>{console.error(e);process.exitCode=1});

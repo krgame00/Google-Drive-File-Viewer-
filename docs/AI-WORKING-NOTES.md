@@ -1612,3 +1612,38 @@
 - **หลักฐานการทดสอบ (Verification Evidence):**
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+
+### #81 แก้ปัญหาจอขาวค้างที่ `accounts.google.com/gsi/transform` (Permanent White Screen Elimination) — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **สาเหตุ (Root Cause):**
+  1. Google Identity Services โหมด Popup Code (`initCodeClient({ ux_mode: 'popup' })`) ทำการ redirect หน้า popup ไปยัง `accounts.google.com/gsi/transform`
+  2. ในเบราว์เซอร์ที่มีการบล็อก Third-party Cookie หรือมี uBlock Origin / Brave Shields / ad blockers การสื่อสารข้าม origin ด้วย `window.opener.postMessage` จะถูกระงับ ทำให้หน้า `gsi/transform` ติดค้างเป็นหน้าจอขาวว่างเปล่าถาวร
+- **การแก้ไข:**
+  1. ปรับ `signInWithWorkerCode()` ใน `drive-explorer.js` ให้ข้าม popup code flow โดยตรง (fallback ทันที 0ms) ไปใช้ `tokenClient.requestAccessToken` ของ Google Identity Services มาตรฐานที่ไม่แตะ `gsi/transform` เลย
+  2. คงการตั้งค่า opt-in ผ่าน `?code_flow=1` สำหรับการทดสอบ Cloudflare Worker OAuth code exchange ในอนาคต
+  3. ปรับ `ensureToken()` ให้ส่งต่อไปยัง `tokenClient.requestAccessToken` ภายใต้ active user gesture โดยตรง
+  4. อัปเกรดเวอร์ชันไฟล์เป็น `drive-explorer.js?v=20261121-r8` ใน `index.html`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/auth-restore.cjs` -> 1/1 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+### #82 แก้ปัญหารีเฟรชหน้าเว็บ (F5) แล้วหลุดจากระบบ Google (Session Token Restoration) — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **สาเหตุ (Root Cause):**
+  1. เมื่อผู้ใช้ล็อกอินผ่าน `tokenClient.requestAccessToken` ตัวแปร `accessToken`, `tokenExpiry`, และ `userProfile` ถูกเก็บไว้ใน JavaScript in-memory ตัวแปรเดียว
+  2. เมื่อผู้ใช้กด Refresh หน้าเว็บ (F5 / reload) ตัวแปรในหน่วยความจำจะถูกล้างทิ้ง (`accessToken = null`)
+  3. ระบบพยายามฟื้นฟูเซสชันผ่าน `buildSilentAuthUrl()` ไปยัง `accounts.google.com/o/oauth2/v2/auth?prompt=none` แต่เนื่องจากเบราว์เซอร์รุ่นใหม่ (Brave, Chrome ที่บล็อก 3rd-party cookies) ไม่อนุญาตการอ่านคุกกี้ข้ามโดเมนใน `prompt=none` Google จึงตอบกลับด้วย `#error=interaction_required`
+  4. ผลคือ `consumeAuthFragment()` รับ error interaction_required แล้วล้างเซสชันทิ้ง ทำให้ผู้ใช้หลุดออกจากระบบทุกครั้งที่รีเฟรช แม้ว่า Token ของ Google จะยังใช้งานได้ 1 ชั่วโมง (3,600 วินาที) ก็ตาม
+- **การแก้ไข:**
+  1. **SessionStorage Scoped Token Persistence:** ใน `finishTokenRequest(resp)` บันทึก `access_token` และ `token_expiry` ลงใน `sessionStorage` (กุญแจ `gdv_token_<clientId>` และ `gdv_token_exp_<clientId>`) ซึ่งคงอยู่ตลอดอายุของแท็บบราวเซอร์ (รอดจากการกด F5/รีเฟรช) และถูกทำลายอัตโนมัติเมื่อปิดแท็บ ปลอดภัยไม่รั่วไหลข้ามแท็บและไม่เก็บลง Hard Disk แบบ `localStorage`
+  2. **Instant Restore on Page Load:** ใน `initTokenClient()` ตรวจสอบ `sessionStorage` หากพบโทเคนที่ยังไม่หมดอายุ (`Date.now() < savedExp - 30000`) จะฟื้นฟู `accessToken` และ `userProfile` กลับมาทันทีโดยไม่ต้องยิง Full-page redirect หรือเปิด Popup
+  3. **Profile Caching in Session:** แคชข้อมูลโพรไฟล์ (`gdv_profile_<clientId>`) ใน `sessionStorage` เพื่อให้หน้าเว็บแสดงผลชื่อและรูปโปรไฟล์ได้ทันทีหลังรีเฟรช พร้อมยิง `fetchUserProfile()` อัปเดตในเบื้องหลัง
+  4. **Clean Sign Out:** ใน `app-core.js` และ `finishTokenRequest(null)` ล้างคีย์ `gdv_token_*`, `gdv_token_exp_*`, และ `gdv_profile_*` ออกจาก `sessionStorage` ทันทีเมื่อผู้ใช้กดออกจากระบบ
+  5. **TDD Test Suite:** เพิ่มการทดสอบการฟื้นฟูโทเคนจาก `sessionStorage` ทั้งกรณี Token ยังไม่หมดอายุ, กรณี Token หมดอายุ, และกรณี Sign out ลงใน `tests/auth-restore.cjs`
+  6. **Cache-Busting Version Bump:** อัปเกรดเป็น `app-core.js?v=20261121-r9` และ `drive-explorer.js?v=20261121-r9` ใน `index.html`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/auth-restore.cjs` -> 1/1 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**

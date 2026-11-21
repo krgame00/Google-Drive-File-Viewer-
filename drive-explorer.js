@@ -211,6 +211,10 @@
           accessToken = resp.access_token;
           tokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
           lsSet('gdv_auth_remember', clientId);
+          if (clientId) {
+            authSessionSetFlag('gdv_token_' + clientId, accessToken);
+            authSessionSetFlag('gdv_token_exp_' + clientId, String(tokenExpiry));
+          }
           // ได้ token จากช่องทางอื่น (popup/gesture) เมื่อมี state เงียบค้างจากรอบก่อน → ล้างทิ้ง
           // ไม่งั้นรีโหลดถัดไปโดน loop guard ข้าม redirect เงียบตลอด ทั้งที่เชื่อมต่อสำเร็จแล้ว
           authSessionClearFlag('gdv_silent_state');
@@ -220,6 +224,11 @@
           accessToken = null;
           tokenExpiry = 0;
           userProfile = null;
+          if (clientId) {
+            authSessionClearFlag('gdv_token_' + clientId);
+            authSessionClearFlag('gdv_token_exp_' + clientId);
+            authSessionClearFlag('gdv_profile_' + clientId);
+          }
         }
         refreshAuthUI(!!accessToken);
         try{window.dispatchEvent(new CustomEvent("gdv-auth",{detail:{signedIn:!!accessToken}}));}catch(_){}
@@ -350,6 +359,25 @@
       function initTokenClient() {
         if (!clientId) return;
 
+        // ฟื้นฟู token จาก sessionStorage (กรณีผู้ใช้กด F5 / refresh ในแท็บเดิม)
+        // เพื่อไม่ต้องโหลดหน้าใหม่ ไม่ต้องเด้ง redirect และไม่หลุดออกจากระบบ
+        if (!accessToken) {
+          const savedTok = authSessionFlag('gdv_token_' + clientId);
+          const savedExp = Number(authSessionFlag('gdv_token_exp_' + clientId)) || 0;
+          if (savedTok && Date.now() < savedExp - 30000) {
+            accessToken = savedTok;
+            tokenExpiry = savedExp;
+            authRestoreAttempted = true;
+            const savedProfileStr = authSessionFlag('gdv_profile_' + clientId);
+            if (savedProfileStr) {
+              try { userProfile = JSON.parse(savedProfileStr); } catch (_) {}
+            }
+            fetchUserProfile();
+            refreshAuthUI(true);
+            try { window.dispatchEvent(new CustomEvent("gdv-auth", { detail: { signedIn: true } })); } catch (_) {}
+          }
+        }
+
         // ต้องอ่านธง "พยายามเชื่อมต่อเงียบค้างอยู่" ก่อน consumeAuthFragment
         // เพราะถ้า Google ตอบ error กลับมา มันจะกิน flag ทิ้ง — เราจำเป็นต้องรู้ว่ารอบนี้
         // เพิ่งกลับมาจากความพยายามเงียบ เพื่อห้าม redirect ซ้ำจนกลายเป็นลูป
@@ -401,6 +429,11 @@
             accessToken = null;
             tokenExpiry = 0;
             userProfile = null;
+            if (clientId) {
+              authSessionClearFlag('gdv_token_' + clientId);
+              authSessionClearFlag('gdv_token_exp_' + clientId);
+              authSessionClearFlag('gdv_profile_' + clientId);
+            }
             refreshAuthUI(false);
           }
           if (accessToken && Date.now() < tokenExpiry - 60000) { resolve(accessToken); return; }
@@ -475,7 +508,13 @@
 
           if (res.ok) {
             const profile = await res.json();
-            if (accessToken === profileToken) { userProfile = profile; refreshAuthUI(true); }
+            if (accessToken === profileToken) {
+              userProfile = profile;
+              if (clientId) {
+                authSessionSetFlag('gdv_profile_' + clientId, JSON.stringify(profile));
+              }
+              refreshAuthUI(true);
+            }
           }
 
         } catch (_) {}
