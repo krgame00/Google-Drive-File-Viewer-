@@ -448,7 +448,8 @@
             });
             return;
           }
-          if (typeof fetch === 'function' && !forceRefresh && google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initCodeClient === 'function') {
+          const allowPopupCode = typeof location !== 'undefined' && location.search && location.search.includes('code_flow=1');
+          if (allowPopupCode && typeof fetch === 'function' && !forceRefresh && google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initCodeClient === 'function') {
             signInWithWorkerCode().then(function (out) {
               if (out && out.token) { resolve(out.token); return; }
               if (out && out.fallback) {
@@ -475,7 +476,20 @@
             });
             return;
           }
-          if (!tokenClient || tokenResolver) { resolve(null); return; }
+          if (!tokenClient) {
+            waitForGis(function () {
+              if (tokenClient && !tokenResolver) {
+                tokenResolver = resolve;
+                const remembered = lsGet('gdv_auth_remember') === clientId;
+                try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
+                catch (_) { finishTokenRequest(null); }
+              } else {
+                resolve(null);
+              }
+            });
+            return;
+          }
+          if (tokenResolver) { resolve(null); return; }
           tokenResolver = resolve;
           const remembered = lsGet('gdv_auth_remember') === clientId;
           try { tokenClient.requestAccessToken({prompt: accessToken || remembered ? '' : 'consent'}); }
@@ -714,20 +728,45 @@
         }
         let pageToken = "";
         // Bound API work; only inspect media directly inside this folder.
+        const driveFlags = "&supportsAllDrives=true&includeItemsFromAllDrives=true";
         for (let page = 0; page < 3; page++) {
           const query = "'" + folderId.replace(/'/g, "\\'") + "' in parents and trashed=false and (mimeType contains 'image/' or mimeType contains 'video/')";
           let url = "https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(query) +
-            "&orderBy=name&pageSize=100&fields=files(thumbnailLink,mimeType),nextPageToken";
+            "&orderBy=name&pageSize=100&fields=files(thumbnailLink,mimeType),nextPageToken" + driveFlags;
           if (pageToken) url += "&pageToken=" + encodeURIComponent(pageToken);
           if (auth.mode === "key") url += "&key=" + encodeURIComponent(apiKey);
           const response = await fetch(url, { headers: auth.headers || {}, signal });
           if (!response.ok) throw new Error("Folder cover unavailable");
           const data = await response.json();
-          const file = (data.files || []).find(f => f.thumbnailLink);
+          const file = (data && data.files || []).find(f => f.thumbnailLink);
           if (file) return { url: file.thumbnailLink, video: file.mimeType.startsWith("video/") };
-          pageToken = data.nextPageToken;
+          pageToken = data && data.nextPageToken;
           if (!pageToken) break;
         }
+        // Fallback: inspect up to 4 immediate subfolders when media lives one level deeper (e.g. Month 7 event folders).
+        try {
+          const subQuery = "'" + folderId.replace(/'/g, "\\'") + "' in parents and trashed=false and mimeType='application/vnd.google-apps.folder'";
+          let subUrl = "https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(subQuery) +
+            "&orderBy=name&pageSize=4&fields=files(id)" + driveFlags;
+          if (auth.mode === "key") subUrl += "&key=" + encodeURIComponent(apiKey);
+          const subRes = await fetch(subUrl, { headers: auth.headers || {}, signal });
+          if (subRes && subRes.ok) {
+            const subData = await subRes.json().catch(() => null);
+            const subs = (subData && subData.files) || [];
+            for (const sub of subs) {
+              if (!sub || !sub.id) continue;
+              const innerQ = "'" + String(sub.id).replace(/'/g, "\\'") + "' in parents and trashed=false and (mimeType contains 'image/' or mimeType contains 'video/')";
+              let innerUrl = "https://www.googleapis.com/drive/v3/files?q=" + encodeURIComponent(innerQ) +
+                "&orderBy=name&pageSize=20&fields=files(thumbnailLink,mimeType)" + driveFlags;
+              if (auth.mode === "key") innerUrl += "&key=" + encodeURIComponent(apiKey);
+              const innerRes = await fetch(innerUrl, { headers: auth.headers || {}, signal });
+              if (!innerRes || !innerRes.ok) continue;
+              const innerData = await innerRes.json().catch(() => null);
+              const innerFile = ((innerData && innerData.files) || []).find(f => f.thumbnailLink);
+              if (innerFile) return { url: innerFile.thumbnailLink, video: innerFile.mimeType.startsWith("video/") };
+            }
+          }
+        } catch (_) {}
         return null;
       }
 
@@ -770,6 +809,7 @@
             img.className = "thumb-img";
             img.alt = "";
             img.decoding = "async";
+            img.referrerPolicy = "no-referrer";
             img.onload = () => {
               if (!target.isConnected || target.dataset.coverVersion !== coverVersion || readPersonalData().hideCovers) return;
               target.appendChild(img);

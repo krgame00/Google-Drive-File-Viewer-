@@ -46,7 +46,7 @@ test('styles.css renders vector SVG mask icons for #vidMinimize and #vidFullscre
 test('index.html loads Google Fonts non-blocking, defers all 8 app scripts, bumps ?v=, and wires player controls', () => {
   const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
   assert.match(html, /rel="preload"\s+as="style"\s+href="https:\/\/fonts\.googleapis\.com\/css2/);
-  assert.match(html, /href="styles\.css\?v=20261121-r7"/);
+  assert.match(html, /href="styles\.css\?v=20261121-r8"/);
   assert.match(html, /id="vidCount"/);
   assert.match(html, /id="vidSpeed"/);
   assert.match(html, /id="vidTagToggle"/);
@@ -113,6 +113,38 @@ test('drive-explorer.js wires permanent Worker session refresh, revoke, and 30-m
   assert.equal(src.includes('/auth/exchange'), true);
   assert.equal(src.includes('/auth/refresh'), true);
   assert.equal(src.includes('/auth/revoke'), true);
+});
+
+test('drive-explorer.js findFolderCover falls back to 1-level subfolders with supportsAllDrives and sets no-referrer', async () => {
+  const src = fs.readFileSync(path.join(rootDir, 'drive-explorer.js'), 'utf8');
+  assert.equal(src.includes('img.referrerPolicy = "no-referrer";'), true);
+  assert.equal(src.includes('&supportsAllDrives=true&includeItemsFromAllDrives=true'), true);
+  const explorerPath = require.resolve(path.join(rootDir, 'drive-explorer.js'));
+  const prevWin = global.window;
+  try {
+    const urls = [];
+    const bridge = {
+      readPersonalData: () => ({ covers: [], hideCovers: false }),
+      accessToken: null,
+      apiKey: 'k',
+      AbortSignal,
+      fetch: async (url) => {
+        urls.push(String(url));
+        if (urls.length === 1) return { ok: true, json: async () => ({ files: [] }) };
+        if (urls.length === 2) return { ok: true, json: async () => ({ files: [{ id: 'subFolder1' }] }) };
+        return { ok: true, json: async () => ({ files: [{ mimeType: 'image/jpeg', thumbnailLink: 'https://example.test/sub-cover.jpg' }] }) };
+      }
+    };
+    global.window = { GDVExplorerApi: bridge };
+    delete require.cache[explorerPath];
+    const api = require(explorerPath);
+    const cover = await api.findFolderCover('month7Folder');
+    assert.deepEqual(cover, { url: 'https://example.test/sub-cover.jpg', video: false });
+    assert.ok(urls[2].includes('subFolder1'));
+  } finally {
+    if (prevWin === undefined) delete global.window;
+    else global.window = prevWin;
+  }
 });
 
 test('drive-stream-sw.js boundedMediaRange uses BigInt for exact large byte offsets', () => {

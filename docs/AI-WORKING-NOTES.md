@@ -1647,3 +1647,32 @@
 - **หลักฐานการทดสอบ (Verification Evidence):**
   - `node --test tests/auth-restore.cjs` -> 1/1 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+### #83 แก้ปัญหาคลิปเดือน 7 ขึ้นปกไม่ครบ และขจัดปัญหาจอขาว accounts.google.com/gsi/transform ใน Brave ถาวร — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 248/248 เทส, 0 fail, บน Node.js v26.12.1)
+- **สาเหตุที่แท้จริง (Root Cause):**
+  1. **คลิปเดือน 7 ขึ้นปกไม่ครบ (Month 7 Missing Covers):**
+     - โฟลเดอร์ในเดือน 7 (กรกฎาคม / 7.69) มีโครงสร้างพิเศษ: 38 โฟลเดอร์จากทั้งหมด 65 โฟลเดอร์ไม่มีไฟล์ภาพหรือวิดีโอที่มี Thumbnail สำเร็จรูปอยู่ในโฟลเดอร์ชั้นแรกโดยตรง แต่ไฟล์สื่อและรูปภาพถูกจัดเก็บไว้ลึกลงไป 1 ระดับในโฟลเดอร์ย่อย (Immediate Subfolders เช่น `148รูป [Machi] Sparkle (รีเดวส)`, `Henkawa-animation มี 5 อัน`, `มืด`)
+     - ฟังก์ชัน `findFolderCover` เดิมค้นหาเฉพาะไฟล์ในชั้นราก (`'folderId' in parents`) โดยไม่มีแฟล็ก `supportsAllDrives=true` และไม่ยอมสำรวจลงไปในโฟลเดอร์ย่อยชั้นที่ 1 จึงไม่พบภาพหน้าปก
+     - นอกจากนี้ Google Drive Thumbnail Endpoint ปฏิเสธคำขอด้วยรหัส HTTP `403 Forbidden` หากตรวจพบ HTTP Referrer Header บางรูปแบบ
+  2. **ปัญหาจอขาว accounts.google.com/gsi/transform ในเบราว์เซอร์ Brave (Brave White Screen Elimination):**
+     - หน้า `accounts.google.com/gsi/transform` เป็นตัวกลางภายในของ Google Identity Services (GIS) ที่ใช้รับส่ง Token ผ่าน `window.opener.postMessage` ในโหมด Popup
+     - ในเบราว์เซอร์ Brave ที่เปิดระบบป้องกัน Brave Shields หรือมีส่วนขยาย ad blocker (เช่น uBlock Origin): เบราว์เซอร์จะตัดการเชื่อมต่อ `window.opener` ข้าม Origin ทันที ทำให้หน้าต่าง `gsi/transform` ค้างเป็นหน้าจอขาวสนิท
+     - ในโค้ดก่อนหน้า มีการเรียก `signInWithWorkerCode()` แบบ Asynchronous ก่อนจะ Fallback ไปหา `tokenClient.requestAccessToken()` ใน `.then()` ทำให้สูญเสียสิทธิ์ Transient User Activation (User Gesture) ในเบราว์เซอร์ และเสี่ยงเปิดหน้าต่างซ้ำซ้อน
+- **การแก้ไขที่ต้นตอ (Root Cause Fix):**
+  1. **1-Level Subfolder Cover Fallback & Drive Flags:**
+     - เพิ่ม `const driveFlags = "&supportsAllDrives=true&includeItemsFromAllDrives=true";` ในคำขอค้นหาไฟล์ของ `findFolderCover()` ใน `drive-explorer.js`
+     - หากไม่พบสื่อในชั้นราก เพิ่ม Fallback ให้ค้นหาโฟลเดอร์ย่อยระดับถัดไปสูงสุด 4 โฟลเดอร์ และดึง Thumbnail จากไฟล์ภาพ/วิดีโอในโฟลเดอร์ย่อยเหล่านั้นมาแสดงเป็นภาพปกอัตโนมัติ
+  2. **No-Referrer Policy for Covers:**
+     - เพิ่ม `img.referrerPolicy = "no-referrer";` ใน `drainFolderCovers()` เพื่อป้องกัน Google Drive ส่ง 403 Forbidden เมื่อร้องขอภาพ Thumbnail
+  3. **Synchronous Direct GIS Token Dispatch:**
+     - กักกัน `signInWithWorkerCode()` ให้อยู่ภายใต้แฟล็ก `?code_flow=1` เท่านั้น เพื่อไม่ให้ผู้ใช้ทั่วไปถูกส่งเข้ากระบวนการที่แตะ `accounts.google.com/gsi/transform`
+     - ส่งต่อเข้า `tokenClient.requestAccessToken()` แบบ Synchronous ภายใต้ User Click Gesture โดยตรง และหาก GIS ยังโหลดไม่เสร็จ ให้รอผ่าน `waitForGis()` อย่างปลอดภัย
+  4. **Cache Busting Version Bump:**
+     - อัปเดต `index.html` เป็น `styles.css?v=20261121-r8` และ `drive-explorer.js?v=20261121-r10`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs tests/auth-restore.cjs` -> 12/12 PASS
+  - `node --test tests/folder-covers.cjs` -> PASS
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**
