@@ -1548,3 +1548,19 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
   - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
 
+### #79 รวมแพตช์ View Switching Synchronization & Browser History Navigation — 2026-11-21
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 247/247 เทส, 0 fail, บน Node.js v26.12.1)
+- **การเปลี่ยนแปลงหลัก (จากแพตช์ `apply_project_fixes_single_(1).zip`):**
+  1. **Global View Switcher Expose:** ประกาศ `window.GDVSetActiveView = setActiveView` ใน `index.html` เพื่อให้คอมโพเนนต์อื่นสามารถสลับหน้าจอระหว่าง `collections` และ `browser` ได้อย่างราบรื่น
+  2. **Browser History & Hash Synchronization:** เพิ่มอีเวนต์ลิสเนอร์ `popstate` และ `hashchange` ใน `index.html` เพื่อซิงก์สถานะหน้าจอกลับไปยัง `collections` เมื่อผู้ใช้กดย้อนกลับ (Back button) หลังจากออกจากโฟลเดอร์
+  3. **Collection Viewer View Switch:** ปรับ `collection-viewer.js` ในฟังก์ชัน `openFolderAndReveal` ให้เรียก `window.GDVSetActiveView("browser", true)` เพื่อสลับหน้าจอมาที่โหมดบราวเซอร์ทันทีเมื่อผู้ใช้คลิกเปิดโฟลเดอร์จากคลัง
+  4. **Drive Explorer Hash Switch:** ปรับ `drive-explorer.js` ในฟังก์ชัน `pushHash(id)` ให้เรียก `window.GDVSetActiveView("browser", true)`
+  5. **Cloudflare Worker WebCrypto Abstraction:** เพิ่มฟังก์ชัน `getWebCrypto()` ใน `cloudflare-drive-worker.mjs` รองรับทั้ง Cloudflare Workers runtime และ Node.js webcrypto (`node:crypto`)
+  6. **Brave Browser Protection Preserved:** คงการตรวจจับ Brave (`navigator.brave`) และ Watchdog Timer 6 วินาทีไว้ครบถ้วน ไม่ให้เกิดปัญหาจอขาวซ้ำ
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 10/10 PASS
+  - `node --test tests/public-worker.cjs` -> 29/29 PASS
+  - `node --test tests/*.cjs` -> **247/247 PASS (0 fail)**
+
+

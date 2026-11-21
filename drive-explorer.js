@@ -1710,6 +1710,8 @@
 
         catch (_) { location.hash = "#/f/" + id; }
 
+        if (typeof window !== "undefined" && typeof window.GDVSetActiveView === "function") window.GDVSetActiveView("browser", true);
+
       }
 
     // Async function declarations are block-scoped to the `with` statement

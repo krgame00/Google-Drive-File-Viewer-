@@ -374,6 +374,7 @@
       // รีเซ็ต navStack เป็นระดับบนสุด (ไม่ซ้อนทับเหมือนโฟลเดอร์ย่อยเมื่อกดเปิดจากคลังหรือปุ่มสุ่ม)
       appApi.navStack = [{id: extId, name: (item.date? item.date+" - ":"")+item.title.replace("📌","").trim()}];
       appApi.pushHash(extId);
+      if (typeof window.GDVSetActiveView === "function") window.GDVSetActiveView("browser", true);
       appApi.openFolderAndReveal(extId);
     }
   }

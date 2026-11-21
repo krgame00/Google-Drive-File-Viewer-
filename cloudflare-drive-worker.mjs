@@ -55,15 +55,22 @@ function fromBase64Url(str) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+async function getWebCrypto() {
+  if (typeof crypto !== 'undefined' && crypto && crypto.subtle) return crypto;
+  const mod = await import('node:crypto');
+  return mod.webcrypto;
+}
 async function deriveSessionKey(secret) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('gdv-session-v1:' + secret));
-  return crypto.subtle.importKey('raw', digest, {name: 'AES-GCM'}, false, ['encrypt', 'decrypt']);
+  const wc = await getWebCrypto();
+  const digest = await wc.subtle.digest('SHA-256', new TextEncoder().encode('gdv-session-v1:' + secret));
+  return wc.subtle.importKey('raw', digest, {name: 'AES-GCM'}, false, ['encrypt', 'decrypt']);
 }
 async function sealSessionToken(refreshToken, secret) {
+  const wc = await getWebCrypto();
   const key = await deriveSessionKey(secret);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const iv = wc.getRandomValues(new Uint8Array(12));
   const plain = new TextEncoder().encode(JSON.stringify({rt: refreshToken, iat: Date.now()}));
-  const cipher = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, plain));
+  const cipher = new Uint8Array(await wc.subtle.encrypt({name: 'AES-GCM', iv}, key, plain));
   return 'gdv1.' + toBase64Url(iv) + '.' + toBase64Url(cipher);
 }
 async function unsealSessionToken(token, secret) {
@@ -71,10 +78,11 @@ async function unsealSessionToken(token, secret) {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
   try {
+    const wc = await getWebCrypto();
     const key = await deriveSessionKey(secret);
     const iv = fromBase64Url(parts[1]);
     const cipher = fromBase64Url(parts[2]);
-    const plain = await crypto.subtle.decrypt({name: 'AES-GCM', iv}, key, cipher);
+    const plain = await wc.subtle.decrypt({name: 'AES-GCM', iv}, key, cipher);
     const parsed = JSON.parse(new TextDecoder().decode(plain));
     return parsed && typeof parsed.rt === 'string' && parsed.rt.length ? parsed.rt : null;
   } catch (_) {

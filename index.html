@@ -762,12 +762,16 @@
       setActiveView(name, true);
     }
 
+    window.GDVSetActiveView = setActiveView;
     function syncViewFromHash() {
       if (location.hash && location.hash.indexOf("#/f/") === 0) {
         setActiveView("browser", true);
+      } else if (activeView === "browser") {
+        setActiveView("collections", true);
       }
     }
     window.addEventListener("hashchange", syncViewFromHash);
+    window.addEventListener("popstate", syncViewFromHash);
     if (location.hash && location.hash.indexOf("#/f/") === 0) {
       setActiveView("browser", false);
     } else {

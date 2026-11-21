@@ -52,6 +52,8 @@ test('index.html loads Google Fonts non-blocking, defers all 8 app scripts, bump
   assert.match(html, /id="vidTagToggle"/);
   assert.equal(html.includes('id="vidMinimizeBlob" hidden>↘'), true, '#vidMinimizeBlob must not use obscure 🗗 glyph');
   assert.match(html, /data-active-view/);
+  assert.match(html, /window\.GDVSetActiveView = setActiveView;/);
+  assert.match(html, /addEventListener\("popstate", syncViewFromHash\)/);
   assert.match(html, /id="linkInputCard"/);
   for (const script of [
     'video-cache.js',
