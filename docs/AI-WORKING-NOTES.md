@@ -1676,3 +1676,26 @@
   - `node --test tests/folder-covers.cjs` -> PASS
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
   - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**
+
+### #84 ปรับปรุง UI ตามลำดับความสำคัญ (Mobile Floating Pill Bar, Player Touch Targets, Contrast, Hierarchy & A11y) — 2026-11-22
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 248/248 เทส, 0 fail, บน Node.js v26.12.1)
+- **ประเด็นปัญหาที่แก้ไขตามลำดับความสำคัญ (UI Review Priorities):**
+  1. **Mobile Bottom Bar ซ้อน 2 ชั้น (#7.1 - Priority 1):**
+     - เดิมเมื่อผู้ใช้เปิดโฟลเดอร์ในมือถือ (`has-mobile-bar`) แถบ `#mobileBar` ถูกยกขึ้นเหนือ `#mobileTabs` แบบเต็มความกว้างจอ ส่งผลให้แถบ navigation กินพื้นที่จอรวมกว่า 110-120px
+     - ปรับโครงสร้าง CSS ให้ `#mobileBar` กลายเป็น Floating Pill Navigation ลอยอยู่เหนือกึ่งกลางล่าง มีพื้นหลังโปร่งแสง blur หรูหรา ปุ่มเรียงแนวนอนพร้อมไอคอน สะดวกต่อการใช้หัวแม่มือกด และไม่บังเนื้อหาด้านหลังแบบทึบทั้งแถบ
+  2. **ปุ่ม Video Player Chrome เล็กเกินไป (#5.1 - Priority 2):**
+     - เดิมปุ่ม `.chrome-btn` มีขนาดเพียง 30x30px บนหน้าจอมือถือ (<=560px) ซึ่งต่ำกว่ามาตรฐาน Touch Target 44px
+     - ขยายขนาดปุ่มเป็น 36x36px พร้อม pseudo-element `::after` ขยายพื้นที่สัมผัสเป็น 44px รอบปุ่ม ขจัดปัญหาการกดพลาดบนมือถืออย่างสิ้นเชิง
+  3. **Contrast และการมองเห็นพื้นผิวการ์ด (#8.1, #9.1 - Priority 5 & 6):**
+     - เพิ่มค่าความสว่างของ `--muted-soft` จาก `#62666d` (3.2:1) เป็น `#7a808d` (>4.6:1) ใน Dark mode และ `#6e7488` ใน Light mode ผ่านเกณฑ์ WCAG AA
+     - ปรับความทึบของ `--card` จาก 2% เป็น 3.5% และขอบ `--border` 9% เพื่อให้การ์ดมีมิติแยกจากพื้นหลังชัดเจน
+  4. **การจัดกลุ่มและลำดับชั้นสายตา (Visual Hierarchy & Accessibility - Priority 3, 7, 8, 10):**
+     - ปรับขนาดฟอนต์ `.coll-title` (14.5px หนา) และ `.coll-id` (11.5px สี muted-soft) เพื่อแยกชื่อรายการออกจาก ID ได้ในแวบแรก
+     - เพิ่ม `aria-label` และ `aria-hidden="true"` ให้ปุ่ม Emoji ทั้งหมด (🎲 สุ่ม, 🎬 แนะนำ, ⭐ คลังของฉัน, 💦 น้ำพุ่ง, ☁️ ซิงก์) เพื่อรองรับ Screen Reader
+     - จัดกลุ่มปุ่ม Header ผ่าน `.header-actions` ให้ flex-wrap เรียบร้อยบนหน้าจอขนาดเล็ก
+     - เพิ่มมิติกรอบ dashed และสีไอคอนให้ `.state-box` ในหน้าสถานะว่าง
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> PASS
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**

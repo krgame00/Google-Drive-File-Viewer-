@@ -126,22 +126,22 @@
               <input id="topSearch" class="top-search-input" type="search" placeholder="ค้นหาคลังหรือโฟลเดอร์…" autocomplete="off" aria-label="ค้นหาคลังหรือโฟลเดอร์ (กรองการ์ดคลังด้านล่างแบบทันที)" />
               <kbd class="top-search-kbd" aria-hidden="true">/</kbd>
             </div>
-            <div style="display:inline-flex; align-items:center; gap:8px;">
-              <button type="button" id="topRandomBtn" class="btn-ghost btn-sm" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
-                <span>🎲</span>
+            <div class="header-actions" style="display:inline-flex; align-items:center; gap:8px;">
+              <button type="button" id="topRandomBtn" class="btn-ghost btn-sm" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน" aria-label="สุ่มเปิดรายการจากคลัง" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+                <span aria-hidden="true">🎲</span>
                 <span>สุ่ม</span>
               </button>
-              <button type="button" id="recoBtn" class="btn-ghost btn-sm" title="สุ่มแนะนำคลิปจากทุกคลังในแคตตาล็อก" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
-                <span>🎬</span>
+              <button type="button" id="recoBtn" class="btn-ghost btn-sm" title="สุ่มแนะนำคลิปจากทุกคลังในแคตตาล็อก" aria-label="แนะนำคลิปให้ดู" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+                <span aria-hidden="true">🎬</span>
                 <span>แนะนำให้ดู</span>
               </button>
-              <button type="button" id="myLibraryToggle" class="btn-ghost btn-sm" title="เปิดคลังของฉัน (ดูต่อ, ดูภายหลัง, รายการโปรด)" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px; position:relative;">
-                <span>⭐</span>
+              <button type="button" id="myLibraryToggle" class="btn-ghost btn-sm" title="เปิดคลังของฉัน (ดูต่อ, ดูภายหลัง, รายการโปรด)" aria-label="เปิดคลังของฉัน" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px; position:relative;">
+                <span aria-hidden="true">⭐</span>
                 <span>คลังของฉัน</span>
                 <span id="myLibraryBadge" class="my-library-badge" style="display:none">0</span>
               </button>
-              <button type="button" id="themeToggle" class="btn-ghost btn-sm" title="สลับธีมสว่าง/มืด" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
-                <svg id="themeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              <button type="button" id="themeToggle" class="btn-ghost btn-sm" title="สลับธีมสว่าง/มืด" aria-label="สลับธีมสว่างหรือมืด" style="display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:8px 14px;">
+                <svg id="themeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                 <span id="themeLabel">มืด</span>
               </button>
             </div>
@@ -321,7 +321,7 @@
         <h2>📚 คลัง XBep — <span id="collCount" aria-live="polite"></span> <span style="font-size:.78rem;color:var(--muted);font-weight:400">กดเปิดดูได้เลย</span></h2>
         <div class="coll-header-actions">
           <!-- Mobile 1: at ≤560px collection-viewer.js moves these real buttons into #collMenuPanel; the display:contents slots are their ≥561px homes -->
-          <span class="coll-slot" data-slot="collRandom"><button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน">🎲 สุ่ม</button></span>
+          <span class="coll-slot" data-slot="collRandom"><button type="button" class="btn-ghost btn-sm" id="collRandom" title="สุ่มเปิดรายการจากคลังตามตัวกรองปัจจุบัน" aria-label="สุ่มเปิดรายการจากคลัง">🎲 สุ่ม</button></span>
           <span class="coll-slot" data-slot="collRandomBack"><button type="button" class="btn-ghost btn-sm" id="collRandomBack" disabled>สุ่มก่อนหน้า</button></span>
           <span class="coll-slot" data-slot="collMobileView"><button type="button" class="btn-ghost btn-sm" id="collMobileView" aria-pressed="false">มุมมองรายการ</button></span>
           <span class="coll-slot" data-slot="collToggle"><button type="button" class="btn-ghost btn-sm" id="collToggle" title="ซ่อน/แสดง">ซ่อน</button></span>
@@ -330,8 +330,8 @@
       <div class="coll-toolbar" id="collToolbar">
         <div class="coll-search-box"><input type="text" id="collSearch" aria-label="ค้นหาคลังตามวันที่หรือชื่อ" placeholder="ค้นหาวันที่หรือชื่อ…" /><button type="button" id="collSearchClear" title="ล้าง" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;display:none">×</button></div>
         <label class="coll-sort">เรียงตาม <select id="collSort"><option value="newest">ใหม่สุด</option><option value="oldest">เก่าสุด</option><option value="name">ชื่อ</option></select></label>
-        <span class="coll-slot" data-slot="collSoloSquirt"><label class="coll-pill"><input type="checkbox" id="collSoloSquirt"> 💦 เฉพาะน้ำพุ่ง</label></span>
-        <span class="coll-slot" data-slot="collTagSync"><button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive">☁️ ซิงก์</button></span>
+        <span class="coll-slot" data-slot="collSoloSquirt"><label class="coll-pill"><input type="checkbox" id="collSoloSquirt" aria-label="กรองเฉพาะคลิปน้ำพุ่ง"> 💦 เฉพาะน้ำพุ่ง</label></span>
+        <span class="coll-slot" data-slot="collTagSync"><button type="button" class="btn-ghost btn-sm" id="collTagSync" title="ซิงก์แท็กน้ำพุ่งกับ Drive" aria-label="ซิงก์แท็กน้ำพุ่งกับ Google Drive">☁️ ซิงก์</button></span>
         <span class="coll-slot" data-slot="collTagSyncStatus"><span id="collTagSyncStatus" style="font-size:.75rem;color:var(--muted)"></span></span>
         <span class="coll-slot" data-slot="collFilterDrawer"><details class="coll-filter-drawer" id="collFilterDrawer">
           <summary title="ตั้งค่าการแสดงผลและตัวกรองเพิ่มเติม">⚙️ ตัวเลือกมุมมอง</summary>

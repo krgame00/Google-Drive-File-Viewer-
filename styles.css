@@ -21,25 +21,25 @@
           --tabs-bg: #171a26;
           --tabs-chrome: calc(var(--tabs-h) + env(safe-area-inset-bottom, 0px));
 
-          --card: rgba(255,255,255,0.02);
+          --card: rgba(255,255,255,0.035);
 
-          --card-hover: rgba(255,255,255,0.04);
+          --card-hover: rgba(255,255,255,0.06);
 
           --text: #f7f8f8;
 
           --text-strong: #ffffff;
 
-          --muted: #8a8f98;
+          --muted: #969ba5;
 
-          --muted-soft: #62666d;
+          --muted-soft: #7a808d;
 
           --accent: #5e6ad2;
 
           --accent-hover: #4e5ac0;
           --accent-text: #8b97ff;
-          --surface-subtle: rgba(255,255,255,0.025);
-          --surface-subtle-hover: rgba(255,255,255,0.05);
-          --border-hover: rgba(255,255,255,0.16);
+          --surface-subtle: rgba(255,255,255,0.035);
+          --surface-subtle-hover: rgba(255,255,255,0.065);
+          --border-hover: rgba(255,255,255,0.18);
           --badge-evt-bg: rgba(94,106,210,0.18);
           --badge-evt-border: rgba(94,106,210,0.35);
           --badge-evt-text: #a5adff;
@@ -66,9 +66,9 @@
 
           --success-border: rgba(52, 211, 153, 0.25);
 
-          --border: rgba(255,255,255,0.08);
+          --border: rgba(255,255,255,0.09);
 
-          --border-soft: rgba(255,255,255,0.05);
+          --border-soft: rgba(255,255,255,0.06);
 
           --thumb-bg: #191a1b;
 
@@ -114,9 +114,9 @@
 
           --text-strong: #0b0d14;
 
-          --muted: #5d6278;
+          --muted: #52576b;
 
-          --muted-soft: #9aa0b5;
+          --muted-soft: #6e7488;
 
           --accent: #4f46e5;
 
@@ -124,7 +124,7 @@
           --accent-text: #4338ca;
           --surface-subtle: #f8f9fc;
           --surface-subtle-hover: #eef0f7;
-          --border-hover: #c5cadb;
+          --border-hover: #b8bfd3;
           --badge-evt-bg: rgba(79, 70, 229, 0.1);
           --badge-evt-border: rgba(79, 70, 229, 0.28);
           --badge-evt-text: #4338ca;
@@ -151,9 +151,9 @@
 
           --success-border: rgba(5, 150, 105, 0.2);
 
-          --border: #e3e6ef;
+          --border: #dce0eb;
 
-          --border-soft: #eceef4;
+          --border-soft: #e7eaf2;
 
           --thumb-bg: #f1f2f7;
 
@@ -829,13 +829,21 @@
 
     /* ===== States ===== */
 
-    .state-box { text-align: center; padding: 48px 20px; color: var(--muted); }
+    .state-box {
+      text-align: center;
+      padding: 44px 20px;
+      color: var(--muted);
+      border-radius: var(--radius-lg);
+      background: var(--surface-subtle);
+      border: 1px dashed var(--border);
+      margin: 8px 0;
+    }
 
-    .state-box svg { width: 44px; height: 44px; margin-bottom: 12px; opacity: 0.5; }
+    .state-box svg { width: 44px; height: 44px; margin-bottom: 12px; opacity: 0.6; color: var(--accent-text); }
 
     .state-box h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-strong); margin-bottom: 6px; }
 
-    .state-box p { font-size: 0.85rem; }
+    .state-box p { font-size: 0.85rem; color: var(--muted); }
 
 
 
@@ -1151,16 +1159,24 @@
 
     .chrome-btn {
 
-      width: 32px; height: 32px; border-radius: 9px; flex: 0 0 auto;
+      width: 36px; height: 36px; border-radius: 10px; flex: 0 0 auto;
 
-      border: 1px solid rgba(255,255,255,0.12); background: rgba(10,10,12,0.55);
+      border: 1px solid rgba(255,255,255,0.12); background: rgba(10,10,12,0.65);
 
-      color: #f7f8f8; font-size: 14px; line-height: 1; padding: 0;
+      color: #f7f8f8; font-size: 15px; line-height: 1; padding: 0;
 
       display: flex; align-items: center; justify-content: center;
 
       cursor: pointer; transition: background 0.15s, transform 0.1s;
+      position: relative;
 
+    }
+
+    .chrome-btn::after {
+      content: "";
+      position: absolute;
+      inset: -4px;
+      border-radius: inherit;
     }
 
     .chrome-btn:hover { background: rgba(255,255,255,0.18); }
@@ -2271,7 +2287,7 @@
 
                                  ของ body ไม่ถูกนับเข้าความสูงที่ scroll ได้ (scrollbar สุดแล้วยังโดนบัง) */
 
-                              body.has-mobile-bar .wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+                              body.has-mobile-bar .wrap { padding-bottom: calc(var(--tabs-chrome) + 54px); }
 
                             }
 
@@ -2289,8 +2305,8 @@
       border-color:var(--border-hover);
     }
     .coll-card.dead { opacity:1; }
-    .coll-id { color:var(--muted);font-family:inherit;font-size:13px;line-height:1.6;overflow-wrap:anywhere; }
-    .coll-title { font-size:14px;line-height:1.6;overflow-wrap:anywhere; }
+    .coll-id { color:var(--muted-soft);font-family:inherit;font-size:11.5px;line-height:1.4;overflow-wrap:anywhere; }
+    .coll-title { font-size:14.5px;font-weight:600;line-height:1.45;color:var(--text-strong);overflow-wrap:anywhere; }
     .coll-actions { flex-wrap:wrap; }
     .coll-actions .btn-primary,.coll-actions .btn-ghost { min-height:44px;flex:1 1 90px; }
     #collMissing { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:12px; }
@@ -2703,8 +2719,8 @@
     /* Prototype A mobile — ปุ่มไอคอนยังแตะง่าย เมนูเต็มความกว้างพอดีจอ */
     @media (max-width: 560px) {
       .chrome-top { gap: 6px; padding: 8px; }
-      .chrome-btn, .chrome-top .media-nav { width: 30px; height: 30px; flex: 0 0 30px; }
-      .chrome-top .media-nav { font-size: 16px; }
+      .chrome-btn, .chrome-top .media-nav { width: 36px; height: 36px; flex: 0 0 36px; }
+      .chrome-top .media-nav { font-size: 18px; }
       .title-overlay { padding: 6px 10px; gap: 8px; }
       .video-title { font-size: 12px; }
       .title-overlay #vidOpenTab { font-size: 10px; }
@@ -3311,9 +3327,10 @@ body.has-mobile-bar .mobile-bar { bottom: var(--tabs-chrome); }
 }
 .vid-speed-btn {
   width: auto;
-  min-width: 38px;
+  min-width: 40px;
+  height: 36px;
   padding: 0 8px;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -3321,6 +3338,9 @@ body.has-mobile-bar .mobile-bar { bottom: var(--tabs-chrome); }
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-text);
+}
+#vidTagToggle {
+  font-size: 16px;
 }
 #vidTagToggle[hidden] {
   display: none;
@@ -3340,9 +3360,25 @@ header p {
   margin-top: 4px;
   font-size: 0.84rem;
 }
+.header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+}
 #settingsCard {
   padding: 10px 14px;
   margin-bottom: 12px;
+  background: linear-gradient(180deg, var(--card), var(--surface-subtle));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 #videoCacheSettings {
   padding: 10px 14px;
@@ -3373,8 +3409,50 @@ header p {
     display: none;
   }
   #mobileBar.show {
-    justify-content: space-evenly;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: auto;
+    min-width: 200px;
+    max-width: calc(100vw - 32px);
+    bottom: calc(var(--tabs-chrome) + 10px);
+    border-radius: 999px;
+    padding: 5px 10px;
+    background: rgba(18, 20, 31, 0.92);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08);
     gap: 8px;
+    justify-content: center;
+  }
+  html[data-theme="light"] #mobileBar.show {
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
+  #mobileBar.show button {
+    flex: 0 1 auto;
+    min-width: 84px;
+    flex-direction: row;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+  }
+  #mobileBar.show button:hover,
+  #mobileBar.show button:active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-text);
+  }
+  #mobileBar.show svg {
+    width: 15px;
+    height: 15px;
   }
 }
 
