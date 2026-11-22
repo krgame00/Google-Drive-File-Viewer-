@@ -1699,3 +1699,24 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> PASS
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
   - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**
+
+### #85 ปรับปรุง UI ต่อเนื่อง (Rail Home Logo, Empty State CTA, Primary Action Hierarchy, Shelf Snap & Cache Bump) — 2026-11-22
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 248/248 เทส, 0 fail, บน Node.js v26.12.1)
+- **ประเด็นปัญหาที่แก้ไขตามข้อเสนอแนะ UI Review:**
+  1. **Rail Logo & Foot Navigation (#1.3):**
+     - เพิ่มการทำงานให้ `.rail-logo` ทำหน้าที่เป็นปุ่มคลิกกลับสู่หน้าหลัก (`goToSection("home")`) พร้อม hover effect และ cursor pointer
+     - ปรับข้อความ `.rail-foot` ด้านล่างสุดจากข้อความ placeholder เดิม ("เลื่อนไปหมวดไหน กดจากแถบนี้") ให้เป็นรหัสเวอร์ชัน `v20261122` ที่สะอาดและเป็นมืออาชีพ
+  2. **Empty State Call-to-Action (#10.2 - Priority 10):**
+     - เพิ่มปุ่ม CTA `#emptyStateActionBtn` ("วางลิงก์ที่นี่") ใน `.state-box` เมื่อยังไม่ได้เปิดโฟลเดอร์ใด เพื่อนำทางผู้ใช้ให้คลิกแล้วเลื่อนโฟกัสไปยังช่องกรอกลิงก์ `#driveLink` ทันที
+  3. **Visual Hierarchy ของปุ่มวางและปุ่มเปิด (#3.1):**
+     - ปรับแต่ง `.input-actions #pasteBtn` ให้มีกรอบ border ชัดเจน และ `#openBtn` มีน้ำหนักฟอนต์หนา 600 พร้อมความกว้างขั้นต่ำ เพื่อแยกความสำคัญระหว่าง Primary CTA และ Secondary Action
+  4. **Filter Drawer & Shelf Scroll Padding (#4.1, #8.3):**
+     - ปรับปุ่มสรุป `.coll-filter-drawer > summary` ให้มี `border-radius: 999px` กลมกลืนเป็นทรง Pill เดียวกันกับ `.coll-pill`
+     - เพิ่ม `scroll-padding-inline: 4px; padding-inline: 4px;` ใน `.shelf-row` เพื่อป้องกันการ์ดแรกและขอบ snapping ชิดติดขอบจอเกินไป
+  5. **Cache-Busting Version Bump:**
+     - อัปเดต `index.html` และชุดทดสอบ `tests/ui-pstack-fixes.cjs` เป็น `styles.css?v=20261122-r1` เพื่อให้ผู้ใช้ได้รับไฟล์สไตล์ตัวล่าสุดทันที
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/ui-pstack-fixes.cjs` -> 11/11 PASS
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**

@@ -34,7 +34,7 @@
 
 
 
-  <link rel="stylesheet" href="styles.css?v=20261121-r8" />
+  <link rel="stylesheet" href="styles.css?v=20261122-r1" />
 
 </head>
 
@@ -46,7 +46,7 @@
 
   <aside class="page-rail" id="pageRail" aria-label="เมนูหลักของหน้า">
 
-    <div class="rail-logo" aria-hidden="true">GDFV</div>
+    <div class="rail-logo" id="railLogo" title="กลับหน้าหลัก" aria-label="GDFV หน้าหลัก">GDFV</div>
 
     <button type="button" class="rail-btn on" data-rail-section="home">
 
@@ -80,7 +80,7 @@
 
     </button>
 
-    <div class="rail-foot">เลื่อนไปหมวดไหน กดจากแถบนี้</div>
+    <div class="rail-foot" title="Google Drive File Viewer">v20261122</div>
 
   </aside>
 
@@ -148,7 +148,7 @@
 
           </div>
 
-          <p>วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
+          <p class="tagline" id="appTagline">วางลิงก์ Google Drive แล้วสำรวจ เข้าโฟลเดอร์ ดูรูป เล่นวิดีโอได้เลย</p>
 
         </header>
 
@@ -402,6 +402,8 @@
           <h3>ยังไม่ได้เปิดโฟลเดอร์</h3>
 
           <p>วางลิงก์ Google Drive ข้างบนแล้วกด "เปิด"</p>
+
+          <button type="button" class="btn-ghost btn-sm" id="emptyStateActionBtn" style="margin-top:10px; border-radius:999px; padding:6px 16px;">วางลิงก์ที่นี่</button>
 
         </div>
 
@@ -786,6 +788,10 @@
     }
 
     rail.addEventListener("click", function (ev) {
+      if (ev.target && ev.target.closest && ev.target.closest(".rail-logo")) {
+        goToSection("home");
+        return;
+      }
       var btn = ev.target && ev.target.closest ? ev.target.closest(".rail-btn") : null;
       if (!btn) return;
       if (btn.id === "railLibraryBtn") { openLibrary(); return; }
@@ -793,6 +799,17 @@
       if (!name) return;
       goToSection(name);
     });
+
+    var emptyBtn = document.getElementById("emptyStateActionBtn");
+    if (emptyBtn) {
+      emptyBtn.addEventListener("click", function () {
+        var input = document.getElementById("driveLink");
+        if (input) {
+          input.scrollIntoView({ behavior: "smooth", block: "center" });
+          input.focus();
+        }
+      });
+    }
 
     if (tabs) {
       tabs.addEventListener("click", function (ev) {

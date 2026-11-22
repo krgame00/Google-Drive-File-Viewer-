@@ -46,7 +46,7 @@ test('styles.css renders vector SVG mask icons for #vidMinimize and #vidFullscre
 test('index.html loads Google Fonts non-blocking, defers all 8 app scripts, bumps ?v=, and wires player controls', () => {
   const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
   assert.match(html, /rel="preload"\s+as="style"\s+href="https:\/\/fonts\.googleapis\.com\/css2/);
-  assert.match(html, /href="styles\.css\?v=20261121-r8"/);
+  assert.match(html, /href="styles\.css\?v=20261122-r1"/);
   assert.match(html, /id="vidCount"/);
   assert.match(html, /id="vidSpeed"/);
   assert.match(html, /id="vidTagToggle"/);

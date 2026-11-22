@@ -243,7 +243,8 @@
 
     .page-main { flex: 1 1 auto; min-width: 0; padding: var(--shell-inset-top) var(--shell-inset-x) var(--shell-inset-bottom); }
 
-    .rail-logo { padding: 4px 10px 12px; font-weight: 700; font-size: 1.05rem; letter-spacing: .4px; color: var(--text-strong); }
+    .rail-logo { padding: 4px 10px 12px; font-weight: 700; font-size: 1.05rem; letter-spacing: .4px; color: var(--text-strong); cursor: pointer; user-select: none; transition: color var(--transition); }
+    .rail-logo:hover { color: var(--accent-text); }
 
     .rail-btn {
 
@@ -436,6 +437,9 @@
     .input-with-btn input { flex: 1; }
 
     .input-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .input-actions #pasteBtn { border: 1px solid var(--border); border-radius: var(--radius-sm); }
+    .input-actions #pasteBtn:hover { border-color: var(--border-hover); background: var(--bg-elevated); }
+    .input-actions #openBtn { font-weight: 600; min-width: 96px; justify-content: center; }
 
 
 
@@ -2346,7 +2350,7 @@
     .coll-pill:has(input:checked) {border-color:var(--accent);color:var(--text-strong);background:var(--accent-soft);}
     .coll-pill input {accent-color:var(--accent);}
     .coll-filter-drawer {position:relative;margin-left:auto;}
-    .coll-filter-drawer > summary {list-style:none;margin:0;display:inline-flex;align-items:center;gap:5px;padding:6px 11px;font-size:.78rem;font-weight:500;color:var(--text);background:var(--bg-elevated);border:1px solid var(--border);border-radius:8px;cursor:pointer;text-decoration:none;}
+    .coll-filter-drawer > summary {list-style:none;margin:0;display:inline-flex;align-items:center;gap:5px;padding:6px 12px;font-size:.78rem;font-weight:500;color:var(--text);background:var(--bg-elevated);border:1px solid var(--border);border-radius:999px;cursor:pointer;text-decoration:none;}
     .coll-filter-drawer > summary::-webkit-details-marker {display:none;}
     .coll-filter-drawer > summary:hover {border-color:var(--border-hover);background:var(--card-hover);text-decoration:none;}
     .coll-filter-drawer[open] > summary {border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text);margin-bottom:0;}
@@ -3126,7 +3130,7 @@ html[data-theme="light"] .cw-hero-progress { background: rgba(15, 18, 34, 0.45);
 .shelf-count { font-size: .72rem; color: var(--muted); }
 .shelf-all { margin-left: auto; background: none; border: 0; padding: 2px 0; color: var(--accent-text); font: inherit; font-size: .78rem; cursor: pointer; }
 .shelf-all:hover { color: var(--text-strong); }
-.shelf-row { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; scrollbar-width: thin; }
+.shelf-row { display: flex; gap: 12px; overflow-x: auto; padding: 2px 4px 8px; scroll-padding-inline: 4px; scroll-snap-type: x proximity; scrollbar-width: thin; }
 .shelf-card {
   display: flex; flex-direction: column; width: 205px; flex: 0 0 auto; scroll-snap-align: start;
   padding: 8px; text-align: left; font: inherit; color: var(--text);
