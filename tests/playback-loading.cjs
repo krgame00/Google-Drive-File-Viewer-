@@ -1,3 +1,9 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices from video-player.js:
+//   - fn('tryStreamDirect') (line ~42)
+// Phase impact:
+//   - tryStreamDirect stays in video-player.js across all phases (no change needed).
+
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const playerSource=fs.readFileSync(require('node:path').join(__dirname,'..','video-player.js'),'utf8');
 const pageSource=fs.readFileSync(require('node:path').join(__dirname,'..','app-core.js'),'utf8');

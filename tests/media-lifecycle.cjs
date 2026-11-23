@@ -1,3 +1,15 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices from sourceFiles (including video-player.js):
+//   - readVideoBlobResponse, renderVideoBlobProgress, cancelVideoBlobTransfer (stays in core blob transfer)
+//   - getPlayerAspect, releasePlayerOrientation, lockHorizontalPlayerOrientation,
+//     applyVideoAspect, applyNativeVideoAspect, calculatePreviewLayout -> Phase 6 (add video-preview-layout.js to sourceFiles)
+//   - cancelVideoAttempt, setVideoStatus, resetMediaPlayback, streamBlocked,
+//     rememberStreamBlocked, clearStreamBlocked, prioritizePlaybackSource (stays in core)
+//   - deviceCodecSupport, describeCodecSupport -> Phase 2 (add video-codec.js to sourceFiles)
+//   - nextVideoInList, showNextUp, hideNextUp, playNextUp, closeVideo, showStreamFailure,
+//     handleDriveStreamError, tryStreamDirect (stays in core)
+//   - tryVideoSrc, tryPublicStream (via videoApi runner factory) -> Phase 1 (re-exported by video-player.js)
+
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 global.window={GDVVideoApi:{}};
 const videoApi=require('../video-player.js');

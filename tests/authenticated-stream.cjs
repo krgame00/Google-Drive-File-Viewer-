@@ -1,3 +1,9 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices from video-player.js:
+//   - tryStreamDirect (line ~216)
+// Phase impact:
+//   - Core stream coordinator: stays in video-player.js across all phases (no change needed).
+
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');

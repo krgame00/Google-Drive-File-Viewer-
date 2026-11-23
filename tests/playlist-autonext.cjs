@@ -1,3 +1,10 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices from video-player.js:
+//   - slices function nextVideoInList (lines ~4-8)
+//   - checks listener strings: ended, play, videoBlobTransfer, vidNextUpPlay, vidNextUpCancel (lines ~23-27)
+// Phase impact:
+//   - nextVideoInList and auto-advance listeners stay in video-player.js core across all phases (no change needed).
+
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');

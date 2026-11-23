@@ -1,3 +1,11 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices/checks in video-player.js & index.html:
+//   - checks index.html script tag list: 'video-player.js' (line ~62)
+//   - checks video-player.js shortcuts & UI bindings: vidCount, SPEED_STEPS, KeyS, KeyJ, KeyL (lines ~74-82)
+// Phase impact:
+//   - When new modular script tags are added to index.html in Phases 1-6, add them to the deferred scripts list here.
+//   - Keyboard shortcut wiring stays in video-player.js core across all phases.
+
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

@@ -1,3 +1,9 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices from video-player.js:
+//   - checks listener count for "vidPlayer.addEventListener('ended'" (line ~77)
+// Phase impact:
+//   - wireVideoListeners stays in video-player.js across all phases (no change needed).
+//
 // BUG 2 trap: executes the REAL ended/play wiring from video-player.js (no
 // source grep). On the pre-redesign code the wiring sat outside the `with`
 // block, so firing 'ended' threw on bare `vidCurrentId`, the strip never

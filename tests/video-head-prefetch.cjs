@@ -1,3 +1,11 @@
+// [REFACTOR-AUDIT: video-player.js slicing]
+// Slices/checks in video-player.js:
+//   - checks poster wiring & prefetch service-worker strings in video-player.js (lines ~7-20)
+//   - checks regex: prefetchHeadFor, prefetchNextUp, cachedVideoThumb in video API export block (line ~21)
+// Phase impact:
+//   - Phase 5 (video-library.js): cachedVideoThumb moves to video-library.js.
+//     video-player.js MUST keep re-exporting cachedVideoThumb on the video API object so line ~21 regex passes.
+
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');
 const appCoreJs=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');

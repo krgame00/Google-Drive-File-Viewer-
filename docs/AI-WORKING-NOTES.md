@@ -1720,3 +1720,25 @@
   - `node --test tests/ui-pstack-fixes.cjs` -> 11/11 PASS
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
   - `node --test tests/*.cjs` -> **248/248 PASS (0 fail)**
+
+### #86 Phase 0 วางตาข่ายคุ้มกันการแยกไฟล์ video-player.js (Baseline Dump, Characterization Tests, Multi-Module Loader & Source-Slicing Audit) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, เพิ่มขึ้น 8 เทสใหม่, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 0 (ไม่แตะต้องไฟล์ Production):**
+  1. **Baseline Metrics & Export List Dump:**
+     - บันทึกและส่งออกข้อมูลอ้างอิงของ `video-player.js` ก่อนเริ่มแยกไฟล์ไว้ที่ `tests/fixtures/video-player-baseline.json` ประกอบด้วย commit `87465f2`, 3,476 บรรทัด, 205,495 ไบต์, 115 exports บนโมดูล (102 canonical/alias properties + 13 stateProps mirroring)
+  2. **Characterization Tests สำหรับ `readMp4CodecInfo` (`tests/mp4-codec-info.cjs`):**
+     - สร้างชุดทดสอบสังเคราะห์ MP4 box ครอบคลุมกล่อง `moov` -> `trak` -> `mdia` -> `minf` -> `stbl` -> `stsd`
+     - ทดสอบโปรไฟล์ H.264 (Baseline 66, Main 77, High 100, Hi10P 110, High 4:2:2 122, High 4:4:4 244)
+     - ทดสอบ Codec อื่น (HEVC hvc1/hev1, VP9 vp09, AV1 av01, mp4a)
+     - ทดสอบการตรวจจับช่องเสียง AC-3/E-AC-3 แบบ Multi-trak
+     - ทดสอบ Tail-range scanning เมื่อ moov อยู่หลัง mdat chunk
+     - ทดสอบกรณี Buffer ขาด ทะลุ หรือกล่องเสียหาย (Truncated/Corrupted) ทั้งหมด 8 กรณีทดสอบ ผ่าน 100%
+  3. **Multi-Module Stack Loader Helper (`tests/helpers/load-video-stack.cjs`):**
+     - สร้างตัวช่วยโหลดโมดูลแยกย่อยแบบไดนามิกรองรับโครงสร้าง `video-runners.js`, `video-codec.js`, `video-seek-preview.js`, `video-trace.js`, `video-library.js`, `video-preview-layout.js` และ `video-player.js` ตามลำดับ Browser Script Tags
+  4. **Audit Annotations บน 7 ไฟล์ทดสอบที่ตัดอ่านซอร์สโค้ด:**
+     - เพิ่ม Header Annotation `[REFACTOR-AUDIT: video-player.js slicing]` กำกับหน้าที่และผลกระทบราย Phase บน `tests/authenticated-stream.cjs`, `tests/media-lifecycle.cjs`, `tests/next-up-wiring.cjs`, `tests/playback-loading.cjs`, `tests/playlist-autonext.cjs`, `tests/ui-pstack-fixes.cjs`, และ `tests/video-head-prefetch.cjs`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/mp4-codec-info.cjs` -> 8/8 PASS
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail)**
