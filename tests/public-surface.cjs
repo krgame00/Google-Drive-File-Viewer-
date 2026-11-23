@@ -42,6 +42,13 @@ test('GDVVideo target public surface has exactly the expected contracts and shap
   assert.equal(typeof video.watched.toggle, 'function', 'watched.toggle is a function');
   assert.equal(typeof video.watched.attach, 'function', 'watched.attach is a function');
 
+  // Namespaced: internals (Phase 7 cleanup) — the internal surface lives
+  // under video.internals, not as flat names on the public object.
+  assert.equal(typeof video.internals, 'object', 'internals namespace exists');
+  assert.equal(typeof video.internals.setVideoStatus, 'function', 'internals.setVideoStatus is a function');
+  assert.equal(typeof video.internals.openVideo, 'function', 'internals.openVideo is a function');
+  assert.equal(typeof video.internals.renderContinueWatching, 'function', 'internals.renderContinueWatching is a function');
+
   // Namespaced: headCache
   assert.equal(typeof video.headCache, 'object', 'headCache namespace exists');
   assert.equal(typeof video.headCache.stats, 'function', 'headCache.stats is a function');

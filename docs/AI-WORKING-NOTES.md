@@ -1925,10 +1925,13 @@
 - **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
 - **เนื้องานใน Phase 7:**
   1. **Audit และปรับปรุง Callers ใน `app-core.js`:**
-     - ปรับ `closeVideo` helper (บรรทัด 1600) ให้เรียก `window.GDVVideoApi.video.close || window.GDVVideoApi.video.closeVideo` ตาม canonical target interface
-     - ปรับ `attachWatchedButtons` getter (บรรทัด 2411) ให้ใช้ `window.GDVVideo.watched?.attach || window.GDVVideo.attachWatchedButtons`
+     - ปรับ `closeVideo` helper (บรรทัด 1600) ให้เรียก `window.GDVVideoApi.video.close` ตาม canonical target interface
+     - ปรับ `attachWatchedButtons` getter (บรรทัด 2411) ให้ใช้ `window.GDVVideo.watched?.attach || window.GDVVideo.internals?.attachWatchedButtons`
+     - แยก internal surface ให้อยู่ภายใต้ `video.internals` namespace อย่างเป็นสัดส่วน โดยที่ตัว `GDVVideo` บนเบราว์เซอร์มีเฉพาะ target interface 24 ชื่อสะอาดตามแผนงาน
      - ยืนยัน callers ใน `collection-viewer.js` และ `media-lightbox.js` เรียกใช้ canonical interface (`open`, `close`, `suspend`, `watched`, `cancelBlob`) โดยตรงเรียบร้อยแล้ว
-     - คง backward-compatibility re-exports บน `GDVVideo` และ `video` เพื่อไม่ให้กระทบ characterization tests ที่สืบทอดมาตั้งแต่ baseline
+     - สำหรับชุดทดสอบ CommonJS/Node.js ทำการ `Object.assign(video, video.internals)` บน `module.exports` เพื่อคงความเข้ากันได้ย้อนหลัง 100% กับ characterization tests
+     - Bump เวอร์ชัน `app-core.js?v=20261123-r10` และ `video-player.js?v=20261123-r7` ใน `index.html`
+     - อัปเดต assertion ใน `tests/media-lifecycle.cjs` และ `tests/public-surface.cjs` ตรวจสอบ namespace `video.internals`
   2. **ปรับปรุง Header Comments ใน `video-player.js`:**
      - ลบคอมเมนต์ล้าสมัยเรื่อง "slice 2b relocates it into this closure"
      - ระบุโมดูลที่แยกออกมาทั้ง 6 โมดูล (`video-runners.js`, `video-codec.js`, `video-seek-preview.js`, `video-trace.js`, `video-library.js`, `video-preview-layout.js`) พร้อม `video-cache.js` ไว้อย่างถูกต้องในรายการ Depends on

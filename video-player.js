@@ -2003,6 +2003,13 @@ function createVideoCenter(app) {
     },
     syncFullscreen,
     clearRetryRoutes,
+  };
+  // Internal surface (Phase 7 cleanup): everything the app-core bridge and
+  // other modules reach for beyond the target interface, namespaced under
+  // video.internals. The browser-facing GDVVideo object above stays at the
+  // target interface; only the Node/test export flattens these names back
+  // onto the returned object (see the boot wrapper below).
+  const videoInternals = {
     startVideoPlayback,
     playbackRouteRecords,
     rememberPlaybackRoute,
@@ -2080,6 +2087,7 @@ function createVideoCenter(app) {
     sendVideoTelemetry,
     videoTraceReport,
   };
+  video.internals = videoInternals;
   Object.defineProperties(video, stateProps);
   return video;
 }
@@ -2095,6 +2103,10 @@ function createVideoCenter(app) {
   // loaded yet there); render after the API exists. CommonJS tests get the API
   // directly and do not run browser startup side effects.
   if (typeof module !== "undefined" && module.exports) {
+    // Node/test surface only: flatten internals so the test suite can call
+    // them directly on the exported object. The browser object above is
+    // never flattened.
+    Object.assign(video, video.internals);
     module.exports = video;
     module.exports.createVideoCenter = createVideoCenter;
     module.exports.TIMEOUTS = TIMEOUTS;
@@ -2107,6 +2119,6 @@ function createVideoCenter(app) {
     module.exports.createVideoPreviewLayout = createVideoPreviewLayout;
 
   } else {
-    video.renderContinueWatching();
+    video.internals.renderContinueWatching();
   }
 })();

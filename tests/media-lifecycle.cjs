@@ -466,8 +466,8 @@ test('a stale playback failure cannot change the next video or reopen a closed m
 
 
 test('early ResizeObserver or timer calls before video-player module loads do not throw TypeError',()=>{
- assert(html.includes('const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.fitVideoPreview(...args) : undefined;'),'fitVideoPreview is guarded before video-player loads');
- assert(html.includes('const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.saveVideoPos(...args) : undefined;'),'saveVideoPos is guarded before video-player loads');
+ assert(html.includes('const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.internals?.fitVideoPreview(...args) : undefined;'),'fitVideoPreview is guarded before video-player loads');
+ assert(html.includes('const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.internals?.saveVideoPos(...args) : undefined;'),'saveVideoPos is guarded before video-player loads');
 });
 
 Promise.all(pending).then(function(){process.exitCode=failures?1:0;});

@@ -1174,7 +1174,7 @@
         });
       }
       const MEDIA_STREAM_FAIL_MSG = 'เบราว์เซอร์เล่นสตรีมนี้ไม่สำเร็จ (อาจจากเครือข่ายหรือรูปแบบไฟล์) กดลองเล่นใหม่ เปิดในแท็บใหม่ ↗ เพื่อดาวน์โหลด หรือใช้พรีวิว Google';
-      const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.fitVideoPreview(...args) : undefined;
+      const fitVideoPreview = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.internals?.fitVideoPreview(...args) : undefined;
       
 
 
@@ -1477,7 +1477,7 @@
         observeFolderCovers(document);
       }
 
-      const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.saveVideoPos(...args) : undefined;
+      const saveVideoPos = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.internals?.saveVideoPos(...args) : undefined;
 
             // เมื่อเล่นจบ (ended) → auto-advance มีเจ้าของเดียวคือ Next-Up countdown-with-prefetch
             // ใน video-player.js (listener ตัวนี้ถูกถอดออก — นโยบาย immediate-advance เดิมเปิด
@@ -1597,7 +1597,7 @@
         return api.revokeCurrentDoc(...args);
       }
 
-      const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? (window.GDVVideoApi.video.close || window.GDVVideoApi.video.closeVideo)(...args) : undefined;
+      const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.close(...args) : undefined;
 
 
 
@@ -2408,7 +2408,7 @@
         squirtFile,
         readPersonalData,
         attachPersonalButtons,
-        get attachWatchedButtons() { return window.GDVVideo ? (window.GDVVideo.watched?.attach || window.GDVVideo.attachWatchedButtons) : undefined; },
+        get attachWatchedButtons() { return window.GDVVideo ? (window.GDVVideo.watched?.attach || window.GDVVideo.internals?.attachWatchedButtons) : undefined; },
         openLightbox,
         openDocument,
         openVideo: (id, name) => (window.GDVVideo ? window.GDVVideo.open(id, name) : undefined),
@@ -2457,15 +2457,15 @@
       Object.assign(window.GDVLightboxApi, {
         getBlobCached, origCacheKey, cdnLargeUrl,
         readPersonalData, updatePersonalData, renderPersonalLibrary, refreshFolderCovers,
-        get setVideoStatus() { return window.GDVVideo ? window.GDVVideo.setVideoStatus : undefined; },
-        get cancelVideoAttempt() { return window.GDVVideo ? window.GDVVideo.cancelVideoAttempt : undefined; },
-        get resetMediaPlayback() { return window.GDVVideo ? window.GDVVideo.resetMediaPlayback : undefined; },
-        get openVideo() { return window.GDVVideo ? (window.GDVVideo.open || window.GDVVideo.openVideo) : undefined; },
-        get fitVideoPreview() { return window.GDVVideo ? window.GDVVideo.fitVideoPreview : undefined; },
-        get applyPreviewAspect() { return window.GDVVideo ? window.GDVVideo.applyPreviewAspect : undefined; },
-        get configurePreviewFullscreen() { return window.GDVVideo ? window.GDVVideo.configurePreviewFullscreen : undefined; },
-        get cancelVideoBlobTransfer() { return window.GDVVideo ? (window.GDVVideo.cancelBlob || window.GDVVideo.cancelVideoBlobTransfer) : undefined; },
-        get closeVideo() { return window.GDVVideo ? (window.GDVVideo.close || window.GDVVideo.closeVideo) : undefined; }
+        get setVideoStatus() { return window.GDVVideo ? window.GDVVideo.internals?.setVideoStatus : undefined; },
+        get cancelVideoAttempt() { return window.GDVVideo ? window.GDVVideo.internals?.cancelVideoAttempt : undefined; },
+        get resetMediaPlayback() { return window.GDVVideo ? window.GDVVideo.internals?.resetMediaPlayback : undefined; },
+        get openVideo() { return window.GDVVideo ? window.GDVVideo.open : undefined; },
+        get fitVideoPreview() { return window.GDVVideo ? window.GDVVideo.internals?.fitVideoPreview : undefined; },
+        get applyPreviewAspect() { return window.GDVVideo ? window.GDVVideo.internals?.applyPreviewAspect : undefined; },
+        get configurePreviewFullscreen() { return window.GDVVideo ? window.GDVVideo.internals?.configurePreviewFullscreen : undefined; },
+        get cancelVideoBlobTransfer() { return window.GDVVideo ? window.GDVVideo.cancelBlob : undefined; },
+        get closeVideo() { return window.GDVVideo ? window.GDVVideo.close : undefined; }
       });
 
       window.GDVCollectionApi = {
