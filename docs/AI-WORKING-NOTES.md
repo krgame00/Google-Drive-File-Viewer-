@@ -1804,3 +1804,30 @@
   - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
   - `node --check video-codec.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~25s)**
+
+### #89 Phase 3 แยก seek preview ไปยัง video-seek-preview.js (createSeekPreview & safeOn) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 3:**
+  1. **สกัด Seek Preview ไปยัง `video-seek-preview.js`:**
+     - ย้าย `createSeekPreview(app)` ทั้งก้อน (256 บรรทัด) ครอบคลุมการคำนวณ hover/drag fraction, throttle 300ms, hidden preview video element และ canvas frame capture
+     - เผยแพร่บน `window.GDVSeekPreview` สำหรับเบราว์เซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Seek Preview Module:**
+     - ดึง `createSeekPreview` จาก `window.GDVSeekPreview` หรือ fallback `require('./video-seek-preview.js')`
+     - ส่ง `showVideoChrome` ผ่าน `Object.assign({}, app, { showVideoChrome })` ให้ seek preview เรียกแสดงแถบควบคุมขณะ hover ได้อย่างถูกต้อง
+     - ลดขนาดไฟล์ `video-player.js` จาก 2,876 บรรทัดเหลือ 2,641 บรรทัด (~235 บรรทัดถูกสกัดออกอย่างสมบูรณ์)
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-seek-preview.js?v=20261123-r1" defer></script>` ถัดจาก `video-codec.js` และก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r3`
+  4. **ปรับปรุง Helper และชุดทดสอบ:**
+     - อัปเดต `tests/seek-preview.cjs` ใน `installPlayer` ให้โหลด `video-seek-preview.js` ก่อนเริ่มทดสอบ
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-seek-preview.js` ลงบน `testWindow.GDVSeekPreview`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-seek-preview.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-seek-preview.js`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/seek-preview.cjs` -> **1/1 PASS** (ครอบคลุม hover clamp, 300ms throttle, touch scrubbing, modal close cleanup)
+  - `node --test tests/ui-pstack-fixes.cjs` -> **11/11 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-seek-preview.js video-player.js tests/seek-preview.cjs tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~24s)**

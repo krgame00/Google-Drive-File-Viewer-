@@ -1,12 +1,19 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const playerModulePath = require.resolve(path.join(__dirname, '..', 'video-player.js'));
+const seekPreviewModulePath = path.join(__dirname, '..', 'video-seek-preview.js');
 
 function installPlayer(bridge) {
   const previousWindow = global.window;
   try {
-    global.window = { GDVVideoApi: bridge };
+    const testWindow = { GDVVideoApi: bridge };
+    if (fs.existsSync(seekPreviewModulePath)) {
+      delete require.cache[require.resolve(seekPreviewModulePath)];
+      testWindow.GDVSeekPreview = require(seekPreviewModulePath);
+    }
+    global.window = testWindow;
     delete require.cache[playerModulePath];
     return require(playerModulePath);
   } finally {
