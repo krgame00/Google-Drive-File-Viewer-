@@ -8,14 +8,16 @@
 
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');
+const runnersPath=path.join(__dirname,'..','video-runners.js');
+const runnersJs=fs.existsSync(runnersPath)?fs.readFileSync(runnersPath,'utf8'):'';
 const appCoreJs=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 
 // Poster: the player shows the cached thumbnail while connecting, then drops it
 assert(playerJs.includes('app.vidPlayer.poster = openThumb'),'openVideo sets the poster from the cached thumbnail');
 assert(/app\.vidPlayer\.removeAttribute\('poster'\);\r?\n        app\.vidPlayer\.load\(\)/.test(playerJs),'resetMediaPlayback clears the poster');
-assert(/(?<![\w$.])vidPlayer\.removeAttribute\('poster'\);\r?\n          (?<![\w$.])vidPlayer\.style\.display = 'block'/.test(playerJs),'progressive slice swaps do not flash the poster');
-assert(playerJs.indexOf("removeAttribute('poster')")>=0,'poster cleanup exists');
+assert(/(?<![\w$.])vidPlayer\.removeAttribute\('poster'\);\r?\n          (?<![\w$.])vidPlayer\.style\.display = 'block'/.test(playerJs + runnersJs),'progressive slice swaps do not flash the poster');
+assert((playerJs + runnersJs).indexOf("removeAttribute('poster')")>=0,'poster cleanup exists');
 
 // Prefetch: the next episode head is fetched through the service worker
 assert(playerJs.includes("type: 'drive-stream-prefetch'"),'prefetch message is sent to the service worker');

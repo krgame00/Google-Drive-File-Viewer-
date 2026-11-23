@@ -3,13 +3,19 @@
 // Each test gets a fresh module instance so its bridge state is isolated. The
 // temporary global window is only needed while the classic-script IIFE starts;
 // callable dependencies should be placed on the bridge object.
+const fs = require('node:fs');
 const path = require('node:path');
 
 const MODULE_PATH = require.resolve(path.join(__dirname, '..', '..', 'video-player.js'));
+const RUNNERS_PATH = path.join(__dirname, '..', '..', 'video-runners.js');
 
 function loadVideoPlayerApi(bridge = {}) {
   const previousWindow = global.window;
   const testWindow = bridge.window || {};
+  if (fs.existsSync(RUNNERS_PATH)) {
+    delete require.cache[require.resolve(RUNNERS_PATH)];
+    testWindow.GDVVideoRunners = require(RUNNERS_PATH);
+  }
   // Bridge-first with globalThis fall-through: mirrors the old with(appApi)
   // semantics, where a name the bridge did not provide resolved as a global.
   testWindow.GDVVideoApi = new Proxy(bridge, {

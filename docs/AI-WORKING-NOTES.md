@@ -1742,3 +1742,34 @@
   - `node --test tests/mp4-codec-info.cjs` -> 8/8 PASS
   - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail)**
+
+### #87 Phase 1 แยก runners ไปยัง video-runners.js (createPublicStreamRunner, createVideoBlobRunner, createVideoSourceRunner & TIMEOUTS) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 1:**
+  1. **สกัด Runner Factories และ Constants ไปยัง `video-runners.js`:**
+     - ย้าย `TIMEOUTS`, `WORKER_URL`, `EXPECTED_WORKER_REV`
+     - ย้าย `createPublicStreamRunner`, `createVideoBlobRunner`, `createVideoSourceRunner` ตามลำดับโค้ดเดิมแบบตัวอักษรต่อตัวอักษรเพื่อรักษา `with (scope)` + Proxy pattern
+     - เผยแพร่บน `window.GDVVideoRunners` สำหรับบราวเซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Runner Layer:**
+     - ดึง runner จาก `window.GDVVideoRunners` หรือ fallback `require('./video-runners.js')`
+     - ลดขนาดไฟล์ `video-player.js` จาก 3,475 บรรทัดเหลือ 2,951 บรรทัด (~524 บรรทัดถูกสกัดออกอย่างสมบูรณ์ ตรงตามเป้าหมายแผนงาน ~2,950 บรรทัด)
+     - Re-export `createPublicStreamRunner`, `createVideoBlobRunner`, `createVideoSourceRunner` พร้อมผูก `runnerFallbacks` เข้ากับ API ของ `video` เสมอ
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-runners.js?v=20261123-r1" defer></script>` ก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r1`
+  4. **ปรับปรุง Helper และชุดทดสอบที่อ่านซอร์สโค้ดตามกฎเหล็กข้อ 6:**
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-runners.js` ลงบน `testWindow.GDVVideoRunners`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-runners.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-runners.js`
+     - อัปเดต `tests/video-head-prefetch.cjs` ขยายการตรวจสอบ poster cleanup ให้ครอบคลุมทั้ง `video-player.js` และ `video-runners.js`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause & Resolution):**
+  1. *Unbound runner export overwrite:* การเผลอ overwrite `module.exports.createPublicStreamRunner` ด้วยฟังก์ชันดิบจาก `video-runners.js` ทำให้เทสต์ที่เรียกผ่าน `videoApi.createPublicStreamRunner(ctx)` ขาด default `runnerFallbacks` ส่งผลให้ `prioritizePlaybackSource` ใน `with (scope)` ไม่พบฟังก์ชัน ได้รับการแก้ไขโดยคง binding wrapper บน `video` ออบเจกต์
+  2. *Poster regex audit:* การสกัด `createVideoBlobRunner` ทำให้โค้ด `vidPlayer.removeAttribute('poster')` ย้ายไปอยู่ `video-runners.js` ส่งผลให้การ assert ข้อความใน `video-head-prefetch.cjs` ตรวจไม่พบ ได้รับการอัปเดตรองรับทั้งสองไฟล์ตามกฎเหล็กข้อ 6
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/playback-api.cjs tests/playback-routing.cjs tests/route-chain-timeouts.cjs tests/video-download.cjs tests/video-trace.cjs tests/ui-pstack-fixes.cjs tests/media-lifecycle.cjs` -> **64/64 PASS**
+  - `node --test tests/video-head-prefetch.cjs` -> **1/1 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-runners.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23s)**
