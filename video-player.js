@@ -104,6 +104,29 @@ const createVideoLibrary = libraryModule.createVideoLibrary || function () {
   };
 };
 
+// Preview layout, aspect ratio, and orientation extracted to video-preview-layout.js (Phase 6)
+const previewLayoutModule = (typeof window !== 'undefined' && window.GDVVideoPreviewLayout)
+  || (typeof require === 'function' ? require('./video-preview-layout.js') : null)
+  || {};
+
+const createVideoPreviewLayout = previewLayoutModule.createVideoPreviewLayout || function () {
+  return {
+    calculatePreviewLayout: () => ({ width: 960, height: 540, scale: 1 }),
+    fitVideoPreview: () => {},
+    clampPreviewAspect: () => 16 / 9,
+    loadCachedVideoAspect: () => null,
+    saveCachedVideoAspect: () => {},
+    applyPreviewAspect: () => {},
+    configurePreviewFullscreen: () => {},
+    lockHorizontalPlayerOrientation: () => Promise.resolve(),
+    releasePlayerOrientation: () => {},
+    getPlayerAspect: () => null,
+    applyVideoAspect: () => {},
+    togglePreviewAspect: () => null,
+    applyNativeVideoAspect: () => {}
+  };
+};
+
 
 
 function createVideoCenter(app) {
@@ -175,6 +198,31 @@ function createVideoCenter(app) {
     renderCwHero,
     renderCwShelf
   } = library;
+
+  const previewLayout = createVideoPreviewLayout(app, {
+    getPreviewAspect: () => previewAspect,
+    setPreviewAspect: (v) => {
+      previewAspect = v;
+      if (app && 'previewAspect' in app) { try { app.previewAspect = v; } catch (_) {} }
+    },
+    getMediaSession: () => mediaSession,
+    getVidCurrentId: () => vidCurrentId
+  });
+  const {
+    calculatePreviewLayout,
+    fitVideoPreview,
+    clampPreviewAspect,
+    loadCachedVideoAspect,
+    saveCachedVideoAspect,
+    applyPreviewAspect,
+    configurePreviewFullscreen,
+    lockHorizontalPlayerOrientation,
+    releasePlayerOrientation,
+    getPlayerAspect,
+    applyVideoAspect,
+    togglePreviewAspect,
+    applyNativeVideoAspect
+  } = previewLayout;
 
   function videoCacheScope() {
     return typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : (app.videoCacheScope || null);
@@ -700,209 +748,6 @@ function createVideoCenter(app) {
         });
       }
 
-      function calculatePreviewLayout(width, height, aspect) {
-        // Google Drive's Material 3 player layout:
-        // - If virtual height < 480px or virtual width < 960px, Google Drive renders its mobile touch layout
-        //   (timeline pinned to top, floating tools in middle right, oversized bottom buttons that extend to y=452px, causing clipping).
-        // - With virtual width >= 960px and virtual height >= 540px (standard 16:9 540p desktop baseline),
-        //   Google Drive renders the clean desktop player: all controls in one neat bottom bar, no floating pills, zero clipping.
-        const horizontal = aspect > 0 ? aspect >= 1 : width >= height;
-        const minWidth = 960;
-        const minHeight = horizontal ? 540 : 0;
-        const frameWidth = Math.max(minWidth, width, minHeight > 0 && height > 0 ? Math.ceil(width * (minHeight / height)) : 0);
-        const scale = width / frameWidth;
-        return {width: frameWidth, height: height / scale, scale: scale};
-      }
-
-      function fitVideoPreview() {
-        if (app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
-        const bounds = app.vidFrame.parentElement.getBoundingClientRect();
-        if (bounds.width <= 0 || bounds.height <= 0) return;
-        const layout = calculatePreviewLayout(bounds.width, bounds.height, previewAspect && previewAspect.value);
-        app.vidFrame.style.setProperty('--preview-width', layout.width + 'px');
-        app.vidFrame.style.setProperty('--preview-height', layout.height + 'px');
-        app.vidFrame.style.setProperty('--preview-scale', String(layout.scale));
-      }
-
-      function clampPreviewAspect(w, h) {
-        const ratio = Number(w) / Number(h);
-        if (!isFinite(ratio) || ratio <= 0) return 16 / 9;
-        return Math.min(2.2, Math.max(0.45, ratio));
-      }
-
-      function loadCachedVideoAspect(id) {
-        if (!id || typeof app.lsGet !== 'function') return null;
-        try {
-          const items = JSON.parse(app.lsGet('gdv_video_aspects') || '[]');
-          if (!Array.isArray(items)) return null;
-          const found = items.find(function (x) { return x && x.id === id && Number.isFinite(x.aspect) && x.aspect >= 0.45 && x.aspect <= 2.2; });
-          return found ? Number(found.aspect) : null;
-        } catch (_) { return null; }
-      }
-
-      function saveCachedVideoAspect(id, aspect) {
-        const val = Number(aspect);
-        if (!id || typeof app.lsGet !== 'function' || typeof app.lsSet !== 'function' || !Number.isFinite(val) || val < 0.45 || val > 2.2) return;
-        try {
-          const raw = JSON.parse(app.lsGet('gdv_video_aspects') || '[]');
-          const list = Array.isArray(raw) ? raw.filter(function (x) { return x && typeof x.id === 'string' && x.id !== id && Number.isFinite(x.aspect); }) : [];
-          list.push({ id: id, aspect: val, at: app.Date.now() });
-          app.lsSet('gdv_video_aspects', JSON.stringify(list.slice(-100)));
-        } catch (_) {}
-      }
-
-      function applyPreviewAspect(id) {
-        // ปรับกรอบพรีวิวให้ตรงสัดส่วนวิดีโอจริง ไม่ล็อก 16:9 (วิดีโอแนวตั้งจะได้กรอบสูง ไม่เป็นแถบเล็ก ๆ กลางจอ)
-        const ratioEl = app.vidFrame.parentElement;
-        if (!ratioEl) return;
-        if (previewAspect && previewAspect.id === id) { applyVideoAspect(); return; }
-        ratioEl.style.aspectRatio = '';
-        if (typeof ratioEl.removeAttribute === 'function') ratioEl.removeAttribute('data-orientation');
-        const cached = typeof app.fileMetaOf === 'function' ? app.fileMetaOf(id) : null;
-        const cw = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.width);
-        const ch = cached && cached.videoMediaMetadata && Number(cached.videoMediaMetadata.height);
-        if (cw > 0 && ch > 0) {
-          const val = clampPreviewAspect(cw, ch);
-          previewAspect = { id: id, value: val };
-          if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
-          applyVideoAspect();
-          return;
-        }
-        const remembered = typeof loadCachedVideoAspect === 'function' ? loadCachedVideoAspect(id) : null;
-        if (remembered) {
-          previewAspect = { id: id, value: remembered };
-          applyVideoAspect();
-          return;
-        }
-        const session = mediaSession;
-        const probeThumb = function (thumbUrl) {
-          if (typeof app.Image !== 'function') { fitVideoPreview(); return; }
-          const img = new app.Image();
-          img.onload = function () {
-            if (session !== mediaSession || id !== vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
-            const tw = Number(img.naturalWidth || img.width), th = Number(img.naturalHeight || img.height);
-            if (tw > 0 && th > 0) {
-              const val = clampPreviewAspect(tw, th);
-              previewAspect = { id: id, value: val };
-              if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
-              applyVideoAspect();
-            } else {
-              fitVideoPreview();
-            }
-          };
-          img.onerror = function () { fitVideoPreview(); };
-          const knownThumb = thumbUrl || (typeof app.mediaThumbs !== 'undefined' && app.mediaThumbs && app.mediaThumbs[id]) || (cached && cached.thumbnailLink);
-          img.src = knownThumb || ('https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w320');
-        };
-        const auth = app.authParams();
-        if (auth.mode === 'none') { probeThumb(); return; }
-        const url = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?supportsAllDrives=true&fields=size,videoMediaMetadata(width,height),thumbnailLink' + (auth.mode === 'key' ? '&key=' + app.apiKey : '');
-        const headers = auth.mode === 'bearer' ? { Authorization: 'Bearer ' + app.accessToken } : {};
-        app.fetch(url, { headers: headers })
-          .then(function (res) { return res.ok ? res.json() : null; })
-          .then(function (meta) {
-            if (meta && Number(meta.size) > 0 && cached && !(Number(cached.size) > 0)) cached.size = Number(meta.size);
-            if (meta && meta.thumbnailLink) {
-              if (typeof app.mediaThumbs !== 'undefined' && app.mediaThumbs) app.mediaThumbs[id] = meta.thumbnailLink;
-              try { localStorage.setItem("gdv_thumb_" + id, meta.thumbnailLink); } catch (_) {}
-            }
-            if (session !== mediaSession || id !== vidCurrentId || !app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') !== 'true') return;
-            const w = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.width);
-            const h = meta && meta.videoMediaMetadata && Number(meta.videoMediaMetadata.height);
-            if (!w || !h) { probeThumb(meta && meta.thumbnailLink); return; }
-            const val = clampPreviewAspect(w, h);
-            previewAspect = { id: id, value: val };
-            if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(id, val);
-            applyVideoAspect();
-          })
-          .catch(function () { probeThumb(); });
-      }
-
-      function configurePreviewFullscreen() {
-        const mobile = app.window.matchMedia && app.window.matchMedia('(max-width: 680px)').matches;
-        // Use the app wrapper on mobile instead of the embedded player's fullscreen path.
-        app.vidFrame.setAttribute('allow', mobile ? "autoplay; encrypted-media; fullscreen 'none'" : 'autoplay; encrypted-media; fullscreen');
-        if (mobile) app.vidFrame.removeAttribute('allowfullscreen');
-        else app.vidFrame.setAttribute('allowfullscreen', '');
-      }
-
-      function lockHorizontalPlayerOrientation(box) {
-        const orientation = app.window.screen && app.window.screen.orientation;
-        const aspect = getPlayerAspect();
-        if (app.document.fullscreenElement !== box || !(aspect > 1)) { releasePlayerOrientation(); return Promise.resolve(); }
-        if (!orientation || !orientation.lock || box.playerOrientationLocked || box.playerOrientationPending) return Promise.resolve();
-        const request = box.playerOrientationRequest = (box.playerOrientationRequest || 0) + 1;
-        box.playerOrientationPending = true;
-        try {
-          return Promise.resolve(orientation.lock('landscape')).then(function () {
-            if (request === box.playerOrientationRequest && app.document.fullscreenElement === box && getPlayerAspect() > 1) {
-              box.playerOrientationPending = false;
-              box.playerOrientationLocked = true;
-            } else {
-              if (request === box.playerOrientationRequest) box.playerOrientationPending = false;
-              if (!box.playerOrientationLocked && !box.playerOrientationPending && orientation.unlock) orientation.unlock();
-            }
-          }).catch(function () { if (request === box.playerOrientationRequest) box.playerOrientationPending = false; });
-        } catch (_) { box.playerOrientationPending = false; return Promise.resolve(); }
-      }
-
-      function getPlayerAspect() {
-        return app.vidFrame.getAttribute('data-video-preview') === 'true'
-          ? previewAspect && previewAspect.value
-          : app.vidPlayer.playerAspect;
-      }
-
-      function releasePlayerOrientation() {
-        const box = app.videoModal.querySelector && app.videoModal.querySelector('.video-box');
-        if (!box) return;
-        box.playerOrientationRequest = (box.playerOrientationRequest || 0) + 1;
-        const held = box.playerOrientationLocked || box.playerOrientationPending;
-        box.playerOrientationLocked = false;
-        box.playerOrientationPending = false;
-        try { if (held && app.window.screen && app.window.screen.orientation && app.window.screen.orientation.unlock) app.window.screen.orientation.unlock(); } catch (_) {}
-      }
-
-      function applyVideoAspect() {
-        const ratioEl = app.vidFrame.parentElement;
-        if (!ratioEl) return;
-        const box = app.videoModal.querySelector && app.videoModal.querySelector('.video-box');
-        const aspect = getPlayerAspect();
-        const isFullscreen = !!(box && (app.document.fullscreenElement === box || (box.classList && box.classList.contains('pseudo-fullscreen'))));
-        if (ratioEl.style && typeof ratioEl.style.setProperty === 'function') {
-          if (aspect) ratioEl.style.setProperty('--video-aspect', String(aspect));
-          else if (typeof ratioEl.style.removeProperty === 'function') ratioEl.style.removeProperty('--video-aspect');
-        }
-        if (ratioEl.style) {
-          ratioEl.style.aspectRatio = isFullscreen ? '' : aspect ? String(aspect) : '';
-        }
-        if (typeof ratioEl.setAttribute === 'function' && typeof ratioEl.removeAttribute === 'function') {
-          if (!isFullscreen && aspect) ratioEl.setAttribute('data-orientation', aspect < 1 ? 'portrait' : 'landscape');
-          else ratioEl.removeAttribute('data-orientation');
-        }
-        const aspectBtn = typeof app.document !== 'undefined' && app.document.getElementById ? app.document.getElementById('vidAspectToggle') : null;
-        if (aspectBtn) {
-          aspectBtn.textContent = aspect ? (aspect < 1 ? '↕' : '↔') : '⇅';
-          if (typeof aspectBtn.setAttribute === 'function') {
-            aspectBtn.setAttribute('title', aspect ? (aspect < 1 ? 'กำลังแสดงแนวตั้ง (คลิกเพื่อสลับเป็นแนวนอน 16:9)' : 'กำลังแสดงแนวนอน (คลิกเพื่อสลับเป็นแนวตั้ง 9:16)') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
-            aspectBtn.setAttribute('aria-label', aspect ? (aspect < 1 ? 'สลับเป็นแนวนอน' : 'สลับเป็นแนวตั้ง') : 'สลับสัดส่วนแนวตั้งและแนวนอน');
-          }
-        }
-        fitVideoPreview();
-        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitVideoPreview);
-        if (box && app.videoModal.classList.contains('show')) lockHorizontalPlayerOrientation(box);
-      }
-
-      function togglePreviewAspect() {
-        if (!app.videoModal.classList.contains('show') || !vidCurrentId) return null;
-        const current = getPlayerAspect();
-        const next = current && current < 1 ? 16 / 9 : 9 / 16;
-        previewAspect = { id: vidCurrentId, value: next };
-        app.vidPlayer.playerAspect = next;
-        if (typeof saveCachedVideoAspect === 'function') saveCachedVideoAspect(vidCurrentId, next);
-        applyVideoAspect();
-        return next;
-      }
-
       function openInExternalPlayer(id) {
         const targetId = id || vidCurrentId;
         if (!targetId) return null;
@@ -968,17 +813,6 @@ function createVideoCenter(app) {
           return Promise.resolve(app.ensureToken(true)).then(runCopy).catch(function () { return runCopy(null); });
         }
         return runCopy(null);
-      }
-
-      function applyNativeVideoAspect() {
-        if (!app.videoModal.classList.contains('show') || app.vidFrame.getAttribute('data-video-preview') === 'true' || app.vidPlayer.style.display === 'none') return;
-        const aspect = Number(app.vidPlayer.videoWidth) / Number(app.vidPlayer.videoHeight);
-        if (!Number.isFinite(aspect) || aspect <= 0) return;
-        app.vidPlayer.playerAspect = aspect;
-        if (vidCurrentId && typeof saveCachedVideoAspect === 'function' && typeof clampPreviewAspect === 'function') {
-          saveCachedVideoAspect(vidCurrentId, clampPreviewAspect(app.vidPlayer.videoWidth, app.vidPlayer.videoHeight));
-        }
-        applyVideoAspect();
       }
 
       function togglePlayerFullscreen() {
@@ -2265,6 +2099,7 @@ function createVideoCenter(app) {
     module.exports.createSeekPreview = createSeekPreview;
     module.exports.createVideoTrace = createVideoTrace;
     module.exports.createVideoLibrary = createVideoLibrary;
+    module.exports.createVideoPreviewLayout = createVideoPreviewLayout;
 
   } else {
     video.renderContinueWatching();

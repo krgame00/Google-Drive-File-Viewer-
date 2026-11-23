@@ -1891,4 +1891,34 @@
   - `node --check video-library.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.9s)**
 
+### #92 Phase 6 แยก preview layout ไปยัง video-preview-layout.js (aspect, layout, orientation) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 6:**
+  1. **สกัด Preview Layout และ Orientation ไปยัง `video-preview-layout.js`:**
+     - ย้ายกลุ่มฟังก์ชัน layout และ orientation รวม 13 ฟังก์ชัน: `calculatePreviewLayout`, `fitVideoPreview`, `clampPreviewAspect`, `loadCachedVideoAspect`, `saveCachedVideoAspect`, `applyPreviewAspect`, `configurePreviewFullscreen`, `lockHorizontalPlayerOrientation`, `releasePlayerOrientation`, `getPlayerAspect`, `applyVideoAspect`, `togglePreviewAspect`, `applyNativeVideoAspect` (342 บรรทัด)
+     - คงฟังก์ชัน action สำคัญ `openInExternalPlayer` และ `copyVideoToMyDrive` ให้อยู่ในแกนหลัก `video-player.js`
+     - จัดรูปแบบฟังก์ชันภายใน factory ด้วย indentation 6 spaces (`      function <name>(`) เพื่อให้ characterization helper `fn(name)` ใน `tests/media-lifecycle.cjs` สกัดไปรันใน VM Context ได้อย่างแม่นยำ
+     - เผยแพร่บน `window.GDVVideoPreviewLayout` สำหรับเบราว์เซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Video Preview Layout Module:**
+     - ดึง `createVideoPreviewLayout` จาก `window.GDVVideoPreviewLayout` หรือ fallback `require('./video-preview-layout.js')`
+     - เรียก `createVideoPreviewLayout(app, deps)` ตอนต้นของ `createVideoCenter(app)` พร้อมผูก accessors สำหรับ `previewAspect`, `mediaSession`, และ `vidCurrentId`
+     - ลดขนาดไฟล์ `video-player.js` จาก 2,272 บรรทัดเหลือ 2,107 บรรทัด (~165 บรรทัดถูกสกัดออก)
+     - คงการ re-export บน `GDVVideo` และ `module.exports` เพื่อความเข้ากันได้ย้อนหลัง 100%
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-preview-layout.js?v=20261123-r1" defer></script>` ถัดจาก `video-library.js` และก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r6`
+  4. **ปรับปรุง Helper และชุดทดสอบ:**
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-preview-layout.js` ลงบน `testWindow.GDVVideoPreviewLayout`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-preview-layout.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-preview-layout.js`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/video-layout.cjs tests/player-fullscreen.cjs tests/ui-pstack-fixes.cjs` -> **35/35 PASS**
+  - `node --test tests/media-lifecycle.cjs` -> **52/52 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-preview-layout.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.8s)**
+
+
 

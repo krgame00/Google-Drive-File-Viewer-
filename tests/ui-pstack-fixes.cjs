@@ -72,6 +72,7 @@ test('index.html loads Google Fonts non-blocking, defers all 8 app scripts, bump
     'video-seek-preview.js',
     'video-trace.js',
     'video-library.js',
+    'video-preview-layout.js',
     'video-player.js',
     'drive-explorer.js',
     'media-lightbox.js',
