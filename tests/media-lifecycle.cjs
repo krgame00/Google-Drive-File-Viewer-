@@ -5,7 +5,7 @@
 //     applyVideoAspect, applyNativeVideoAspect, calculatePreviewLayout -> Phase 6 (add video-preview-layout.js to sourceFiles)
 //   - cancelVideoAttempt, setVideoStatus, resetMediaPlayback, streamBlocked,
 //     rememberStreamBlocked, clearStreamBlocked, prioritizePlaybackSource (stays in core)
-//   - deviceCodecSupport, describeCodecSupport -> Phase 2 (add video-codec.js to sourceFiles)
+//   - deviceCodecSupport, describeCodecSupport -> Phase 2 (done: video-codec.js in sourceFiles)
 //   - nextVideoInList, showNextUp, hideNextUp, playNextUp, closeVideo, showStreamFailure,
 //     handleDriveStreamError, tryStreamDirect (stays in core)
 //   - tryVideoSrc, tryPublicStream (via videoApi runner factory) -> Phase 1 (re-exported by video-player.js)
@@ -13,7 +13,7 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 global.window={GDVVideoApi:{}};
 const videoApi=require('../video-player.js');
-const sourceFiles=['drive-explorer.js','video-runners.js','video-player.js','collection-viewer.js','collections-data.js','media-lightbox.js','app-core.js','index.html'];
+const sourceFiles=['drive-explorer.js','video-runners.js','video-codec.js','video-player.js','collection-viewer.js','collections-data.js','media-lightbox.js','app-core.js','index.html'];
 const sources=sourceFiles.map(name=>fs.readFileSync(path.join(__dirname,'..',name),'utf8'));
 const html=fs.readFileSync(path.join(__dirname,'..','app-core.js'),'utf8');
 const playerJs=fs.readFileSync(path.join(__dirname,'..','video-player.js'),'utf8');

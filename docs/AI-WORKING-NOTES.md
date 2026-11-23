@@ -1773,3 +1773,34 @@
   - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
   - `node --check video-runners.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23s)**
+
+### #88 Phase 2 แยก codec probe ไปยัง video-codec.js (createVideoCodec, deviceCodecSupport, describeCodecSupport, audioCanPlay, readMp4CodecInfo) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 2:**
+  1. **สกัด Codec Functions ไปยัง `video-codec.js`:**
+     - ย้าย `deviceCodecSupport`, `describeCodecSupport`, `audioCanPlay`, `readMp4CodecInfo` (รวมฟังก์ชันตรวจจับกล่อง MP4 `collect`)
+     - สร้าง factory `createVideoCodec(app)` รองรับ dependencies ได้แก่ `app.document.createElement('video')`
+     - เผยแพร่บน `window.GDVVideoCodec` สำหรับเบราว์เซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Codec Layer:**
+     - ดึง `createVideoCodec` จาก `window.GDVVideoCodec` หรือ fallback `require('./video-codec.js')`
+     - เรียก `createVideoCodec(app)` ก่อนการสร้าง `runnerFallbacks` เพื่อให้ตัวแปรอยู่ใน scope พร้อมใช้งานทันที
+     - ลดขนาดไฟล์ `video-player.js` จาก 2,951 บรรทัดเหลือ 2,876 บรรทัด
+     - คงการ re-export บน `GDVVideo` และ `module.exports` เพื่อความเข้ากันได้ย้อนหลัง 100%
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-codec.js?v=20261123-r1" defer></script>` ถัดจาก `video-runners.js` และก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r2`
+  4. **ปรับปรุง Helper และชุดทดสอบตามกฎเหล็กข้อ 6:**
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-codec.js` ลงบน `testWindow.GDVVideoCodec`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-codec.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-codec.js`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause & Resolution):**
+  - *Temporal Dead Zone (TDZ) initialization:* ในรอบแรกของการแทนที่ วาง `const { deviceCodecSupport, ... } = createVideoCodec(app)` ไว้ที่ตำแหน่งเดิมของฟังก์ชัน (บรรทัด ~691) ทำให้ `runnerFallbacks` ที่บรรทัด ~181 ไม่สามารถเข้าถึงตัวแปร `deviceCodecSupport` ก่อนการประกาศได้ (`ReferenceError: Cannot access 'deviceCodecSupport' before initialization`) ได้รับการแก้ไขโดยย้ายการประกาศ `createVideoCodec(app)` ขึ้นมาอยู่ตอนต้นของ `createVideoCenter(app)` ก่อนการสร้าง `runnerFallbacks`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/mp4-codec-info.cjs` -> **8/8 PASS** (characterization tests ครอบคลุม 8 สถานการณ์)
+  - `node --test tests/media-lifecycle.cjs` -> **52/52 PASS** (source-slicing tests)
+  - `node --test tests/ui-pstack-fixes.cjs` -> **11/11 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-codec.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~25s)**
