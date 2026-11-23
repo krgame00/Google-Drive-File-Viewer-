@@ -21,7 +21,15 @@ py -m http.server 8000
 | `styles.css` | สไตล์หน้าเว็บและตัวดูสื่อ |
 | `collections-data.js` | ข้อมูลคลัง XBep ที่หน้าเว็บโหลด |
 | `collection-viewer.js` | ค้นหา กรอง สุ่ม และแสดงผลรายการคลัง |
-| `video-player.js` | เครื่องเล่นวิดีโอ สตรีม การเล่นต่อ และสถานะ playback |
+| `video-cache.js` | แคชข้อมูลวิดีโอและ cooldown เส้นทางสตรีม |
+| `stream-protocol.js` | สัญญาณและ protocol สำหรับสื่อสารการสตรีม |
+| `video-runners.js` | runner สตรีมสาธารณะ (Worker/Direct), โหลดทั้งไฟล์ Blob, และแท็ก video src |
+| `video-codec.js` | ตรวจสอบและระบุ codec MP4 (avc1/hvc1/mp4a) และการรองรับของเบราว์เซอร์ |
+| `video-seek-preview.js` | แถบเวลา hover preview thumbnail และ seek pop |
+| `video-trace.js` | trace telemetry และคัดลอกรายงานวินิจฉัยสำหรับนักพัฒนา |
+| `video-library.js` | รายการดูแล้ว ดูต่อ (Continue Watching), บันทึกตำแหน่งการเล่น และเรนเดอร์ชั้นวาง |
+| `video-preview-layout.js` | คำนวณ aspect ratio, layout, และ fullscreen orientation ของพรีวิว |
+| `video-player.js` | แกนเครื่องเล่นวิดีโอ (วงจรสตรีม, fallback chain, next-up, UI control, Service Worker) |
 | `drive-explorer.js` | Google OAuth, Drive API, สำรวจไฟล์ ค้นหา/เรียงลำดับ และนำทางโฟลเดอร์ |
 | `media-lightbox.js` | Lightbox รูปภาพ, gesture/zoom และตัวดู PDF/เอกสาร |
 | `drive-stream-sw.js` | Service Worker สำหรับสตรีมผ่านบัญชี Google |
@@ -36,7 +44,7 @@ py -m http.server 8000
 | `reports/` | ผลตรวจและข้อมูลประกอบสคริปต์ ดูรายการใน `reports/README.md` |
 | `docs/` | คู่มือสตรีม แผนงาน และรายงานทดสอบ |
 
-เว็บยังใช้ static script tags โดยไม่ต้องมี bundler/build step: `video-cache.js` → `app-core.js` → `collections-data.js` → `video-player.js` → `drive-explorer.js` → `media-lightbox.js` → `collection-viewer.js` ตามลำดับใน `index.html` โดย `app-core.js` เป็นเจ้าของ state, event wiring และ bridge (`GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi`) จึงต้องรักษาลำดับโหลดนี้ไว้ก่อนเผยแพร่
+เว็บยังใช้ static script tags โดยไม่ต้องมี bundler/build step: `video-cache.js` → `stream-protocol.js` → `app-core.js` → `video-runners.js` → `video-codec.js` → `video-seek-preview.js` → `video-trace.js` → `video-library.js` → `video-preview-layout.js` → `video-player.js` → `drive-explorer.js` → `media-lightbox.js` → `collections-data.js` → `collection-viewer.js` ตามลำดับใน `index.html` โดย `app-core.js` เป็นเจ้าของ state, event wiring และ bridge (`GDVVideoApi`, `GDVExplorerApi`, `GDVLightboxApi`, `GDVCollectionApi`) จึงต้องรักษาลำดับโหลดนี้ไว้ก่อนเผยแพร่
 
 แอป Gemini ชุด Portable แบบหน้าเว็บทดลอง และคลิปตัวอย่างในเครื่องถูกล้างออกตามคำขอผู้ใช้ รายละเอียดอยู่ใน `docs/local-projects.md` เว็บหลักและชุดทดสอบใน `tests/` ยังคงอยู่
 
@@ -47,10 +55,19 @@ py -m http.server 8000
 ```powershell
 node --test tests/*.cjs
 node tools/collection_data.js check
+node --check video-cache.js
+node --check stream-protocol.js
 node --check app-core.js
-node --check drive-explorer.js
+node --check video-runners.js
+node --check video-codec.js
+node --check video-seek-preview.js
+node --check video-trace.js
+node --check video-library.js
+node --check video-preview-layout.js
 node --check video-player.js
+node --check drive-explorer.js
 node --check media-lightbox.js
+node --check collections-data.js
 node --check collection-viewer.js
 node --check drive-stream-sw.js
 node --check cloudflare-drive-worker.mjs

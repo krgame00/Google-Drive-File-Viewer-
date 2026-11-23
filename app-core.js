@@ -1597,7 +1597,7 @@
         return api.revokeCurrentDoc(...args);
       }
 
-      const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? window.GDVVideoApi.video.closeVideo(...args) : undefined;
+      const closeVideo = (...args) => window.GDVVideoApi && window.GDVVideoApi.video ? (window.GDVVideoApi.video.close || window.GDVVideoApi.video.closeVideo)(...args) : undefined;
 
 
 
@@ -2408,7 +2408,7 @@
         squirtFile,
         readPersonalData,
         attachPersonalButtons,
-        get attachWatchedButtons() { return window.GDVVideo ? window.GDVVideo.attachWatchedButtons : undefined; },
+        get attachWatchedButtons() { return window.GDVVideo ? (window.GDVVideo.watched?.attach || window.GDVVideo.attachWatchedButtons) : undefined; },
         openLightbox,
         openDocument,
         openVideo: (id, name) => (window.GDVVideo ? window.GDVVideo.open(id, name) : undefined),

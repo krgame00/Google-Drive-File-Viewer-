@@ -1,13 +1,18 @@
 // video-player.js — Video Player (createVideoCenter factory)
-// Depends on: video-cache.js (window.GDVVideoCache: createVideoCache, createRouteCooldown)
+// Depends on: video-cache.js, video-runners.js, video-codec.js, video-seek-preview.js,
+//             video-trace.js, video-library.js, video-preview-layout.js
 // Depends on: window.GDVVideoApi (the explicit boundary to the main app)
 //
 // Center contract: the factory takes one `app` argument — the live accessor bag the
 // main app publishes as window.GDVVideoApi. Every shared value is read/written as an
 // explicit `app.<name>` property (no `with`, no bare identifiers, no DOM named
 // access), so this module runs in strict mode and code pasted outside the factory
-// cannot silently resolve state names. State ownership still lives in the main app
-// until slice 2b relocates it into this closure.
+// cannot silently resolve state names. State ownership is maintained within this
+// closure and synchronized via live accessor getters/setters mirrored on the exported
+// video API and app-core.
+//
+// EXPECTED_WORKER_REV = '' is a dormant diagnostic hook for verifying x-gdv-worker-rev
+// headers against expected worker deployment revisions without interrupting live streams.
 //
 //   accessors (get/set)   accessToken, apiKey, tokenExpiry, mediaSession,
 //                         videoAttempt, videoAttemptTimer, videoSlowTimer,

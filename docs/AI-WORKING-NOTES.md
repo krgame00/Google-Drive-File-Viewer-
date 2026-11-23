@@ -1920,5 +1920,32 @@
   - `node --check video-preview-layout.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.8s)**
 
+### #93 Phase 7 เก็บกวาด API, อัปเดตคอมเมนต์ และปรับปรุงคู่มือ README — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 7:**
+  1. **Audit และปรับปรุง Callers ใน `app-core.js`:**
+     - ปรับ `closeVideo` helper (บรรทัด 1600) ให้เรียก `window.GDVVideoApi.video.close || window.GDVVideoApi.video.closeVideo` ตาม canonical target interface
+     - ปรับ `attachWatchedButtons` getter (บรรทัด 2411) ให้ใช้ `window.GDVVideo.watched?.attach || window.GDVVideo.attachWatchedButtons`
+     - ยืนยัน callers ใน `collection-viewer.js` และ `media-lightbox.js` เรียกใช้ canonical interface (`open`, `close`, `suspend`, `watched`, `cancelBlob`) โดยตรงเรียบร้อยแล้ว
+     - คง backward-compatibility re-exports บน `GDVVideo` และ `video` เพื่อไม่ให้กระทบ characterization tests ที่สืบทอดมาตั้งแต่ baseline
+  2. **ปรับปรุง Header Comments ใน `video-player.js`:**
+     - ลบคอมเมนต์ล้าสมัยเรื่อง "slice 2b relocates it into this closure"
+     - ระบุโมดูลที่แยกออกมาทั้ง 6 โมดูล (`video-runners.js`, `video-codec.js`, `video-seek-preview.js`, `video-trace.js`, `video-library.js`, `video-preview-layout.js`) พร้อม `video-cache.js` ไว้อย่างถูกต้องในรายการ Depends on
+     - บันทึกคำอธิบายว่า `EXPECTED_WORKER_REV = ''` ทำหน้าที่เป็น dormant diagnostic hook สำหรับการตรวจจับ header `x-gdv-worker-rev` บน Worker deployment โดยไม่ขัดขวางการสตรีมปกติ (ตามที่ทดสอบใน `tests/route-chain-timeouts.cjs`)
+  3. **อัปเดตคู่มือ `README.md`:**
+     - อัปเดตตารางสถาปัตยกรรมไฟล์ เพิ่มไฟล์โมดูลที่แยกออกมาครบถ้วน 8 โมดูลย่อย (`video-cache.js`, `stream-protocol.js`, `video-runners.js`, `video-codec.js`, `video-seek-preview.js`, `video-trace.js`, `video-library.js`, `video-preview-layout.js`)
+     - ปรับลำดับ static script tags ให้ตรงกับ `index.html` จริง
+     - อัปเดตคำสั่ง `node --check` ในส่วน "ตรวจงานก่อนเผยแพร่" ให้ครอบคลุมทุกไฟล์ `.js` ใน root
+  4. **ตรวจสอบเกณฑ์ขนาดไฟล์ (File Size Gate):**
+     - ตรวจสอบขนาดไฟล์ `video-player.js` เหลือ 1,962 บรรทัด (ลดลงจาก 3,475 บรรทัด หรือลดลงกว่า 43.5%)
+     - ทุกไฟล์ JavaScript ที่ root มีขนาดต่ำกว่า 2,000 บรรทัดทั้งหมดตามเป้าหมายของ Strangler Refactor
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --check video-cache.js stream-protocol.js app-core.js video-runners.js video-codec.js video-seek-preview.js video-trace.js video-library.js video-preview-layout.js video-player.js drive-explorer.js media-lightbox.js collections-data.js collection-viewer.js drive-stream-sw.js cloudflare-drive-worker.mjs` -> **PASS (0 syntax errors)**
+  - `node --test tests/public-surface.cjs tests/route-chain-timeouts.cjs tests/ui-pstack-fixes.cjs tests/media-lifecycle.cjs tests/auth-restore.cjs` -> **18/18 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.6s)**
+
 
 
