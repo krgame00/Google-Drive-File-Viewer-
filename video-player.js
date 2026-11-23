@@ -85,6 +85,25 @@ const createVideoTrace = traceModule.createVideoTrace || function () {
   };
 };
 
+// Watched videos and continue-watching library extracted to video-library.js (Phase 5)
+const libraryModule = (typeof window !== 'undefined' && window.GDVVideoLibrary)
+  || (typeof require === 'function' ? require('./video-library.js') : null)
+  || {};
+
+const createVideoLibrary = libraryModule.createVideoLibrary || function () {
+  return {
+    cachedVideoThumb: () => null,
+    loadWatchedVideos: () => [],
+    toggleWatchedVideo: () => false,
+    attachWatchedButtons: () => {},
+    loadContinueWatching: () => [],
+    saveVideoPos: () => {},
+    renderContinueWatching: () => {},
+    renderCwHero: () => {},
+    renderCwShelf: () => {}
+  };
+};
+
 
 
 function createVideoCenter(app) {
@@ -138,6 +157,24 @@ function createVideoCenter(app) {
     toggleVideoTrace,
     renderVideoTrace
   } = trace;
+
+  const library = createVideoLibrary(app, {
+    vidCurrentId: () => vidCurrentId,
+    openVideo: (id, name) => openVideo(id, name),
+    prepareStreamWorker: () => (typeof prepareStreamWorker === 'function' ? prepareStreamWorker() : undefined),
+    warmVideoStream: (id) => (typeof warmVideoStream === 'function' ? warmVideoStream(id) : undefined)
+  });
+  const {
+    cachedVideoThumb,
+    loadWatchedVideos,
+    toggleWatchedVideo,
+    attachWatchedButtons,
+    loadContinueWatching,
+    saveVideoPos,
+    renderContinueWatching,
+    renderCwHero,
+    renderCwShelf
+  } = library;
 
   function videoCacheScope() {
     return typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : (app.videoCacheScope || null);
@@ -491,13 +528,6 @@ function createVideoCenter(app) {
         app.resetPdfViewer();
         // vm-slice harness รัน body นี้นอก closure — เข้าถึง seekPreview ผ่าน typeof guard เหมือน showVideoChrome
         if (typeof seekPreview !== 'undefined' && seekPreview) seekPreview.reset();
-      }
-
-      function cachedVideoThumb(id) {
-        if (typeof app.mediaThumbs !== 'undefined' && app.mediaThumbs && app.mediaThumbs[id]) return app.mediaThumbs[id];
-        try { const stored = app.lsGet('gdv_thumb_' + id); if (stored) return stored; } catch (_) {}
-        const meta = typeof app.fileMetaOf === 'function' ? app.fileMetaOf(id) : null;
-        return meta && meta.thumbnailLink ? meta.thumbnailLink : null;
       }
 
       function openVideo(id, name) {
@@ -1543,20 +1573,6 @@ function createVideoCenter(app) {
         return runVideoSource(url, onFail, timeoutMs, route);
       }
 
-      function loadWatchedVideos() {
-        try {
-          const ids = JSON.parse(app.lsGet("gdv_watched") || "[]");
-          return Array.isArray(ids) ? [...new Set(ids.filter(id => typeof id === "string" && /^[\w-]+$/.test(id)))] : [];
-        } catch (_) { return []; }
-      }
-
-      function toggleWatchedVideo(id) {
-        const ids = loadWatchedVideos();
-        const watched = !ids.includes(id);
-        app.lsSet("gdv_watched", JSON.stringify(watched ? ids.concat(id) : ids.filter(x => x !== id)));
-        return watched;
-      }
-
       const warmedVideoIds = new Set();
       function warmVideoStream(id) {
         if (!id || warmedVideoIds.has(id)) return false;
@@ -1578,282 +1594,6 @@ function createVideoCenter(app) {
           } catch (_) {}
         }
         return true;
-      }
-
-      function attachWatchedButtons() {
-        if (typeof app.accessToken !== 'undefined' && app.accessToken && typeof prepareStreamWorker === 'function') {
-          try { prepareStreamWorker(); } catch (_) {}
-        }
-        const watched = new Set(loadWatchedVideos());
-        let warmCount = 0;
-        const maxWarm = 4;
-        const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(function (entries) {
-          entries.forEach(function (entry) {
-            if (entry.isIntersecting && warmCount < maxWarm && entry.target && entry.target.dataset && entry.target.dataset.id) {
-              warmCount++;
-              warmVideoStream(entry.target.dataset.id);
-              try { observer.unobserve(entry.target); } catch (_) {}
-            }
-          });
-        }, { rootMargin: '100px' }) : null;
-        app.filesWrap.querySelectorAll('.file-card[data-kind="video"]').forEach(card => {
-          if (card && typeof card.addEventListener === 'function' && card.dataset && card.dataset.id) {
-            const warm = function () { warmVideoStream(card.dataset.id); };
-            card.addEventListener('touchstart', warm, { passive: true, once: true });
-            card.addEventListener('pointerenter', warm, { passive: true, once: true });
-            if (observer && warmCount < maxWarm) {
-              try { observer.observe(card); } catch (_) {}
-            }
-          }
-          const button = app.document.createElement("button");
-          button.type = "button";
-          button.className = "watched-toggle";
-          const update = value => {
-            button.textContent = value ? "✓ ดูแล้ว" : "○ ยังไม่ดู";
-            button.setAttribute("aria-pressed", String(value));
-            button.setAttribute("aria-label", card.dataset.name + (value ? " · ดูแล้ว กดเพื่อเปลี่ยนเป็นยังไม่ดู" : " · ยังไม่ดู กดเพื่อทำเครื่องหมายดูแล้ว"));
-            button.title = "บันทึกสถานะในเบราว์เซอร์นี้";
-          };
-          update(watched.has(card.dataset.id));
-          button.addEventListener("click", event => {
-            event.stopPropagation();
-            update(toggleWatchedVideo(card.dataset.id));
-          });
-          card.querySelector(".file-meta-content").appendChild(button);
-        });
-      }
-
-      function loadContinueWatching() {
-        try {
-          const items = JSON.parse(app.lsGet("gdv_continue") || "[]");
-          return Array.isArray(items) ? items.filter(x => x && typeof x.id === "string" && /^[\w-]+$/.test(x.id) && typeof x.name === "string" && Number.isFinite(x.position) && x.position > 2).slice(0, 30) : [];
-        } catch (_) { return []; }
-      }
-
-      function saveVideoPos() {
-        if (!vidCurrentId || app.vidPlayer.style.display === "none") return;
-        const time = app.vidPlayer.currentTime;
-        if (!Number.isFinite(time)) return;
-        // บันทึกภาพเฟรมปัจจุบันของวิดีโอเป็นภาพปกสำรอง (ถ้ายังไม่มีในแคช)
-        try {
-          if (app.vidPlayer.videoWidth > 0 && typeof localStorage !== "undefined" && !localStorage.getItem("gdv_thumb_" + vidCurrentId)) {
-            const canvas = app.document.createElement("canvas");
-            canvas.width = 160;
-            canvas.height = Math.round(160 * (app.vidPlayer.videoHeight / app.vidPlayer.videoWidth));
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(app.vidPlayer, 0, 0, canvas.width, canvas.height);
-            const dataUrl = canvas.toDataURL("image/jpeg", 0.68);
-            if (dataUrl && dataUrl.length > 100) {
-              localStorage.setItem("gdv_thumb_" + vidCurrentId, dataUrl);
-            }
-          }
-        } catch (_) {}
-        const items = loadContinueWatching().filter(x => x.id !== vidCurrentId);
-        if (app.vidPlayer.ended) {
-          app.lsRemove("gdv_vpos_" + vidCurrentId);
-        } else {
-          if (time <= 2) return;
-          const position = Math.floor(time);
-          app.lsSet("gdv_vpos_" + vidCurrentId, position);
-          items.unshift({ id: vidCurrentId, name: app.vidTitle.textContent || "วิดีโอ", position, updated: app.Date.now() });
-        }
-        app.lsSet("gdv_continue", JSON.stringify(items.slice(0, 30)));
-        app.pruneVpos(100);
-      }
-
-      function renderContinueWatching() {
-        let section = app.document.getElementById("continueWatching");
-        const drawerMount = app.document.getElementById("myLibraryContent");
-        if (!section) {
-          section = app.document.createElement("section");
-          section.id = "continueWatching";
-          section.className = "favorite-folders";
-          if (drawerMount) drawerMount.appendChild(section);
-          else {
-            const card = app.document.getElementById("browserCard");
-            if (card && typeof card.before === 'function') card.before(section);
-          }
-        } else if (drawerMount && section.parentElement !== drawerMount) {
-          drawerMount.appendChild(section);
-        }
-        section.innerHTML = '<h3>ดูต่อจากครั้งล่าสุด</h3><p>บันทึกในเบราว์เซอร์นี้ สูงสุด 30 รายการ · จำเวลาได้เฉพาะเครื่องเล่นโดยตรง ไม่รวมพรีวิว Google Drive</p>';
-        const items = loadContinueWatching();
-        renderCwHero(items);
-        renderCwShelf(items);
-        if (!items.length) {
-          const empty = app.document.createElement("p");
-          empty.textContent = "วิดีโอที่ดูค้างไว้จะปรากฏที่นี่";
-          section.appendChild(empty);
-          if (app.window.updateMyLibraryBadge) app.window.updateMyLibraryBadge();
-          return;
-        }
-        const grid = app.document.createElement("div");
-        grid.className = "resume-grid";
-        items.forEach(item => {
-          const row = app.document.createElement("div");
-          row.className = "favorite-folder resume-card";
-          const button = app.document.createElement("button");
-          button.type = "button";
-          button.className = "resume-btn";
-          const minutes = Math.floor(item.position / 60);
-          const seconds = String(item.position % 60).padStart(2, "0");
-          const progressPercent = Math.min(96, Math.max(8, Math.round((item.position / (item.duration || (item.position + 120))) * 100)));
-          const safeName = (item.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
-
-          const cachedThumb = (function () {
-            if (typeof app.mediaThumbs !== "undefined" && app.mediaThumbs && app.mediaThumbs[item.id]) return app.mediaThumbs[item.id];
-            try { return localStorage.getItem("gdv_thumb_" + item.id); } catch (_) { return null; }
-          })();
-          const thumbUrl = cachedThumb || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(item.id) + "&sz=w320");
-          const safeThumbUrl = (thumbUrl || "").replace(/"/g, '&quot;');
-          const safeId = (item.id || "").replace(/['"\\]/g, "");
-
-          button.innerHTML = `
-            <div class="resume-thumb-box${cachedThumb ? ' has-thumb' : ''}" aria-hidden="true">
-              <img class="resume-thumb-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
-              <span class="resume-play-glyph">▶</span>
-              <div class="resume-progress-track"><div class="resume-progress-bar" style="width:${progressPercent}%"></div></div>
-            </div>
-            <div class="resume-info">
-              <span class="resume-title" title="${safeName}">${safeName}</span>
-              <span class="resume-time-tag">⏱ ดูต่อ ${minutes}:${seconds}</span>
-            </div>
-          `;
-          button.onclick = () => {
-            if (app.window.closeMyLibraryDrawer) app.window.closeMyLibraryDrawer();
-            app.lsSet("gdv_vpos_" + item.id, item.position);
-            openVideo(item.id, item.name);
-          };
-          const remove = app.document.createElement("button");
-          remove.type = "button";
-          remove.className = "favorite-remove-btn";
-          remove.textContent = "×";
-          remove.setAttribute("aria-label", "ลบ " + item.name + " จากรายการดูต่อ");
-          remove.onclick = (e) => {
-            e.stopPropagation();
-            app.lsSet("gdv_continue", JSON.stringify(loadContinueWatching().filter(x => x.id !== item.id)));
-            app.lsRemove("gdv_vpos_" + item.id);
-            renderContinueWatching();
-          };
-          row.append(button, remove);
-          grid.appendChild(row);
-        });
-        section.appendChild(grid);
-        if (app.window.updateMyLibraryBadge) app.window.updateMyLibraryBadge();
-      }
-
-      // Hero "ดูต่อจากครั้งล่าสุด" บนหน้าหลัก (#cwHero) — การ์ดใหญ่ของรายการแรก
-      // ใช้โครง/ตัวเลขชุดเดียวกับการ์ดดูต่อใน drawer และเส้นทางเดิม (openVideo) ทุกปุ่ม
-      // ไม่มี #cwHero หรือไม่มีรายการ → ซ่อน การ์ดใน drawer ไม่ถูกแตะ
-      function renderCwHero(items) {
-        const hero = app.document.getElementById("cwHero");
-        if (!hero) return;
-        const first = items[0];
-        if (!first) { hero.hidden = true; hero.innerHTML = ""; return; }
-        const minutes = Math.floor(first.position / 60);
-        const seconds = String(first.position % 60).padStart(2, "0");
-        const progressPercent = Math.min(96, Math.max(8, Math.round((first.position / (first.duration || (first.position + 120))) * 100)));
-        const safeName = (first.name || "").replace(/[<>&"]/g, s => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[s]));
-        const cachedThumb = (function () {
-          if (typeof app.mediaThumbs !== "undefined" && app.mediaThumbs && app.mediaThumbs[first.id]) return app.mediaThumbs[first.id];
-          try { return localStorage.getItem("gdv_thumb_" + first.id); } catch (_) { return null; }
-        })();
-        const thumbUrl = cachedThumb || ("https://drive.google.com/thumbnail?id=" + encodeURIComponent(first.id) + "&sz=w640");
-        const safeThumbUrl = (thumbUrl || "").replace(/"/g, '&quot;');
-        const safeId = (first.id || "").replace(/['"\\]/g, "");
-
-        hero.innerHTML = "";
-        const thumbBox = app.document.createElement("div");
-        thumbBox.className = "cw-hero-thumb" + (cachedThumb ? " has-thumb" : "");
-        thumbBox.setAttribute("aria-hidden", "true");
-        thumbBox.innerHTML = `
-          <img class="cw-hero-img${cachedThumb ? ' loaded' : ''}" src="${safeThumbUrl}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none';this.parentElement.classList.remove('has-thumb');if(window.tryLoadDriveThumbnail)window.tryLoadDriveThumbnail('${safeId}',this)" onload="this.classList.add('loaded');this.parentElement.classList.add('has-thumb')" />
-          <div class="cw-hero-progress"><div class="cw-hero-progress-bar" style="width:${progressPercent}%"></div></div>
-        `;
-        const info = app.document.createElement("div");
-        info.className = "cw-hero-info";
-        const label = app.document.createElement("span");
-        label.className = "cw-hero-label";
-        label.textContent = "ดูต่อจากครั้งล่าสุด";
-        const titleEl = app.document.createElement("span");
-        titleEl.className = "cw-hero-title";
-        titleEl.textContent = first.name || "วิดีโอ";
-        titleEl.title = safeName;
-        const meta = app.document.createElement("span");
-        meta.className = "cw-hero-meta";
-        meta.textContent = "ดูต่อที่ " + minutes + ":" + seconds + " · ความคืบหน้า " + progressPercent + "%";
-        const actions = app.document.createElement("div");
-        actions.className = "cw-hero-actions";
-        const playBtn = app.document.createElement("button");
-        playBtn.type = "button";
-        playBtn.className = "btn-primary cw-hero-play";
-        playBtn.textContent = "▶ เล่นต่อ";
-        playBtn.onclick = () => {
-          if (app.window.closeMyLibraryDrawer) app.window.closeMyLibraryDrawer();
-          app.lsSet("gdv_vpos_" + first.id, first.position);
-          openVideo(first.id, first.name);
-        };
-        const folderBtn = app.document.createElement("button");
-        folderBtn.type = "button";
-        folderBtn.className = "btn-ghost cw-hero-folder";
-        folderBtn.textContent = "เปิดโฟลเดอร์";
-        folderBtn.title = "เปิดโฟลเดอร์แม่ของคลิปนี้ในแอป (มีคลัง) — ถ้าไม่มีจะเปิดหน้าไฟล์บน Google Drive แทน";
-        folderBtn.onclick = () => {
-          // app.window คือ window จริงในเบราว์เซอร์ (getter ใน app-core) — GDVCollectionApi อยู่ที่นั่น
-          // คลิปที่ไม่อยู่ในคลัง (เช่น ลิงก์ที่วางเอง) openItemById คืน false — fallback เปิดหน้าไฟล์บน Drive
-          const collApi = app.window && app.window.GDVCollectionApi;
-          if (collApi && typeof collApi.openItemById === "function" && collApi.openItemById(first.id)) {
-            return;
-          }
-          try { app.window.open("https://drive.google.com/file/d/" + first.id + "/view", "_blank", "noopener"); } catch (_) {}
-        };
-        actions.append(playBtn, folderBtn);
-        info.append(label, titleEl, meta, actions);
-        hero.append(thumbBox, info);
-        hero.hidden = false;
-      }
-
-      // ชั้น "ดูต่อของฉัน" (#cwShelf) บนหน้าหลัก — โชว์ทุกรายการเมื่อมีตั้งแต่สองใบ
-      // (ใบเดียว hero ครอบอยู่แล้ว) ปุ่มการ์ดใช้เส้นทางเดียวกับเล่นต่อของ hero
-      function renderCwShelf(items) {
-        const shelf = app.document.getElementById("cwShelf");
-        if (!shelf) return;
-        if (!items || items.length < 2) { shelf.hidden = true; shelf.innerHTML = ""; return; }
-        shelf.innerHTML = "";
-        const shelfLabel = app.document.createElement("span");
-        shelfLabel.className = "cw-shelf-label";
-        shelfLabel.textContent = "ดูต่อของฉัน";
-        shelf.append(shelfLabel);
-        const shelfRow = app.document.createElement("div");
-        shelfRow.className = "cw-shelf-row";
-        items.forEach(function (item) {
-          const minutes = Math.floor(item.position / 60);
-          const seconds = String(item.position % 60).padStart(2, "0");
-          const progressPercent = Math.min(96, Math.max(8, Math.round((item.position / (item.duration || (item.position + 120))) * 100)));
-          const safeName = (item.name || "วิดีโอ").replace(/[<>&"]/g, function (s) { return { "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[s]; });
-          const cachedThumb = (function () {
-            if (typeof app.mediaThumbs !== "undefined" && app.mediaThumbs && app.mediaThumbs[item.id]) return app.mediaThumbs[item.id];
-            try { return localStorage.getItem("gdv_thumb_" + item.id); } catch (_) { return null; }
-          })();
-          const thumbUrl = (cachedThumb || "https://drive.google.com/thumbnail?id=" + encodeURIComponent(item.id) + "&sz=w480").replace(/"/g, "&quot;");
-          const card = app.document.createElement("button");
-          card.type = "button";
-          card.className = "cw-shelf-card";
-          card.title = safeName;
-          card.innerHTML =
-            '<img class="cw-shelf-img' + (cachedThumb ? " loaded" : "") + '" src="' + thumbUrl + '" alt="" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'" onload="this.classList.add(\'loaded\')" />' +
-            '<span class="cw-shelf-progress"><i style="width:' + progressPercent + '%"></i></span>' +
-            '<span class="cw-shelf-name">' + safeName + '</span>' +
-            '<span class="cw-shelf-meta">ดูต่อที่ ' + minutes + ":" + seconds + " · " + progressPercent + "%</span>";
-          card.onclick = function () {
-            if (app.window.closeMyLibraryDrawer) app.window.closeMyLibraryDrawer();
-            app.lsSet("gdv_vpos_" + item.id, item.position);
-            openVideo(item.id, item.name);
-          };
-          shelfRow.append(card);
-        });
-        shelf.append(shelfRow);
-        shelf.hidden = false;
       }
 
       function revokeCurrentVideo() {
@@ -2524,6 +2264,7 @@ function createVideoCenter(app) {
     module.exports.createVideoCodec = createVideoCodec;
     module.exports.createSeekPreview = createSeekPreview;
     module.exports.createVideoTrace = createVideoTrace;
+    module.exports.createVideoLibrary = createVideoLibrary;
 
   } else {
     video.renderContinueWatching();

@@ -1862,3 +1862,33 @@
   - `node --check video-trace.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.6s)**
 
+### #91 Phase 5 แยก library ไปยัง video-library.js (watched, continue watching, saveVideoPos, shelf) — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 5:**
+  1. **สกัด Watched และ Continue Watching ไปยัง `video-library.js`:**
+     - ย้ายฟังก์ชัน `createVideoLibrary`, `cachedVideoThumb`, `loadWatchedVideos`, `toggleWatchedVideo`, `attachWatchedButtons`, `loadContinueWatching`, `saveVideoPos`, `renderContinueWatching`, `renderCwHero`, `renderCwShelf` (436 บรรทัด)
+     - คงค่า localStorage keys และ schema เดิม 100% (`gdv_watched`, `gdv_continue`, `gdv_vpos_*`, `gdv_thumb_*`)
+     - ส่ง `app` และ dynamic `deps` (`vidCurrentId: () => vidCurrentId`, `openVideo`, `prepareStreamWorker`, `warmVideoStream`) เข้าสู่ factory
+     - เผยแพร่บน `window.GDVVideoLibrary` สำหรับเบราว์เซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Video Library Module:**
+     - ดึง `createVideoLibrary` จาก `window.GDVVideoLibrary` หรือ fallback `require('./video-library.js')`
+     - เรียก `createVideoLibrary(app, deps)` ตอนต้นของ `createVideoCenter(app)`
+     - ลดขนาดไฟล์ `video-player.js` จาก 2,530 บรรทัดเหลือ 2,272 บรรทัด (~258 บรรทัดถูกสกัดออก)
+     - คงการ re-export บน `GDVVideo` และ `module.exports` เพื่อความเข้ากันได้ย้อนหลัง 100%
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-library.js?v=20261123-r1" defer></script>` ถัดจาก `video-trace.js` และก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r5`
+  4. **ปรับปรุง Helper และชุดทดสอบ:**
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-library.js` ลงบน `testWindow.GDVVideoLibrary`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-library.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-library.js`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/watched-videos.cjs tests/continue-watching.cjs tests/ui-pstack-fixes.cjs tests/video-head-prefetch.cjs` -> **14/14 PASS**
+  - `node --test tests/media-lifecycle.cjs` -> **52/52 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-library.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.9s)**
+
+
