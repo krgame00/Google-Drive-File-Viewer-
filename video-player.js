@@ -65,6 +65,27 @@ const createSeekPreview = seekPreviewModule.createSeekPreview || function () {
   return { reset() {}, refresh() {} };
 };
 
+// Trace and telemetry extracted to video-trace.js (Phase 4)
+const traceModule = (typeof window !== 'undefined' && window.GDVVideoTrace)
+  || (typeof require === 'function' ? require('./video-trace.js') : null)
+  || {};
+
+const createVideoTrace = traceModule.createVideoTrace || function () {
+  return {
+    videoTrace: [],
+    traceVideoEvent: () => {},
+    videoTraceEnvLine: () => '',
+    resetVideoTrace: () => {},
+    videoTraceReport: () => '',
+    sendVideoTelemetry: () => {},
+    copyVideoTrace: () => {},
+    copyVideoTraceFallback: () => {},
+    toggleVideoTrace: () => {},
+    renderVideoTrace: () => {}
+  };
+};
+
+
 
 function createVideoCenter(app) {
   'use strict';
@@ -100,6 +121,23 @@ function createVideoCenter(app) {
     audioCanPlay,
     readMp4CodecInfo
   } = createVideoCodec(app);
+
+  const trace = createVideoTrace(Object.assign({}, app, {
+    WORKER_URL,
+    getVidCurrentId: () => vidCurrentId,
+    vidCurrentId: () => vidCurrentId
+  }));
+  const {
+    traceVideoEvent,
+    videoTraceEnvLine,
+    resetVideoTrace,
+    videoTraceReport,
+    sendVideoTelemetry,
+    copyVideoTrace,
+    copyVideoTraceFallback,
+    toggleVideoTrace,
+    renderVideoTrace
+  } = trace;
 
   function videoCacheScope() {
     return typeof app.videoCacheScope === 'function' ? app.videoCacheScope() : (app.videoCacheScope || null);
@@ -335,155 +373,6 @@ function createVideoCenter(app) {
         }, 2500);
       }
 
-      // On-screen route diagnostics: signed-in playback failures cannot be
-      // reproduced without the user's account, so the route ladder reports
-      // itself here and the user copies one report for the developer.
-      const videoTrace = [];
-      let videoTraceT0 = null;
-
-      function traceVideoEvent(e, d) {
-        if (videoTraceT0 === null) videoTraceT0 = (typeof app.Date !== 'undefined' ? app.Date : Date).now();
-        const dStr = String(d === undefined ? '' : d).slice(0, 220);
-        const t = ((typeof app.Date !== 'undefined' ? app.Date : Date).now() - videoTraceT0) / 1000;
-        const last = videoTrace[videoTrace.length - 1];
-        if (last && last.e === String(e) && last.d === dStr) last.t = t;
-        else videoTrace.push({ t: t, e: String(e), d: dStr });
-        if (videoTrace.length > 60) videoTrace.splice(0, videoTrace.length - 60);
-        if (typeof app.lsSet === 'function') { try { app.lsSet('gdv_video_trace_v1', JSON.stringify(videoTrace)); } catch (_) {} }
-        renderVideoTrace();
-      }
-
-      function videoTraceEnvLine() {
-        let versions = 'ไม่ทราบเวอร์ชัน';
-        try {
-          const tags = [];
-          const scripts = app.document && app.document.scripts;
-          for (let i = 0; scripts && i < scripts.length; i++) {
-            const m = String(scripts[i].src || '').match(/(video-player|app-core)\.js\?v=[^?]*?(r\d+)/);
-            if (m) tags.push(m[1] + ' ' + m[2]);
-          }
-          if (tags.length) versions = tags.join(', ');
-        } catch (_) {}
-        let login = 'ไม่ล็อกอิน';
-        try {
-          const token = typeof app.accessToken === 'function' ? app.accessToken() : app.accessToken;
-          if (token) login = 'ล็อกอิน';
-        } catch (_) {}
-        let sw = 'ไม่ทราบสถานะ';
-        try {
-          sw = (typeof navigator !== 'undefined' && navigator.serviceWorker && navigator.serviceWorker.controller) ? 'ควบคุมหน้าอยู่' : 'ไม่มี controller';
-        } catch (_) {}
-        let origin = '';
-        try { origin = app.location && app.location.origin ? String(app.location.origin) : ''; } catch (_) {}
-        let ua = '';
-        try { ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? ' · ' + String(navigator.userAgent).slice(0, 120) : ''; } catch (_) {}
-        return 'เวอร์ชัน ' + versions + ' · ' + login + ' · SW ' + sw + (origin ? ' · ' + origin : '') + ua;
-      }
-
-      let telemetrySentId = null;
-
-      function resetVideoTrace() {
-        videoTrace.length = 0;
-        videoTraceT0 = null;
-        telemetrySentId = null;
-        traceVideoEvent('env', videoTraceEnvLine());
-      }
-
-      function videoTraceReport() {
-        const lines = ['รายงานวินิจฉัยวิดีโอ ' + new (typeof app.Date !== 'undefined' ? app.Date : Date)().toISOString(), videoTraceEnvLine(), vidCurrentId ? 'ไฟล์ ' + vidCurrentId : 'ไม่ทราบไฟล์'];
-        videoTrace.forEach(function (ev, i) { lines.push((i + 1) + '. ' + ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d); });
-        return lines.join('\n');
-      }
-
-      function sendVideoTelemetry(errorReason, detail) {
-        if (!vidCurrentId || telemetrySentId === vidCurrentId) return;
-        telemetrySentId = vidCurrentId;
-        const payload = {
-          fileId: vidCurrentId,
-          title: (app.vidTitle && app.vidTitle.textContent) || '',
-          error: String(errorReason || 'playback_failed'),
-          detail: String(detail || ''),
-          routes: (typeof videoTrace !== 'undefined' ? videoTrace : []).filter(function (ev) {
-            return ev.e === 'route' || ev.e === 'fail' || ev.e === 'swtok' || ev.e === 'swerr';
-          }).slice(-12),
-          env: typeof videoTraceEnvLine === 'function' ? videoTraceEnvLine() : '',
-          timestamp: new (typeof app.Date !== 'undefined' ? app.Date : Date)().toISOString()
-        };
-        const telemetryUrl = (WORKER_URL || '').replace(/\/+$/, '') + '/telemetry';
-        try {
-          const body = JSON.stringify(payload);
-          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function' && typeof Blob !== 'undefined') {
-            const blob = new Blob([body], { type: 'application/json' });
-            if (navigator.sendBeacon(telemetryUrl, blob)) return;
-          }
-          if (typeof app.fetch === 'function') {
-            app.fetch(telemetryUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: body,
-              mode: 'cors',
-              keepalive: true
-            }).catch(function () {});
-          }
-        } catch (_) {}
-      }
-
-      function copyVideoTrace() {
-        const text = videoTraceReport();
-        const doc = app.document;
-        const btn = doc && doc.getElementById ? doc.getElementById('vidTraceCopy') : null;
-        const flash = function () {
-          if (!btn) return;
-          const prev = btn.textContent;
-          btn.textContent = 'คัดลอกแล้ว ✓';
-          app.setTimeout(function () { if (btn.textContent === 'คัดลอกแล้ว ✓') btn.textContent = prev; }, 2000);
-        };
-        const fail = function () {
-          if (!btn) return;
-          const prev = btn.textContent;
-          btn.textContent = 'คัดลอกไม่สำเร็จ — เลือกข้อความแล้วกด Ctrl+C';
-          app.setTimeout(function () { if (btn.textContent !== prev) btn.textContent = prev; }, 2500);
-        };
-        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-          navigator.clipboard.writeText(text).then(flash, function () { copyVideoTraceFallback(text, flash, fail); });
-          return;
-        }
-        copyVideoTraceFallback(text, flash, fail);
-      }
-
-      function copyVideoTraceFallback(text, flash, fail) {
-        try {
-          const ta = app.document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          app.document.body.appendChild(ta);
-          ta.select();
-          const ok = app.document.execCommand('copy');
-          app.document.body.removeChild(ta);
-          if (ok) flash();
-          else if (fail) fail();
-        } catch (_) { if (fail) fail(); }
-      }
-
-      function toggleVideoTrace() {
-        const doc = app.document;
-        const box = doc && doc.getElementById ? doc.getElementById('vidTrace') : null;
-        if (box && box.classList) box.classList.toggle('collapsed');
-      }
-
-      function renderVideoTrace() {
-        const doc = app.document;
-        if (!doc || !doc.getElementById) return;
-        const box = doc.getElementById('vidTrace');
-        const lines = doc.getElementById('vidTraceLines');
-        const toggle = doc.getElementById('vidTraceToggle');
-        if (toggle) toggle.textContent = 'วินิจฉัย (' + videoTrace.length + ')';
-        if (!box || !lines) return;
-        lines.textContent = videoTrace.map(function (ev) { return ev.t.toFixed(1) + 's [' + ev.e + '] ' + ev.d; }).join('\n');
-        if (typeof lines.scrollTop === 'number') lines.scrollTop = lines.scrollHeight;
-        box.hidden = false;
-      }
 
       function setVideoStatus(state, message) {
         const prev = videoStatus;
@@ -2634,6 +2523,7 @@ function createVideoCenter(app) {
     module.exports.EXPECTED_WORKER_REV = EXPECTED_WORKER_REV;
     module.exports.createVideoCodec = createVideoCodec;
     module.exports.createSeekPreview = createSeekPreview;
+    module.exports.createVideoTrace = createVideoTrace;
 
   } else {
     video.renderContinueWatching();

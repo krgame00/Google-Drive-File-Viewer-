@@ -10,6 +10,7 @@ const MODULE_PATH = require.resolve(path.join(__dirname, '..', '..', 'video-play
 const RUNNERS_PATH = path.join(__dirname, '..', '..', 'video-runners.js');
 const CODEC_PATH = path.join(__dirname, '..', '..', 'video-codec.js');
 const SEEK_PREVIEW_PATH = path.join(__dirname, '..', '..', 'video-seek-preview.js');
+const TRACE_PATH = path.join(__dirname, '..', '..', 'video-trace.js');
 
 function loadVideoPlayerApi(bridge = {}) {
   const previousWindow = global.window;
@@ -25,6 +26,10 @@ function loadVideoPlayerApi(bridge = {}) {
   if (fs.existsSync(SEEK_PREVIEW_PATH)) {
     delete require.cache[require.resolve(SEEK_PREVIEW_PATH)];
     testWindow.GDVSeekPreview = require(SEEK_PREVIEW_PATH);
+  }
+  if (fs.existsSync(TRACE_PATH)) {
+    delete require.cache[require.resolve(TRACE_PATH)];
+    testWindow.GDVVideoTrace = require(TRACE_PATH);
   }
   // Bridge-first with globalThis fall-through: mirrors the old with(appApi)
   // semantics, where a name the bridge did not provide resolved as a global.

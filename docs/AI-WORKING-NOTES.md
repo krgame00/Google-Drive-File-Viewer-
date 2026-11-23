@@ -1831,3 +1831,34 @@
   - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
   - `node --check video-seek-preview.js video-player.js tests/seek-preview.cjs tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~24s)**
+
+### #90 Phase 4 แยก trace/telemetry ไปยัง video-trace.js — 2026-11-23
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 256/256 เทส, 0 fail, บน Node.js v26.12.1)
+- **เนื้องานใน Phase 4:**
+  1. **สกัด Trace และ Telemetry ไปยัง `video-trace.js`:**
+     - ย้ายฟังก์ชัน `createVideoTrace`, `traceVideoEvent`, `videoTraceEnvLine`, `resetVideoTrace`, `videoTraceReport`, `sendVideoTelemetry`, `copyVideoTrace`, `copyVideoTraceFallback`, `toggleVideoTrace`, `renderVideoTrace` (166 บรรทัด)
+     - คงค่า localStorage keys เดิม (`gdv_video_trace_v1`) และ safe fallback no-op trace
+     - เผยแพร่บน `window.GDVVideoTrace` สำหรับเบราว์เซอร์ และ `module.exports` สำหรับการทดสอบ Node.js CommonJS
+  2. **ปรับปรุง `video-player.js` เชื่อมต่อผ่าน Video Trace Module:**
+     - ดึง `createVideoTrace` จาก `window.GDVVideoTrace` หรือ fallback `require('./video-trace.js')`
+     - เรียก `createVideoTrace(traceDeps)` ตอนต้นของ `createVideoCenter(app)` พร้อมผูก `vidCurrentId: () => vidCurrentId` แบบไดนามิกฟังก์ชัน ป้องกัน eager evaluation ของ getter ที่จะทำให้ค่าเป็น `null` ถาวร
+     - ลดขนาดไฟล์ `video-player.js` จาก 2,641 บรรทัดเหลือ 2,530 บรรทัด (~111 บรรทัดถูกสกัดออก)
+     - คงการ re-export บน `GDVVideo` และ `module.exports` เพื่อความเข้ากันได้ย้อนหลัง 100%
+  3. **อัปเดต `index.html` Script Tags:**
+     - เพิ่ม `<script src="video-trace.js?v=20261123-r1" defer></script>` ถัดจาก `video-seek-preview.js` และก่อนหน้า `video-player.js`
+     - Bump เวอร์ชัน `video-player.js?v=20261123-r4`
+  4. **ปรับปรุง Helper และชุดทดสอบ:**
+     - อัปเดต `tests/helpers/load-video-player-api.cjs` ให้โหลด `video-trace.js` ลงบน `testWindow.GDVVideoTrace`
+     - อัปเดต `tests/media-lifecycle.cjs` เพิ่ม `video-trace.js` ในรายการ `sourceFiles`
+     - อัปเดต `tests/ui-pstack-fixes.cjs` ตรวจสอบแท็ก `<script>` ของ `video-trace.js`
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause & Resolution):**
+  - *Static getter evaluation in `Object.assign`:* ตอนส่ง `app` เข้า `createVideoTrace` หากใช้ getter ใน object literal แล้วผ่าน `Object.assign({}, app, { get vidCurrentId() { ... } })` ตัว getter จะถูก evaluate ทันทีตอนสร้าง object กลายเป็น static property ที่มีค่าเป็น `null` ทำให้เมื่อเล่นคลิปจริง `sendVideoTelemetry` ส่ง `fileId: null` ได้รับการแก้ไขโดยส่งเป็นฟังก์ชัน accessor `vidCurrentId: () => vidCurrentId` และใน `video-trace.js` ตรวจสอบ `typeof deps.vidCurrentId === 'function' ? deps.vidCurrentId() : deps.vidCurrentId`
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/video-trace.cjs tests/video-telemetry.cjs` -> **6/6 PASS**
+  - `node --test tests/ui-pstack-fixes.cjs` -> **11/11 PASS**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --check video-trace.js video-player.js tests/helpers/load-video-player-api.cjs tests/media-lifecycle.cjs tests/ui-pstack-fixes.cjs` -> ไม่มี error
+  - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.6s)**
+
