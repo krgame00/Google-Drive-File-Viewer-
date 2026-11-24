@@ -1950,5 +1950,29 @@
   - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
   - `node --test tests/*.cjs` -> **256/256 PASS (0 fail, duration ~23.6s)**
 
+### #94 แก้ไข global lexical identifier collisions ในโมดูลที่แยกออกมา (Hotfix live browser syntax error) — 2026-11-24
+
+- **สถานะ:** `VERIFIED WORKING` (ทดสอบผ่านครบ 257/257 เทส, 0 fail, บน Node.js v26.12.1)
+- **ปัญหาที่พบและสาเหตุที่แท้จริง (Root Cause):**
+  - บนเบราว์เซอร์จริงที่โหลดไฟล์แบบ classic `<script src="...">` tags ทุกไฟล์จะแชร์ global lexical scope เดียวกัน
+  - การประกาศ top-level bindings ซ้ำข้ามไฟล์ (เช่น `const runners` ใน `video-runners.js` ชนกับ `const runners` ใน `video-player.js`, และ `function createVideoCodec`, `createSeekPreview`, `createVideoTrace`, `createVideoLibrary`, `createVideoPreviewLayout`) ทำให้เบราว์เซอร์ throw `Uncaught SyntaxError: Identifier '...' has already been declared`
+  - ผลคือ `video-player.js` parse ไม่ผ่านและไม่ถูก execute ทำให้ `window.GDVVideo` กลายเป็น undefined และส่งผลกระทบต่อ `drive-explorer.js` ไม่สามารถเรียก `attachWatchedButtons()` ได้
+  - การทดสอบเดิมใน Node.js ไม่พบปัญหานี้เนื่องจาก Node โหลดแต่ละไฟล์ใน module scope แยกกัน
+- **การแก้ไข (Fix Implementation):**
+  1. **`video-runners.js`:** ห่อหุ้มไฟล์ด้วย IIFE `(function () { ... })();` เพื่อกักเก็บ `TIMEOUTS`, `WORKER_URL`, `EXPECTED_WORKER_REV`, และ runner factories ให้อยู่ใน local scope พร้อมเปลี่ยนชื่อ binding ภายในเป็น `const videoRunners = { ... }`
+  2. **`video-codec.js`:** เปลี่ยนชื่อ factory ภายในเป็น `createVideoCodecImpl` โดยยังคง publish บน `window.GDVVideoCodec.createVideoCodec` และ `module.exports.createVideoCodec`
+  3. **`video-seek-preview.js`:** เปลี่ยนชื่อ factory ภายในเป็น `createSeekPreviewImpl` โดยคง publish บน `window.GDVSeekPreview.createSeekPreview`
+  4. **`video-trace.js`:** เปลี่ยนชื่อ factory ภายในเป็น `createVideoTraceImpl` โดยคง publish บน `window.GDVVideoTrace.createVideoTrace`
+  5. **`video-library.js`:** เปลี่ยนชื่อ factory ภายในเป็น `createVideoLibraryImpl` โดยคง publish บน `window.GDVVideoLibrary.createVideoLibrary`
+  6. **`video-preview-layout.js`:** เปลี่ยนชื่อ factory ภายในเป็น `createVideoPreviewLayoutImpl` โดยคง publish บน `window.GDVVideoPreviewLayout.createVideoPreviewLayout`
+  7. **`index.html`:** Bump query version ของโมดูลที่แก้ไขเป็น `?v=20261124-r2` และ `video-player.js?v=20261124-r8`
+  8. **เพิ่มการทดสอบกันซ้ำ (Regression Guard Test):** เพิ่ม `tests/browser-global-collision.cjs` ซึ่งจำลองการโหลด `<script src>` จาก `index.html` ทั้งหมดตามลำดับใน context เดียวกันผ่าน `node:vm` เพื่อตรวจจับและป้องกัน lexical collisions
+- **หลักฐานการทดสอบ (Verification Evidence):**
+  - `node --test tests/browser-global-collision.cjs` -> **1/1 PASS** (ยืนยันโหลดสคริปต์เรียงตามลำดับใน context เดียวกันได้โดยไม่มี SyntaxError และ `window.GDVVideo` มี type เป็น 'object')
+  - `node --check` ครบ 16 ไฟล์ JavaScript ใน root -> **PASS (0 syntax error)**
+  - `node tools/collection_data.js check` -> สองฝั่งตรงกันครบ (335 รายการ)
+  - `py tests/test_patch_alive_sync.py` -> 1/1 PASS
+  - `node --test tests/*.cjs` -> **257/257 PASS (0 fail, 50 test files, duration ~23.5s)**
+
 
 

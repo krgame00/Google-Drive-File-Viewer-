@@ -11,7 +11,7 @@ function safeOn(el, evt, handler, opts) {
   }
 }
 
-function createSeekPreview(app) {
+function createSeekPreviewImpl(app) {
   'use strict';
   app = app || {};
   const showVideoChrome = typeof app.showVideoChrome === 'function' ? app.showVideoChrome : function () {};
@@ -260,7 +260,7 @@ function createSeekPreview(app) {
 }
 
 const seekPreviewApi = {
-  createSeekPreview
+  createSeekPreview: createSeekPreviewImpl
 };
 
 if (typeof window !== 'undefined') {

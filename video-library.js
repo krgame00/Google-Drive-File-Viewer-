@@ -11,7 +11,7 @@
 //   - renderCwHero
 //   - renderCwShelf
 
-function createVideoLibrary(app, deps) {
+function createVideoLibraryImpl(app, deps) {
   'use strict';
   app = app || {};
   deps = deps || {};
@@ -412,10 +412,10 @@ function createVideoLibrary(app, deps) {
   };
 }
 
-const defaultLibrary = createVideoLibrary({});
+const defaultLibrary = createVideoLibraryImpl({});
 
 const libraryApi = {
-  createVideoLibrary,
+  createVideoLibrary: createVideoLibraryImpl,
   cachedVideoThumb: defaultLibrary.cachedVideoThumb,
   loadWatchedVideos: defaultLibrary.loadWatchedVideos,
   toggleWatchedVideo: defaultLibrary.toggleWatchedVideo,

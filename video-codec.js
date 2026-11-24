@@ -6,7 +6,7 @@
 //   - audioCanPlay (canPlayType probe for AC-3 / E-AC-3)
 //   - readMp4CodecInfo (MP4 box inspector: moov, trak, mdia, minf, stbl, stsd, avcC)
 
-function createVideoCodec(app) {
+function createVideoCodecImpl(app) {
   'use strict';
   app = app || {};
 
@@ -118,10 +118,10 @@ function createVideoCodec(app) {
   };
 }
 
-const defaultCodec = createVideoCodec({});
+const defaultCodec = createVideoCodecImpl({});
 
 const codecApi = {
-  createVideoCodec,
+  createVideoCodec: createVideoCodecImpl,
   deviceCodecSupport: defaultCodec.deviceCodecSupport,
   describeCodecSupport: defaultCodec.describeCodecSupport,
   audioCanPlay: defaultCodec.audioCanPlay,

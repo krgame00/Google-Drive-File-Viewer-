@@ -11,7 +11,7 @@
 //   - toggleVideoTrace
 //   - renderVideoTrace
 
-function createVideoTrace(deps) {
+function createVideoTraceImpl(deps) {
   'use strict';
   deps = deps || {};
 
@@ -208,10 +208,10 @@ function createVideoTrace(deps) {
   };
 }
 
-const defaultTrace = createVideoTrace({});
+const defaultTrace = createVideoTraceImpl({});
 
 const traceApi = {
-  createVideoTrace,
+  createVideoTrace: createVideoTraceImpl,
   traceVideoEvent: defaultTrace.traceVideoEvent,
   videoTraceEnvLine: defaultTrace.videoTraceEnvLine,
   resetVideoTrace: defaultTrace.resetVideoTrace,

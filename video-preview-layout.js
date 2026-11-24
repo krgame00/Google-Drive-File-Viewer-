@@ -15,7 +15,7 @@
 //   - togglePreviewAspect
 //   - applyNativeVideoAspect
 
-function createVideoPreviewLayout(app, deps) {
+function createVideoPreviewLayoutImpl(app, deps) {
   'use strict';
   app = app || {};
   deps = deps || {};
@@ -314,10 +314,10 @@ function createVideoPreviewLayout(app, deps) {
   };
 }
 
-const defaultLayout = createVideoPreviewLayout({});
+const defaultLayout = createVideoPreviewLayoutImpl({});
 
 const layoutApi = {
-  createVideoPreviewLayout,
+  createVideoPreviewLayout: createVideoPreviewLayoutImpl,
   calculatePreviewLayout: defaultLayout.calculatePreviewLayout,
   fitVideoPreview: defaultLayout.fitVideoPreview,
   clampPreviewAspect: defaultLayout.clampPreviewAspect,

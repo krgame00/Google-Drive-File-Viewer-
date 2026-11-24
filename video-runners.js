@@ -5,6 +5,7 @@
 //   - createVideoBlobRunner (whole-file blob download, parallel chunks, OPFS)
 //   - createVideoSourceRunner (video src setter, canplay/error listeners, timeout)
 
+(function () {
 const TIMEOUTS = Object.freeze({
   cacheRaceMs: 350,
   bufferingMs: 2000,
@@ -544,7 +545,7 @@ function createVideoSourceRunner(deps, fallbacks) {
         };
       }
 
-const runners = {
+const videoRunners = {
   TIMEOUTS,
   WORKER_URL,
   EXPECTED_WORKER_REV,
@@ -554,9 +555,10 @@ const runners = {
 };
 
 if (typeof window !== 'undefined') {
-  window.GDVVideoRunners = runners;
+  window.GDVVideoRunners = videoRunners;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = runners;
+  module.exports = videoRunners;
 }
+})();
